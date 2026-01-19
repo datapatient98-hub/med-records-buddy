@@ -16,11 +16,11 @@ interface DashboardCardProps {
 }
 
 const colorClasses = {
-  cyan: "from-cyan/80 to-cyan",
-  pink: "from-pink/80 to-pink",
-  green: "from-green/80 to-green",
-  purple: "from-purple/80 to-purple",
-  orange: "from-orange/80 to-orange",
+  cyan: "from-cyan/70 to-cyan",
+  pink: "from-pink/70 to-pink",
+  green: "from-green/70 to-green",
+  purple: "from-purple/70 to-purple",
+  orange: "from-orange/70 to-orange",
 };
 
 export default function DashboardCard({

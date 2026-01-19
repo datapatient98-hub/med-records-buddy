@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Layout from "@/components/Layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Save, ArrowRight } from "lucide-react";
+import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban } from "lucide-react";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().min(1, "تاريخ الخروج مطلوب"),
@@ -69,6 +70,35 @@ export default function Discharge() {
     queryFn: async () => {
       const { data } = await supabase.from("governorates").select("*").order("name");
       return data || [];
+    },
+  });
+
+  // Top stats (discharge status)
+  const dischargeStatuses = useMemo(
+    () => [
+      { key: "تحسن" as const, label: "تحسن", icon: TrendingUp },
+      { key: "تحويل" as const, label: "تحويل", icon: Shuffle },
+      { key: "وفاة" as const, label: "وفاة", icon: Skull },
+      { key: "هروب" as const, label: "هروب", icon: UserMinus },
+      { key: "رفض العلاج" as const, label: "حسب الطلب", icon: Ban },
+    ],
+    []
+  );
+
+  const { data: dischargeCounts } = useQuery({
+    queryKey: ["discharges-counts"],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        dischargeStatuses.map(async (s) => {
+          const { count, error } = await supabase
+            .from("discharges")
+            .select("id", { count: "exact", head: true })
+            .eq("discharge_status", s.key);
+          if (error) throw error;
+          return [s.key, count ?? 0] as const;
+        })
+      );
+      return Object.fromEntries(entries) as Record<(typeof dischargeStatuses)[number]["key"], number>;
     },
   });
 
@@ -159,34 +189,55 @@ export default function Discharge() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
-        <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
-      </div>
+    <Layout>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
+          <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
+        </div>
 
-      {/* Search Section */}
-      <Card className="shadow-lg border-border">
-        <CardHeader>
-          <CardTitle>بحث عن المريض</CardTitle>
-          <CardDescription>أدخل الرقم الموحد للمريض</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <Input
-              placeholder="الرقم الموحد"
-              value={unifiedNumber}
-              onChange={(e) => setUnifiedNumber(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-              className="flex-1"
-            />
-            <Button onClick={handleSearch}>
-              <Search className="ml-2 h-4 w-4" />
-              بحث
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Top stats */}
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+          {dischargeStatuses.map((s) => {
+            const Icon = s.icon;
+            return (
+              <Card key={s.key} className="bg-card/50 backdrop-blur">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                      <p className="text-2xl font-bold text-foreground">{dischargeCounts?.[s.key] ?? 0}</p>
+                    </div>
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Search Section */}
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle>بحث عن المريض</CardTitle>
+            <CardDescription>أدخل الرقم الموحد للمريض</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-2">
+              <Input
+                placeholder="الرقم الموحد"
+                value={unifiedNumber}
+                onChange={(e) => setUnifiedNumber(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                className="flex-1"
+              />
+              <Button onClick={handleSearch}>
+                <Search className="ml-2 h-4 w-4" />
+                بحث
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Admission Details */}
       {selectedAdmission && !showDischargeForm && (
@@ -429,6 +480,7 @@ export default function Discharge() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }

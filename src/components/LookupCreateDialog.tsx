@@ -1,0 +1,83 @@
+import { useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+
+export type LookupCreateType = "department" | "diagnosis" | "doctor" | "governorate";
+
+const typeMeta: Record<LookupCreateType, { table: string; title: string; placeholder: string; queryKey: string }>= {
+  department: { table: "departments", title: "إضافة قسم", placeholder: "اسم القسم", queryKey: "departments" },
+  diagnosis: { table: "diagnoses", title: "إضافة تشخيص", placeholder: "اسم التشخيص", queryKey: "diagnoses" },
+  doctor: { table: "doctors", title: "إضافة طبيب", placeholder: "اسم الطبيب", queryKey: "doctors" },
+  governorate: { table: "governorates", title: "إضافة محافظة", placeholder: "اسم المحافظة", queryKey: "governorates" },
+};
+
+interface LookupCreateDialogProps {
+  open: boolean;
+  type: LookupCreateType;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function LookupCreateDialog({ open, type, onOpenChange }: LookupCreateDialogProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const meta = useMemo(() => typeMeta[type], [type]);
+
+  const handleClose = () => {
+    setName("");
+    onOpenChange(false);
+  };
+
+  const handleSave = async () => {
+    const clean = name.trim();
+    if (!clean) {
+      toast({ title: "خطأ", description: "من فضلك اكتب الاسم أولاً", variant: "destructive" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.from(meta.table as any).insert([{ name: clean }]);
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: [meta.queryKey] });
+      toast({ title: "تمت الإضافة", description: `تم إضافة: ${clean}` });
+      handleClose();
+    } catch (e: any) {
+      toast({ title: "تعذر الحفظ", description: e?.message ?? "حدث خطأ غير متوقع", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : handleClose())}>
+      <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>{meta.title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-foreground">الاسم</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={meta.placeholder} />
+          <p className="text-xs text-muted-foreground">بعد الحفظ سيتم تحديث القائمة تلقائياً.</p>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
+            إلغاء
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={saving}>
+            {saving ? "جاري الحفظ..." : "حفظ"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
