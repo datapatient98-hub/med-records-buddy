@@ -14,9 +14,9 @@ export default function Reports() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [recordType, setRecordType] = useState("all");
-  const [departmentFilter, setDepartmentFilter] = useState("");
-  const [diagnosisFilter, setDiagnosisFilter] = useState("");
-  const [doctorFilter, setDoctorFilter] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [diagnosisFilter, setDiagnosisFilter] = useState("all");
+  const [doctorFilter, setDoctorFilter] = useState("all");
 
   // Fetch departments
   const { data: departments } = useQuery({
@@ -72,9 +72,9 @@ export default function Reports() {
 
         if (startDate) query = query.gte("created_at", startDate);
         if (endDate) query = query.lte("created_at", endDate);
-        if (departmentFilter) query = query.eq("department_id", departmentFilter);
-        if (diagnosisFilter) query = query.eq("diagnosis_id", diagnosisFilter);
-        if (doctorFilter) query = query.eq("doctor_id", doctorFilter);
+        if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
+        if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
+        if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -94,9 +94,9 @@ export default function Reports() {
 
         if (startDate) query = query.gte("created_at", startDate);
         if (endDate) query = query.lte("created_at", endDate);
-        if (departmentFilter) query = query.eq("discharge_department_id", departmentFilter);
-        if (diagnosisFilter) query = query.eq("discharge_diagnosis_id", diagnosisFilter);
-        if (doctorFilter) query = query.eq("discharge_doctor_id", doctorFilter);
+        if (departmentFilter !== "all") query = query.eq("discharge_department_id", departmentFilter);
+        if (diagnosisFilter !== "all") query = query.eq("discharge_diagnosis_id", diagnosisFilter);
+        if (doctorFilter !== "all") query = query.eq("discharge_doctor_id", doctorFilter);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -115,9 +115,9 @@ export default function Reports() {
 
         if (startDate) query = query.gte("created_at", startDate);
         if (endDate) query = query.lte("created_at", endDate);
-        if (departmentFilter) query = query.eq("department_id", departmentFilter);
-        if (diagnosisFilter) query = query.eq("diagnosis_id", diagnosisFilter);
-        if (doctorFilter) query = query.eq("doctor_id", doctorFilter);
+        if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
+        if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
+        if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -136,9 +136,9 @@ export default function Reports() {
 
         if (startDate) query = query.gte("created_at", startDate);
         if (endDate) query = query.lte("created_at", endDate);
-        if (departmentFilter) query = query.eq("department_id", departmentFilter);
-        if (diagnosisFilter) query = query.eq("diagnosis_id", diagnosisFilter);
-        if (doctorFilter) query = query.eq("doctor_id", doctorFilter);
+        if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
+        if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
+        if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -157,9 +157,9 @@ export default function Reports() {
 
         if (startDate) query = query.gte("created_at", startDate);
         if (endDate) query = query.lte("created_at", endDate);
-        if (departmentFilter) query = query.eq("department_id", departmentFilter);
-        if (diagnosisFilter) query = query.eq("diagnosis_id", diagnosisFilter);
-        if (doctorFilter) query = query.eq("doctor_id", doctorFilter);
+        if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
+        if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
+        if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
 
         const { data, error } = await query;
         if (error) throw error;
@@ -307,7 +307,7 @@ export default function Reports() {
                 <SelectValue placeholder="الكل" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">الكل</SelectItem>
+                <SelectItem value="all">الكل</SelectItem>
                 {departments?.map((dept) => (
                   <SelectItem key={dept.id} value={dept.id}>
                     {dept.name}
@@ -324,7 +324,7 @@ export default function Reports() {
                 <SelectValue placeholder="الكل" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">الكل</SelectItem>
+                <SelectItem value="all">الكل</SelectItem>
                 {diagnoses?.map((diag) => (
                   <SelectItem key={diag.id} value={diag.id}>
                     {diag.name}
@@ -341,7 +341,7 @@ export default function Reports() {
                 <SelectValue placeholder="الكل" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">الكل</SelectItem>
+                <SelectItem value="all">الكل</SelectItem>
                 {doctors?.map((doc) => (
                   <SelectItem key={doc.id} value={doc.id}>
                     {doc.name}
