@@ -1,0 +1,434 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { Search, Save, ArrowRight } from "lucide-react";
+
+const dischargeSchema = z.object({
+  discharge_date: z.string().min(1, "تاريخ الخروج مطلوب"),
+  discharge_department_id: z.string().optional(),
+  discharge_diagnosis_id: z.string().optional(),
+  discharge_doctor_id: z.string().optional(),
+  discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]),
+  finance_source: z.enum(["تأمين صحي", "علاج على نفقة الدولة", "خاص"]).optional(),
+  child_national_id: z.string().optional(),
+});
+
+type DischargeFormValues = z.infer<typeof dischargeSchema>;
+
+export default function Discharge() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [unifiedNumber, setUnifiedNumber] = useState("");
+  const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
+  const [showDischargeForm, setShowDischargeForm] = useState(false);
+
+  const form = useForm<DischargeFormValues>({
+    resolver: zodResolver(dischargeSchema),
+    defaultValues: {
+      discharge_date: new Date().toISOString().slice(0, 16),
+      discharge_status: "تحسن",
+    },
+  });
+
+  // Fetch lookup data
+  const { data: departments } = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: doctors } = useQuery({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      const { data } = await supabase.from("doctors").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: diagnoses } = useQuery({
+    queryKey: ["diagnoses"],
+    queryFn: async () => {
+      const { data } = await supabase.from("diagnoses").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: governorates } = useQuery({
+    queryKey: ["governorates"],
+    queryFn: async () => {
+      const { data } = await supabase.from("governorates").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const handleSearch = async () => {
+    if (!unifiedNumber.trim()) {
+      toast({
+        title: "خطأ",
+        description: "الرجاء إدخال الرقم الموحد",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("admissions")
+      .select("*, departments(name), doctors(name), diagnoses(name), governorates(name)")
+      .eq("unified_number", unifiedNumber)
+      .eq("admission_status", "محجوز")
+      .single();
+
+    if (error || !data) {
+      toast({
+        title: "لم يتم العثور على المريض",
+        description: "تأكد من الرقم الموحد أو أن المريض مازال محجوزاً",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedAdmission(data);
+    setShowDischargeForm(false);
+  };
+
+  const mutation = useMutation({
+    mutationFn: async (values: DischargeFormValues) => {
+      if (!selectedAdmission) return;
+
+      // Insert discharge record
+      const { error: dischargeError } = await supabase
+        .from("discharges")
+        .insert([{
+          admission_id: selectedAdmission.id,
+          discharge_date: values.discharge_date,
+          discharge_department_id: values.discharge_department_id || null,
+          discharge_diagnosis_id: values.discharge_diagnosis_id || null,
+          discharge_doctor_id: values.discharge_doctor_id || null,
+          discharge_status: values.discharge_status as any,
+          finance_source: values.finance_source as any || null,
+          child_national_id: values.child_national_id || null,
+        }]);
+
+      if (dischargeError) throw dischargeError;
+
+      // Update admission status
+      const { error: updateError } = await supabase
+        .from("admissions")
+        .update({ admission_status: "خروج" as any })
+        .eq("id", selectedAdmission.id);
+
+      if (updateError) throw updateError;
+
+      return selectedAdmission;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      queryClient.invalidateQueries({ queryKey: ["discharges"] });
+      toast({
+        title: "تم الحفظ بنجاح",
+        description: `تم تسجيل خروج المريض ${data.patient_name} برقم داخلي ${data.internal_number}`,
+      });
+      // Reset form
+      setSelectedAdmission(null);
+      setUnifiedNumber("");
+      setShowDischargeForm(false);
+      form.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ في الحفظ",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: DischargeFormValues) => {
+    mutation.mutate(data);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
+        <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
+      </div>
+
+      {/* Search Section */}
+      <Card className="shadow-lg border-border">
+        <CardHeader>
+          <CardTitle>بحث عن المريض</CardTitle>
+          <CardDescription>أدخل الرقم الموحد للمريض</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              placeholder="الرقم الموحد"
+              value={unifiedNumber}
+              onChange={(e) => setUnifiedNumber(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+              className="flex-1"
+            />
+            <Button onClick={handleSearch}>
+              <Search className="ml-2 h-4 w-4" />
+              بحث
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Admission Details */}
+      {selectedAdmission && !showDischargeForm && (
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle>بيانات الدخول - للمراجعة والتعديل</CardTitle>
+            <CardDescription>يمكنك مراجعة البيانات قبل المتابعة لتسجيل الخروج</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الرقم الموحد</p>
+                <p className="font-semibold">{selectedAdmission.unified_number}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الرقم الداخلي</p>
+                <p className="font-semibold">{selectedAdmission.internal_number}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">اسم المريض</p>
+                <p className="font-semibold">{selectedAdmission.patient_name}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الرقم القومي</p>
+                <p className="font-semibold">{selectedAdmission.national_id}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">النوع</p>
+                <p className="font-semibold">{selectedAdmission.gender}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">السن</p>
+                <p className="font-semibold">{selectedAdmission.age}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">القسم</p>
+                <p className="font-semibold">{selectedAdmission.departments?.name || "-"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">تاريخ الحجز</p>
+                <p className="font-semibold">
+                  {new Date(selectedAdmission.admission_date).toLocaleString("ar-EG")}
+                </p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">التشخيص</p>
+                <p className="font-semibold">{selectedAdmission.diagnoses?.name || "-"}</p>
+              </div>
+            </div>
+
+            <Button onClick={() => setShowDischargeForm(true)} className="w-full">
+              <ArrowRight className="ml-2 h-4 w-4" />
+              المتابعة لتسجيل بيانات الخروج
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Discharge Form */}
+      {selectedAdmission && showDischargeForm && (
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle>بيانات الخروج</CardTitle>
+            <CardDescription>يرجى ملء بيانات الخروج</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="discharge_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>تاريخ وساعة الخروج *</FormLabel>
+                        <FormControl>
+                          <Input type="datetime-local" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="discharge_status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>حالة الخروج *</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر حالة الخروج" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="تحسن">تحسن</SelectItem>
+                            <SelectItem value="تحويل">تحويل</SelectItem>
+                            <SelectItem value="وفاة">وفاة</SelectItem>
+                            <SelectItem value="هروب">هروب</SelectItem>
+                            <SelectItem value="رفض العلاج">رفض العلاج</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="discharge_department_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>قسم الخروج</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر القسم" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {departments?.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.id}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="discharge_diagnosis_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>تشخيص الخروج</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر التشخيص" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {diagnoses?.map((diag) => (
+                              <SelectItem key={diag.id} value={diag.id}>
+                                {diag.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="discharge_doctor_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>طبيب الخروج</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر الطبيب" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {doctors?.map((doc) => (
+                              <SelectItem key={doc.id} value={doc.id}>
+                                {doc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="finance_source"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الوعاء المالي</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر الوعاء المالي" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="تأمين صحي">تأمين صحي</SelectItem>
+                            <SelectItem value="علاج على نفقة الدولة">علاج على نفقة الدولة</SelectItem>
+                            <SelectItem value="خاص">خاص</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="child_national_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الرقم القومي للطفل (إن وجد)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="14 رقم" maxLength={14} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setShowDischargeForm(false);
+                      form.reset();
+                    }}
+                  >
+                    رجوع
+                  </Button>
+                  <Button type="submit" disabled={mutation.isPending}>
+                    <Save className="ml-2 h-4 w-4" />
+                    {mutation.isPending ? "جاري الحفظ..." : "حفظ بيانات الخروج"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

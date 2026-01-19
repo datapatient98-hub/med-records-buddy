@@ -1,6 +1,8 @@
-import { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { ReactNode, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   UserPlus,
@@ -12,19 +14,27 @@ import {
   Users,
   FileText,
   Database,
+  Search,
+  Home,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 const navigation = [
-  { name: "لوحة التحكم", href: "/", icon: LayoutDashboard },
-  { name: "تسجيل دخول", href: "/admission", icon: UserPlus },
-  { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
-  { name: "المناظير", href: "/endoscopy", icon: Microscope },
-  { name: "الطوارئ", href: "/emergency", icon: AlertTriangle },
-  { name: "البذل", href: "/procedures", icon: Syringe },
+  { name: "لوحة التحكم", href: "/", icon: Home },
+  { name: "إدارة المرضى", href: "/patients-menu", icon: Users, submenu: [
+    { name: "تسجيل دخول", href: "/admission", icon: UserPlus },
+    { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
+    { name: "المناظير", href: "/endoscopy", icon: Microscope },
+    { name: "الطوارئ", href: "/emergency", icon: AlertTriangle },
+    { name: "البذل", href: "/procedures", icon: Syringe },
+  ]},
   { name: "الاستعارات", href: "/loans", icon: FileArchive },
   { name: "سجل المرضى", href: "/patients", icon: Users },
   { name: "التقارير", href: "/reports", icon: FileText },
@@ -32,54 +42,103 @@ const navigation = [
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDark, setIsDark] = useState(true);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    // Search by unified number or name
+    const { data } = await supabase
+      .from("admissions")
+      .select("*")
+      .or(`unified_number.ilike.%${searchQuery}%,patient_name.ilike.%${searchQuery}%`)
+      .limit(1)
+      .single();
+
+    if (data) {
+      navigate(`/patient/${data.id}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
-      {/* Header with Excel Connection Status */}
-      <header className="sticky top-0 z-50 border-b border-border bg-card shadow-medical">
-        <div className="flex h-16 items-center justify-between px-6">
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="container flex h-16 items-center justify-between px-6">
+          {/* Logo and Title */}
           <div className="flex items-center gap-3">
-            <Database className="h-8 w-8 text-primary" />
+            <Database className="h-7 w-7 text-primary" />
             <div>
-              <h1 className="text-xl font-bold text-foreground">نظام السجلات الطبية</h1>
-              <p className="text-xs text-muted-foreground">إدارة السجلات الطبية المتكاملة</p>
+              <h1 className="text-lg font-bold text-foreground">نظام السجلات الطبية</h1>
+              <p className="text-xs text-muted-foreground hidden sm:block">
+                مستشفى حميات دمنهور شعار
+              </p>
             </div>
           </div>
-          <ExcelConnectionIndicator />
+
+          {/* Search Bar */}
+          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 hidden md:flex">
+            <div className="relative w-full">
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="بحث بالرقم الموحد أو الاسم..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pr-10 bg-secondary/50 border-border"
+              />
+            </div>
+          </form>
+
+          {/* Right Side - Excel Status & Theme Toggle */}
+          <div className="flex items-center gap-4">
+            <ExcelConnectionIndicator />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsDark(!isDark)}
+              className="hidden sm:flex"
+            >
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Navigation Links */}
+        <div className="border-t border-border bg-card">
+          <nav className="container px-6">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all whitespace-nowrap border-b-2",
+                      isActive
+                        ? "border-primary text-primary bg-primary/10"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-accent"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
         </div>
       </header>
 
-      <div className="flex">
-        {/* Sidebar Navigation */}
-        <aside className="sticky top-16 h-[calc(100vh-4rem)] w-64 border-l border-border bg-card shadow-medical">
-          <nav className="space-y-1 p-4">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-medical"
-                      : "text-foreground hover:bg-accent hover:text-accent-foreground"
-                  )}
-                >
-                  <Icon className="h-5 w-5" />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 p-6">
-          {children}
-        </main>
-      </div>
+      {/* Main Content */}
+      <main className="container px-6 py-6">
+        {children}
+      </main>
     </div>
   );
 }
@@ -89,15 +148,15 @@ function ExcelConnectionIndicator() {
   const isConnected = true;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-secondary/50">
       <div
         className={cn(
-          "h-3 w-3 rounded-full",
+          "h-2.5 w-2.5 rounded-full animate-pulse",
           isConnected ? "bg-excel-connected" : "bg-excel-disconnected"
         )}
       />
-      <span className="text-sm font-medium text-muted-foreground">
-        {isConnected ? "متصل بقاعدة البيانات" : "غير متصل"}
+      <span className="text-xs font-medium text-muted-foreground hidden sm:inline">
+        {isConnected ? "متصل" : "غير متصل"}
       </span>
     </div>
   );
