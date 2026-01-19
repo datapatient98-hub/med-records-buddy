@@ -159,86 +159,65 @@ export default function Loans() {
           </div>
         </div>
 
-        {/* Tabs + List */}
+        {/* Tabs (Top) */}
         <Card className="shadow-lg border-border">
-          <CardHeader className="sticky top-28 z-40 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 border-b border-border">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileArchive className="h-5 w-5" />
-                  متابعة الاستعارات
-                </CardTitle>
-                <CardDescription>عرض الحالات: مستعارة / مرجعة / الكل</CardDescription>
-              </div>
-            </div>
+          <CardHeader className="sticky top-28 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LoanTab)}>
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-xl border border-border bg-muted/30 p-2 md:grid-cols-3">
+                <TabsTrigger
+                  value="borrowed"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">حالات تم استعارتها</p>
+                        <p className="text-3xl font-bold text-foreground">{borrowedLoans.length}</p>
+                        <p className="text-xs text-muted-foreground">ملفات لم تُرجع بعد</p>
+                      </div>
+                    </div>
+                  </div>
+                </TabsTrigger>
 
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LoanTab)} className="mt-4">
-              <TabsList className="w-full justify-start bg-muted/50">
-                <TabsTrigger value="borrowed" className="gap-2">
-                  مستعارة
-                  <span className="text-xs text-muted-foreground">({borrowedLoans.length})</span>
+                <TabsTrigger
+                  value="returned"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">حالات تم رجعوها</p>
+                        <p className="text-3xl font-bold text-foreground">{returnedLoans.length}</p>
+                        <p className="text-xs text-muted-foreground">ملفات أُعيدت</p>
+                      </div>
+                    </div>
+                  </div>
                 </TabsTrigger>
-                <TabsTrigger value="returned" className="gap-2">
-                  مرجعة
-                  <span className="text-xs text-muted-foreground">({returnedLoans.length})</span>
-                </TabsTrigger>
-                <TabsTrigger value="all" className="gap-2">
-                  الكل
-                  <span className="text-xs text-muted-foreground">({(loans || []).length})</span>
+
+                <TabsTrigger
+                  value="all"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-foreground">عدد الحالات كلها</p>
+                        <p className="text-3xl font-bold text-foreground">{(loans || []).length}</p>
+                        <p className="text-xs text-muted-foreground">الإجمالي</p>
+                      </div>
+                    </div>
+                  </div>
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="borrowed" className="mt-4" />
-              <TabsContent value="returned" className="mt-4" />
-              <TabsContent value="all" className="mt-4" />
+              <TabsContent value="borrowed" className="hidden" />
+              <TabsContent value="returned" className="hidden" />
+              <TabsContent value="all" className="hidden" />
             </Tabs>
           </CardHeader>
-
-          <CardContent className="pt-6">
-            {(activeTab === "borrowed" && borrowedLoans.length > 0) && (
-              <div className="mb-4 rounded-lg border border-border bg-muted/30 p-4">
-                <p className="text-sm text-foreground">
-                  تنبيه: يوجد <span className="font-semibold">{borrowedLoans.length}</span> ملف مستعار لم يتم إرجاعه.
-                </p>
-              </div>
-            )}
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">المريض</TableHead>
-                  <TableHead className="text-right">الرقم الموحد</TableHead>
-                  <TableHead className="text-right">القسم</TableHead>
-                  <TableHead className="text-right">المستعير</TableHead>
-                  <TableHead className="text-right">تاريخ الاستعارة</TableHead>
-                  <TableHead className="text-right">تاريخ الإرجاع</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loansForTab.length === 0 ? (
-                  <TableRow>
-                    <TableCell className="text-right text-muted-foreground" colSpan={6}>
-                      لا توجد بيانات.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  loansForTab.map((loan) => (
-                    <TableRow key={loan.id}>
-                      <TableCell className="text-right font-medium">{loan.admissions?.patient_name ?? "—"}</TableCell>
-                      <TableCell className="text-right">{loan.unified_number}</TableCell>
-                      <TableCell className="text-right">{loan.borrowed_to_department}</TableCell>
-                      <TableCell className="text-right">{loan.borrowed_by}</TableCell>
-                      <TableCell className="text-right">{formatDateTime(loan.loan_date)}</TableCell>
-                      <TableCell className="text-right">{formatDateTime(loan.return_date)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
         </Card>
 
-        {/* New loan */}
+        {/* Registration (under tabs) */}
         <Card className="shadow-lg border-border">
           <CardHeader>
             <CardTitle>تسجيل استعارة جديدة</CardTitle>
@@ -347,6 +326,59 @@ export default function Loans() {
                 </form>
               </Form>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Tracking (under registration) */}
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileArchive className="h-5 w-5" />
+              متابعة الاستعارات
+            </CardTitle>
+            <CardDescription>حسب التاب المختار بالأعلى</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {activeTab === "borrowed" && borrowedLoans.length > 0 && (
+              <div className="mb-4 rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm text-foreground">
+                  تنبيه: يوجد <span className="font-semibold">{borrowedLoans.length}</span> ملف مستعار لم يتم إرجاعه.
+                </p>
+              </div>
+            )}
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right">المريض</TableHead>
+                  <TableHead className="text-right">الرقم الموحد</TableHead>
+                  <TableHead className="text-right">القسم</TableHead>
+                  <TableHead className="text-right">المستعير</TableHead>
+                  <TableHead className="text-right">تاريخ الاستعارة</TableHead>
+                  <TableHead className="text-right">تاريخ الإرجاع</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loansForTab.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="text-right text-muted-foreground" colSpan={6}>
+                      لا توجد بيانات.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  loansForTab.map((loan) => (
+                    <TableRow key={loan.id}>
+                      <TableCell className="text-right font-medium">{loan.admissions?.patient_name ?? "—"}</TableCell>
+                      <TableCell className="text-right">{loan.unified_number}</TableCell>
+                      <TableCell className="text-right">{loan.borrowed_to_department}</TableCell>
+                      <TableCell className="text-right">{loan.borrowed_by}</TableCell>
+                      <TableCell className="text-right">{formatDateTime(loan.loan_date)}</TableCell>
+                      <TableCell className="text-right">{formatDateTime(loan.return_date)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
