@@ -8,143 +8,96 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Medical System Theme - Professional & Trustworthy */
-    --background: 210 25% 98%;
-    --foreground: 215 25% 15%;
+    /* Dark Professional Medical Theme */
+    --background: 222 20% 8%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card: 222 20% 12%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover: 222 20% 10%;
+    --popover-foreground: 210 20% 92%;
 
-    /* Medical Blue - Primary brand color */
-    --primary: 210 85% 48%;
+    /* Vibrant Blue - Primary brand color */
+    --primary: 200 95% 55%;
     --primary-foreground: 0 0% 100%;
-    --primary-hover: 210 85% 42%;
+    --primary-hover: 200 95% 48%;
     
-    /* Success Green - For positive actions */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    /* Cyan for info cards */
+    --cyan: 188 85% 55%;
+    --cyan-foreground: 0 0% 100%;
     
-    /* Warning Orange - For alerts */
-    --warning: 35 91% 55%;
-    --warning-foreground: 0 0% 100%;
+    /* Pink for special highlights */
+    --pink: 330 85% 60%;
+    --pink-foreground: 0 0% 100%;
+    
+    /* Green for success */
+    --green: 142 76% 45%;
+    --green-foreground: 0 0% 100%;
+    
+    /* Purple for totals */
+    --purple: 265 85% 62%;
+    --purple-foreground: 0 0% 100%;
 
-    /* Secondary Gray-Blue */
-    --secondary: 215 25% 92%;
-    --secondary-foreground: 215 25% 20%;
+    /* Orange for warnings */
+    --orange: 35 91% 60%;
+    --orange-foreground: 0 0% 100%;
 
-    --muted: 215 20% 94%;
-    --muted-foreground: 215 15% 45%;
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 210 20% 92%;
 
-    --accent: 210 100% 96%;
-    --accent-foreground: 210 85% 48%;
+    --muted: 222 20% 16%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 222 20% 20%;
+    --accent-foreground: 200 95% 55%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 88%;
-    --input: 215 20% 92%;
-    --ring: 210 85% 48%;
+    --border: 222 20% 22%;
+    --input: 222 20% 18%;
+    --ring: 200 95% 55%;
 
     --radius: 0.75rem;
 
     /* Chart colors for dashboard */
-    --chart-1: 210 85% 48%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 35 91% 55%;
-    --chart-4: 280 65% 55%;
-    --chart-5: 340 82% 52%;
+    --chart-1: 200 95% 55%;
+    --chart-2: 142 76% 45%;
+    --chart-3: 35 91% 60%;
+    --chart-4: 265 85% 62%;
+    --chart-5: 330 85% 60%;
 
     /* Status indicators */
-    --status-active: 142 76% 36%;
-    --status-pending: 35 91% 55%;
-    --status-discharged: 210 85% 48%;
+    --status-active: 142 76% 45%;
+    --status-pending: 35 91% 60%;
+    --status-discharged: 200 95% 55%;
     --status-deceased: 0 84% 60%;
 
     /* Excel connection indicator */
-    --excel-connected: 142 76% 36%;
+    --excel-connected: 142 76% 45%;
     --excel-disconnected: 0 84% 60%;
 
     /* Sidebar */
-    --sidebar-background: 215 30% 16%;
-    --sidebar-foreground: 215 15% 90%;
-    --sidebar-primary: 210 85% 48%;
+    --sidebar-background: 222 22% 6%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 200 95% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 30% 22%;
-    --sidebar-accent-foreground: 215 15% 90%;
-    --sidebar-border: 215 30% 20%;
-    --sidebar-ring: 210 85% 48%;
+    --sidebar-accent: 222 22% 10%;
+    --sidebar-accent-foreground: 210 15% 85%;
+    --sidebar-border: 222 22% 12%;
+    --sidebar-ring: 200 95% 55%;
 
     /* Shadows for depth */
-    --shadow-sm: 0 1px 2px 0 hsl(215 25% 15% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(215 25% 15% / 0.1), 0 2px 4px -1px hsl(215 25% 15% / 0.06);
-    --shadow-lg: 0 10px 15px -3px hsl(215 25% 15% / 0.1), 0 4px 6px -2px hsl(215 25% 15% / 0.05);
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.5);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.6), 0 2px 4px -1px hsl(0 0% 0% / 0.4);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.7), 0 4px 6px -2px hsl(0 0% 0% / 0.5);
   }
 
   .dark {
-    --background: 215 30% 12%;
-    --foreground: 215 15% 92%;
-
-    --card: 215 30% 16%;
-    --card-foreground: 215 15% 92%;
-
-    --popover: 215 30% 16%;
-    --popover-foreground: 215 15% 92%;
-
-    --primary: 210 85% 52%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 210 85% 46%;
-
-    --success: 142 76% 42%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 35 91% 60%;
-    --warning-foreground: 0 0% 100%;
-
-    --secondary: 215 30% 20%;
-    --secondary-foreground: 215 15% 92%;
-
-    --muted: 215 30% 18%;
-    --muted-foreground: 215 15% 65%;
-
-    --accent: 215 30% 22%;
-    --accent-foreground: 210 85% 52%;
-
-    --destructive: 0 84% 65%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 215 30% 22%;
-    --input: 215 30% 20%;
-    --ring: 210 85% 52%;
-
-    --chart-1: 210 85% 52%;
-    --chart-2: 142 76% 42%;
-    --chart-3: 35 91% 60%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 82% 57%;
-
-    --status-active: 142 76% 42%;
-    --status-pending: 35 91% 60%;
-    --status-discharged: 210 85% 52%;
-    --status-deceased: 0 84% 65%;
-
-    --excel-connected: 142 76% 42%;
-    --excel-disconnected: 0 84% 65%;
-
-    --sidebar-background: 215 35% 10%;
-    --sidebar-foreground: 215 15% 90%;
-    --sidebar-primary: 210 85% 52%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 35% 16%;
-    --sidebar-accent-foreground: 215 15% 90%;
-    --sidebar-border: 215 35% 14%;
-    --sidebar-ring: 210 85% 52%;
-
-    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
-    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -1px hsl(0 0% 0% / 0.3);
-    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -2px hsl(0 0% 0% / 0.4);
+    /* Same as root - we're going dark by default */
+    --background: 222 20% 8%;
+    --foreground: 210 20% 92%;
   }
 }
 
