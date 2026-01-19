@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Layout from "@/components/Layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,7 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Save, FileUp } from "lucide-react";
+import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
+import { Plus, Save, FileUp, Users, LogOut } from "lucide-react";
 
 const admissionSchema = z.object({
   unified_number: z.string().min(1, "الرقم الموحد مطلوب"),
@@ -37,7 +39,7 @@ type AdmissionFormValues = z.infer<typeof admissionSchema>;
 export default function Admission() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showNewItemDialog, setShowNewItemDialog] = useState<string | null>(null);
+  const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
 
   const form = useForm<AdmissionFormValues>({
     resolver: zodResolver(admissionSchema),
@@ -77,6 +79,31 @@ export default function Admission() {
     queryFn: async () => {
       const { data } = await supabase.from("diagnoses").select("*").order("name");
       return data || [];
+    },
+  });
+
+  // Top stats
+  const { data: activeCount } = useQuery({
+    queryKey: ["admissions-count", "active"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("admissions")
+        .select("id", { count: "exact", head: true })
+        .eq("admission_status", "محجوز");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: dischargedCount } = useQuery({
+    queryKey: ["admissions-count", "discharged"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("admissions")
+        .select("id", { count: "exact", head: true })
+        .eq("admission_status", "خروج");
+      if (error) throw error;
+      return count ?? 0;
     },
   });
 
@@ -131,313 +158,374 @@ export default function Admission() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">تسجيل دخول مريض</h2>
-          <p className="text-muted-foreground">إضافة حالة جديدة للنظام</p>
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">تسجيل دخول مريض</h2>
+            <p className="text-muted-foreground">إضافة حالة جديدة للنظام</p>
+          </div>
+          <Button variant="outline">
+            <FileUp className="ml-2 h-4 w-4" />
+            استيراد من Excel
+          </Button>
         </div>
-        <Button variant="outline">
-          <FileUp className="ml-2 h-4 w-4" />
-          استيراد من Excel
-        </Button>
+
+        {/* Top stats */}
+        <div className="grid gap-3 md:grid-cols-2">
+          <Card className="bg-card/50 backdrop-blur">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">عدد المحجوزين</p>
+                  <p className="text-2xl font-bold text-foreground">{activeCount ?? 0}</p>
+                </div>
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/50 backdrop-blur">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">إجمالي حالات الخروج</p>
+                  <p className="text-2xl font-bold text-foreground">{dischargedCount ?? 0}</p>
+                </div>
+                <LogOut className="h-6 w-6 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="shadow-medical">
+          <CardHeader>
+            <CardTitle>بيانات المريض</CardTitle>
+            <CardDescription>
+              يرجى ملء جميع البيانات المطلوبة بدقة. الحقول المميزة بـ * إلزامية
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="unified_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الرقم الموحد *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="أدخل الرقم الموحد" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="patient_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>اسم المريض (رباعي) *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="الاسم الرباعي الكامل" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="national_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الرقم القومي (14 رقم) *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="12345678901234" maxLength={14} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="gender"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>النوع *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر النوع" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ذكر">ذكر</SelectItem>
+                            <SelectItem value="أنثى">أنثى</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="age"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>السن *</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="السن" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>رقم الهاتف (11 رقم) *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="01234567890" maxLength={11} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="marital_status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الحالة الاجتماعية *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر الحالة" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="أعزب">أعزب</SelectItem>
+                            <SelectItem value="متزوج">متزوج</SelectItem>
+                            <SelectItem value="مطلق">مطلق</SelectItem>
+                            <SelectItem value="أرمل">أرمل</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="governorate_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>المحافظة *</FormLabel>
+                        <div className="flex gap-2">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="اختر المحافظة" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {governorates?.map((gov) => (
+                                <SelectItem key={gov.id} value={gov.id}>
+                                  {gov.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setShowNewItemDialog("governorate")}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="department_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>القسم *</FormLabel>
+                        <div className="flex gap-2">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="اختر القسم" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {departments?.map((dept) => (
+                                <SelectItem key={dept.id} value={dept.id}>
+                                  {dept.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setShowNewItemDialog("department")}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="diagnosis_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>التشخيص</FormLabel>
+                        <div className="flex gap-2">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="اختر التشخيص" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {diagnoses?.map((diag) => (
+                                <SelectItem key={diag.id} value={diag.id}>
+                                  {diag.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setShowNewItemDialog("diagnosis")}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="doctor_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>الطبيب</FormLabel>
+                        <div className="flex gap-2">
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="اختر الطبيب" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {doctors?.map((doc) => (
+                                <SelectItem key={doc.id} value={doc.id}>
+                                  {doc.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setShowNewItemDialog("doctor")}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="admission_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>تاريخ وساعة الحجز *</FormLabel>
+                        <FormControl>
+                          <Input type="datetime-local" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="admission_status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>حالة الدخول *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر الحالة" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="محجوز">محجوز</SelectItem>
+                            <SelectItem value="خروج">خروج</SelectItem>
+                            <SelectItem value="متوفى">متوفى</SelectItem>
+                            <SelectItem value="تحويل">تحويل</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => form.reset()}>
+                    إلغاء
+                  </Button>
+                  <Button type="submit" disabled={mutation.isPending}>
+                    <Save className="ml-2 h-4 w-4" />
+                    {mutation.isPending ? "جاري الحفظ..." : "حفظ البيانات"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+
+        {showNewItemDialog && (
+          <LookupCreateDialog
+            open={!!showNewItemDialog}
+            type={showNewItemDialog}
+            onOpenChange={(open) => setShowNewItemDialog(open ? showNewItemDialog : null)}
+          />
+        )}
       </div>
-
-      <Card className="shadow-medical">
-        <CardHeader>
-          <CardTitle>بيانات المريض</CardTitle>
-          <CardDescription>
-            يرجى ملء جميع البيانات المطلوبة بدقة. الحقول المميزة بـ * إلزامية
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="unified_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الرقم الموحد *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="أدخل الرقم الموحد" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="patient_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>اسم المريض (رباعي) *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="الاسم الرباعي الكامل" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="national_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الرقم القومي (14 رقم) *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="12345678901234" maxLength={14} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>النوع *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="اختر النوع" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="ذكر">ذكر</SelectItem>
-                          <SelectItem value="أنثى">أنثى</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="age"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>السن *</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="السن" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>رقم الهاتف (11 رقم) *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="01234567890" maxLength={11} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="marital_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الحالة الاجتماعية *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="اختر الحالة" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="أعزب">أعزب</SelectItem>
-                          <SelectItem value="متزوج">متزوج</SelectItem>
-                          <SelectItem value="مطلق">مطلق</SelectItem>
-                          <SelectItem value="أرمل">أرمل</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="governorate_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>المحافظة *</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="اختر المحافظة" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {governorates?.map((gov) => (
-                              <SelectItem key={gov.id} value={gov.id}>
-                                {gov.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setShowNewItemDialog("governorate")}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="department_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>القسم *</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="اختر القسم" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {departments?.map((dept) => (
-                              <SelectItem key={dept.id} value={dept.id}>
-                                {dept.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setShowNewItemDialog("department")}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="diagnosis_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>التشخيص</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="اختر التشخيص" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {diagnoses?.map((diag) => (
-                              <SelectItem key={diag.id} value={diag.id}>
-                                {diag.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setShowNewItemDialog("diagnosis")}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="doctor_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>الطبيب</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="اختر الطبيب" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {doctors?.map((doc) => (
-                              <SelectItem key={doc.id} value={doc.id}>
-                                {doc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => setShowNewItemDialog("doctor")}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="admission_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>تاريخ وساعة الحجز *</FormLabel>
-                      <FormControl>
-                        <Input type="datetime-local" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => form.reset()}>
-                  إلغاء
-                </Button>
-                <Button type="submit" disabled={mutation.isPending}>
-                  <Save className="ml-2 h-4 w-4" />
-                  {mutation.isPending ? "جاري الحفظ..." : "حفظ البيانات"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+    </Layout>
   );
 }

@@ -40,12 +40,12 @@ import { format, subDays, startOfWeek, startOfMonth, startOfYear } from "date-fn
 import * as XLSX from "xlsx";
 
 const COLORS = {
-  primary: "hsl(200, 95%, 55%)",
-  cyan: "hsl(188, 85%, 55%)",
-  pink: "hsl(330, 85%, 60%)",
-  green: "hsl(142, 76%, 45%)",
-  purple: "hsl(265, 85%, 62%)",
-  orange: "hsl(35, 91%, 60%)",
+  primary: "hsl(var(--chart-1))",
+  cyan: "hsl(var(--chart-1))",
+  pink: "hsl(var(--chart-5))",
+  green: "hsl(var(--chart-2))",
+  purple: "hsl(var(--chart-4))",
+  orange: "hsl(var(--chart-3))",
 };
 
 type PeriodType = "today" | "week" | "month" | "quarter" | "year";

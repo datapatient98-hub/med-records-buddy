@@ -240,9 +240,12 @@ export default function MedicalProcedures() {
         <Card className="shadow-lg border-border">
           <CardHeader>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureType)}>
-              <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-3 bg-transparent">
-                <TabsTrigger value="endoscopy" className="p-0 data-[state=active]:shadow-medical-lg">
-                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+              <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-2 bg-card/50 p-2 rounded-xl border">
+                <TabsTrigger
+                  value="endoscopy"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -250,6 +253,7 @@ export default function MedicalProcedures() {
                           <span className="text-sm font-medium">المناظير</span>
                         </div>
                         <div className="mt-2 text-3xl font-bold">{endoscopySpark?.total ?? 0}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
                       </div>
                       <div className="h-10 w-24">
                         <ResponsiveContainer width="100%" height="100%">
@@ -262,8 +266,11 @@ export default function MedicalProcedures() {
                   </div>
                 </TabsTrigger>
 
-                <TabsTrigger value="emergency" className="p-0 data-[state=active]:shadow-medical-lg">
-                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+                <TabsTrigger
+                  value="emergency"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -271,6 +278,7 @@ export default function MedicalProcedures() {
                           <span className="text-sm font-medium">الطوارئ</span>
                         </div>
                         <div className="mt-2 text-3xl font-bold">{emergencySpark?.total ?? 0}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
                       </div>
                       <div className="h-10 w-24">
                         <ResponsiveContainer width="100%" height="100%">
@@ -283,8 +291,11 @@ export default function MedicalProcedures() {
                   </div>
                 </TabsTrigger>
 
-                <TabsTrigger value="procedure" className="p-0 data-[state=active]:shadow-medical-lg">
-                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+                <TabsTrigger
+                  value="procedure"
+                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
+                >
+                  <div className="w-full rounded-lg bg-card p-4 text-right">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2">
@@ -292,6 +303,7 @@ export default function MedicalProcedures() {
                           <span className="text-sm font-medium">البذل</span>
                         </div>
                         <div className="mt-2 text-3xl font-bold">{procedureSpark?.total ?? 0}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
                       </div>
                       <div className="h-10 w-24">
                         <ResponsiveContainer width="100%" height="100%">
