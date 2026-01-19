@@ -240,7 +240,7 @@ export default function MedicalProcedures() {
         <Card className="shadow-lg border-border">
           <CardHeader className="sticky top-28 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureType)}>
-              <TabsList className="grid w-full grid-cols-1 gap-2 rounded-xl border border-border bg-muted/30 p-2 md:grid-cols-3">
+              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-xl border border-border bg-muted/30 p-2 md:grid-cols-3">
                 <TabsTrigger
                   value="endoscopy"
                   className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
