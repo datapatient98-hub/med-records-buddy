@@ -1,22 +1,25 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import Layout from "@/components/Layout";
 import DashboardCard from "@/components/DashboardCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Calendar,
   TrendingUp,
   FileDown,
+  FileSpreadsheet,
   Activity,
   Users,
   UserCheck,
   UserX,
-  CalendarDays,
   AlertTriangle,
   Microscope,
   Syringe,
   Building2,
+  Skull,
 } from "lucide-react";
 import {
   Bar,
@@ -46,9 +49,13 @@ const COLORS = {
 };
 
 type PeriodType = "today" | "week" | "month" | "quarter" | "year";
+type ExportType = "all" | "admissions" | "discharges" | "emergencies" | "endoscopies" | "procedures";
 
 export default function Dashboard() {
   const [period, setPeriod] = useState<PeriodType>("month");
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [exportType, setExportType] = useState<ExportType>("all");
 
   const getDateRange = () => {
     const now = new Date();
@@ -231,23 +238,104 @@ export default function Dashboard() {
     XLSX.writeFile(wb, `تقرير_${dateRange.label}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">لوحة التحكم</h2>
-          <p className="text-muted-foreground">نظرة شاملة على البيانات - {dateRange.label}</p>
-        </div>
+  // Export function with filters
+  const handleExportWithFilters = async () => {
+    if (!exportStartDate || !exportEndDate) {
+      alert("الرجاء تحديد التاريخ من و إلى");
+      return;
+    }
 
-        <div className="flex gap-2">
-          {[
-            { key: "today", label: "اليوم" },
-            { key: "week", label: "الأسبوع" },
-            { key: "month", label: "الشهر" },
-            { key: "quarter", label: "3 أشهر" },
-            { key: "year", label: "السنة" },
-          ].map((p) => (
+    const results: any = {};
+
+    if (exportType === "all" || exportType === "admissions") {
+      const { data } = await supabase
+        .from("admissions")
+        .select("*")
+        .gte("created_at", exportStartDate)
+        .lte("created_at", exportEndDate);
+      results.admissions = data || [];
+    }
+
+    if (exportType === "all" || exportType === "discharges") {
+      const { data } = await supabase
+        .from("discharges")
+        .select("*, admission:admissions(*)")
+        .gte("created_at", exportStartDate)
+        .lte("created_at", exportEndDate);
+      results.discharges = data || [];
+    }
+
+    if (exportType === "all" || exportType === "emergencies") {
+      const { data } = await supabase
+        .from("emergencies")
+        .select("*")
+        .gte("created_at", exportStartDate)
+        .lte("created_at", exportEndDate);
+      results.emergencies = data || [];
+    }
+
+    if (exportType === "all" || exportType === "endoscopies") {
+      const { data } = await supabase
+        .from("endoscopies")
+        .select("*")
+        .gte("created_at", exportStartDate)
+        .lte("created_at", exportEndDate);
+      results.endoscopies = data || [];
+    }
+
+    if (exportType === "all" || exportType === "procedures") {
+      const { data } = await supabase
+        .from("procedures")
+        .select("*")
+        .gte("created_at", exportStartDate)
+        .lte("created_at", exportEndDate);
+      results.procedures = data || [];
+    }
+
+    const wb = XLSX.utils.book_new();
+
+    if (results.admissions?.length) {
+      const ws = XLSX.utils.json_to_sheet(results.admissions);
+      XLSX.utils.book_append_sheet(wb, ws, "الدخول");
+    }
+    if (results.discharges?.length) {
+      const ws = XLSX.utils.json_to_sheet(results.discharges);
+      XLSX.utils.book_append_sheet(wb, ws, "الخروج");
+    }
+    if (results.emergencies?.length) {
+      const ws = XLSX.utils.json_to_sheet(results.emergencies);
+      XLSX.utils.book_append_sheet(wb, ws, "الطوارئ");
+    }
+    if (results.endoscopies?.length) {
+      const ws = XLSX.utils.json_to_sheet(results.endoscopies);
+      XLSX.utils.book_append_sheet(wb, ws, "المناظير");
+    }
+    if (results.procedures?.length) {
+      const ws = XLSX.utils.json_to_sheet(results.procedures);
+      XLSX.utils.book_append_sheet(wb, ws, "البذل");
+    }
+
+    XLSX.writeFile(wb, `تقرير_${exportType}_${exportStartDate}_${exportEndDate}.xlsx`);
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        {/* Header with Export Controls */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">لوحة التحكم</h2>
+            <p className="text-muted-foreground">نظرة شاملة على البيانات - {dateRange.label}</p>
+          </div>
+
+          <div className="flex gap-2">
+            {[
+              { key: "today", label: "اليوم" },
+              { key: "week", label: "الأسبوع" },
+              { key: "month", label: "الشهر" },
+              { key: "quarter", label: "3 أشهر" },
+              { key: "year", label: "السنة" },
+            ].map((p) => (
             <Button
               key={p.key}
               variant={period === p.key ? "default" : "outline"}
@@ -257,12 +345,64 @@ export default function Dashboard() {
               {p.label}
             </Button>
           ))}
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <FileDown className="ml-2 h-4 w-4" />
-            تصدير Excel
-          </Button>
         </div>
       </div>
+
+      {/* Export Section */}
+      <Card className="bg-card/50 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            تصدير البيانات
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">من تاريخ</label>
+              <Input
+                type="date"
+                value={exportStartDate}
+                onChange={(e) => setExportStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">إلى تاريخ</label>
+              <Input
+                type="date"
+                value={exportEndDate}
+                onChange={(e) => setExportEndDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">نوع السجل</label>
+              <Select value={exportType} onValueChange={(v) => setExportType(v as ExportType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="admissions">الدخول</SelectItem>
+                  <SelectItem value="discharges">الخروج</SelectItem>
+                  <SelectItem value="emergencies">الطوارئ</SelectItem>
+                  <SelectItem value="endoscopies">المناظير</SelectItem>
+                  <SelectItem value="procedures">البذل</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={handleExportWithFilters}
+                className="w-full"
+                disabled={!exportStartDate || !exportEndDate}
+              >
+                <FileDown className="ml-2 h-4 w-4" />
+                تصدير Excel
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Priority Stats - Deaths, Active, Emergencies */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -327,13 +467,14 @@ export default function Dashboard() {
         <DashboardCard
           title="الدخول هذا الشهر"
           value={totalAdmissions}
-          icon={Calendar}
+          icon={Users}
           color="cyan"
           stats={[
             { label: "اليوم", value: todayAdmissions },
             { label: "الأسبوع", value: weekAdmissions },
           ]}
         />
+
 
         <DashboardCard
           title="الخروج هذا الشهر"
@@ -482,5 +623,6 @@ export default function Dashboard() {
         </Card>
       </div>
     </div>
+    </Layout>
   );
 }

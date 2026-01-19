@@ -2,9 +2,7 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard,
   UserPlus,
   LogOut,
   Microscope,
@@ -16,11 +14,10 @@ import {
   Database,
   Search,
   Home,
-  Moon,
-  Sun,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,15 +25,11 @@ interface LayoutProps {
 
 const navigation = [
   { name: "لوحة التحكم", href: "/", icon: Home },
-  { name: "إدارة المرضى", href: "/patients-menu", icon: Users, submenu: [
-    { name: "تسجيل دخول", href: "/admission", icon: UserPlus },
-    { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
-    { name: "المناظير", href: "/endoscopy", icon: Microscope },
-    { name: "الطوارئ", href: "/emergency", icon: AlertTriangle },
-    { name: "البذل", href: "/procedures", icon: Syringe },
-  ]},
+  { name: "تسجيل دخول", href: "/admission", icon: UserPlus },
+  { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
+  { name: "الإجراءات الطبية", href: "/medical-procedures", icon: Microscope },
   { name: "الاستعارات", href: "/loans", icon: FileArchive },
-  { name: "سجل المرضى", href: "/patients", icon: Users },
+  { name: "سجل المرضى", href: "/records", icon: Users },
   { name: "التقارير", href: "/reports", icon: FileText },
 ];
 
@@ -44,7 +37,6 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDark, setIsDark] = useState(true);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,17 +85,11 @@ export default function Layout({ children }: LayoutProps) {
             </div>
           </form>
 
+
           {/* Right Side - Excel Status & Theme Toggle */}
           <div className="flex items-center gap-4">
             <ExcelConnectionIndicator />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsDark(!isDark)}
-              className="hidden sm:flex"
-            >
-              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </Button>
+            <ThemeToggle />
           </div>
         </div>
 
