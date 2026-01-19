@@ -13,6 +13,10 @@ import {
   UserCheck,
   UserX,
   CalendarDays,
+  AlertTriangle,
+  Microscope,
+  Syringe,
+  Building2,
 } from "lucide-react";
 import {
   Bar,
@@ -30,7 +34,7 @@ import {
   Legend,
 } from "recharts";
 import { format, subDays, startOfWeek, startOfMonth, startOfYear } from "date-fns";
-import { ar } from "date-fns/locale";
+import * as XLSX from "xlsx";
 
 const COLORS = {
   primary: "hsl(200, 95%, 55%)",
@@ -46,7 +50,6 @@ type PeriodType = "today" | "week" | "month" | "quarter" | "year";
 export default function Dashboard() {
   const [period, setPeriod] = useState<PeriodType>("month");
 
-  // Calculate date range based on period
   const getDateRange = () => {
     const now = new Date();
     switch (period) {
@@ -67,7 +70,7 @@ export default function Dashboard() {
 
   const dateRange = getDateRange();
 
-  // Fetch admissions for period
+  // Fetch all data
   const { data: admissionsData } = useQuery({
     queryKey: ["admissions-period", period],
     queryFn: async () => {
@@ -79,7 +82,6 @@ export default function Dashboard() {
     },
   });
 
-  // Fetch discharges for period
   const { data: dischargesData } = useQuery({
     queryKey: ["discharges-period", period],
     queryFn: async () => {
@@ -91,7 +93,6 @@ export default function Dashboard() {
     },
   });
 
-  // Fetch emergencies for period
   const { data: emergenciesData } = useQuery({
     queryKey: ["emergencies-period", period],
     queryFn: async () => {
@@ -103,7 +104,6 @@ export default function Dashboard() {
     },
   });
 
-  // Fetch endoscopies for period
   const { data: endoscopiesData } = useQuery({
     queryKey: ["endoscopies-period", period],
     queryFn: async () => {
@@ -111,6 +111,36 @@ export default function Dashboard() {
         .from("endoscopies")
         .select("*")
         .gte("created_at", dateRange.start);
+      return data || [];
+    },
+  });
+
+  const { data: proceduresData } = useQuery({
+    queryKey: ["procedures-period", period],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("procedures")
+        .select("*")
+        .gte("created_at", dateRange.start);
+      return data || [];
+    },
+  });
+
+  const { data: activeAdmissions } = useQuery({
+    queryKey: ["active-admissions"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("admissions")
+        .select("*")
+        .eq("admission_status", "محجوز");
+      return data || [];
+    },
+  });
+
+  const { data: departments } = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("*");
       return data || [];
     },
   });
@@ -125,27 +155,48 @@ export default function Dashboard() {
   ).length || 0;
 
   const totalDischarges = dischargesData?.length || 0;
-  const todayDischarges = dischargesData?.filter(
-    (d) => format(new Date(d.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-  ).length || 0;
-  const weekDischarges = dischargesData?.filter(
-    (d) => new Date(d.created_at || "") >= startOfWeek(new Date())
-  ).length || 0;
-
+  const deathCases = dischargesData?.filter((d) => d.discharge_status === "وفاة").length || 0;
+  
   const totalEmergencies = emergenciesData?.length || 0;
-  const totalEndoscopies = endoscopiesData?.length || 0;
+  const todayEmergencies = emergenciesData?.filter(
+    (e) => format(new Date(e.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+  ).length || 0;
+  const weekEmergencies = emergenciesData?.filter(
+    (e) => new Date(e.created_at || "") >= startOfWeek(new Date())
+  ).length || 0;
 
-  // Active admissions (محجوز)
-  const { data: activeAdmissions } = useQuery({
-    queryKey: ["active-admissions"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("admissions")
-        .select("*")
-        .eq("admission_status", "محجوز");
-      return data || [];
-    },
-  });
+  const totalEndoscopies = endoscopiesData?.length || 0;
+  const todayEndoscopies = endoscopiesData?.filter(
+    (e) => format(new Date(e.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+  ).length || 0;
+  const weekEndoscopies = endoscopiesData?.filter(
+    (e) => new Date(e.created_at || "") >= startOfWeek(new Date())
+  ).length || 0;
+
+  const totalProcedures = proceduresData?.length || 0;
+  const todayProcedures = proceduresData?.filter(
+    (p) => format(new Date(p.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+  ).length || 0;
+  const weekProcedures = proceduresData?.filter(
+    (p) => new Date(p.created_at || "") >= startOfWeek(new Date())
+  ).length || 0;
+
+  // Department stats
+  const departmentStats = departments?.map((dept) => {
+    const deptAdmissions = admissionsData?.filter((a) => a.department_id === dept.id).length || 0;
+    const deptDischarges = dischargesData?.filter(
+      (d) => d.admissions?.department_id === dept.id
+    ).length || 0;
+    const deptActive = activeAdmissions?.filter((a) => a.department_id === dept.id).length || 0;
+
+    return {
+      name: dept.name,
+      admissions: deptAdmissions,
+      discharges: deptDischarges,
+      active: deptActive,
+      totalCases: deptAdmissions + deptDischarges,
+    };
+  }) || [];
 
   // Gender distribution
   const genderStats = [
@@ -153,30 +204,36 @@ export default function Dashboard() {
     { name: "أنثى", value: admissionsData?.filter((a) => a.gender === "أنثى").length || 0 },
   ];
 
-  // Death cases
-  const deathCases = dischargesData?.filter((d) => d.discharge_status === "وفاة").length || 0;
+  // Export to Excel
+  const handleExport = () => {
+    const wb = XLSX.utils.book_new();
 
-  // Department stats
-  const { data: departments } = useQuery({
-    queryKey: ["departments"],
-    queryFn: async () => {
-      const { data } = await supabase.from("departments").select("*");
-      return data || [];
-    },
-  });
+    // Admissions sheet
+    const admissionsSheet = XLSX.utils.json_to_sheet(admissionsData || []);
+    XLSX.utils.book_append_sheet(wb, admissionsSheet, "الدخول");
 
-  const departmentStats = departments?.map((dept) => ({
-    name: dept.name,
-    admissions: admissionsData?.filter((a) => a.department_id === dept.id).length || 0,
-    discharges: dischargesData?.filter(
-      (d) => d.admissions?.department_id === dept.id
-    ).length || 0,
-    active: activeAdmissions?.filter((a) => a.department_id === dept.id).length || 0,
-  })) || [];
+    // Discharges sheet
+    const dischargesSheet = XLSX.utils.json_to_sheet(dischargesData || []);
+    XLSX.utils.book_append_sheet(wb, dischargesSheet, "الخروج");
+
+    // Emergencies sheet
+    const emergenciesSheet = XLSX.utils.json_to_sheet(emergenciesData || []);
+    XLSX.utils.book_append_sheet(wb, emergenciesSheet, "الطوارئ");
+
+    // Endoscopies sheet
+    const endoscopiesSheet = XLSX.utils.json_to_sheet(endoscopiesData || []);
+    XLSX.utils.book_append_sheet(wb, endoscopiesSheet, "المناظير");
+
+    // Procedures sheet
+    const proceduresSheet = XLSX.utils.json_to_sheet(proceduresData || []);
+    XLSX.utils.book_append_sheet(wb, proceduresSheet, "البذل");
+
+    XLSX.writeFile(wb, `تقرير_${dateRange.label}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header with Period Selector */}
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-bold text-foreground">لوحة التحكم</h2>
@@ -200,17 +257,75 @@ export default function Dashboard() {
               {p.label}
             </Button>
           ))}
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <FileDown className="ml-2 h-4 w-4" />
             تصدير Excel
           </Button>
         </div>
       </div>
 
+      {/* Priority Stats - Deaths, Active, Emergencies */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-destructive/80 to-destructive overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <div className="absolute top-4 left-4 w-32 h-32 bg-white rounded-full blur-3xl" />
+          </div>
+          <CardContent className="p-6 text-white relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <UserX className="h-10 w-10 opacity-90" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium opacity-90">حالات الوفاة</h3>
+              <p className="text-4xl font-bold">{deathCases}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-green/80 to-green overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <div className="absolute top-4 right-4 w-32 h-32 bg-white rounded-full blur-3xl" />
+          </div>
+          <CardContent className="p-6 text-white relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <UserCheck className="h-10 w-10 opacity-90" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium opacity-90">الحالات النشطة (محجوز)</h3>
+              <p className="text-4xl font-bold">{activeAdmissions?.length || 0}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-orange/80 to-orange overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <div className="absolute bottom-4 right-4 w-24 h-24 bg-white rounded-full blur-2xl" />
+          </div>
+          <CardContent className="p-6 text-white relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <AlertTriangle className="h-10 w-10 opacity-90" />
+            </div>
+            <div className="space-y-1 mb-4">
+              <h3 className="text-sm font-medium opacity-90">الطوارئ</h3>
+              <p className="text-4xl font-bold">{totalEmergencies}</p>
+            </div>
+            <div className="flex gap-4 pt-4 border-t border-white/20">
+              <div className="flex-1">
+                <p className="text-xs opacity-80">اليوم</p>
+                <p className="text-lg font-semibold">{todayEmergencies}</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-xs opacity-80">الأسبوع</p>
+                <p className="text-lg font-semibold">{weekEmergencies}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Main Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DashboardCard
-          title="الزيارات هذا الشهر"
+          title="الدخول هذا الشهر"
           value={totalAdmissions}
           icon={Calendar}
           color="cyan"
@@ -221,93 +336,80 @@ export default function Dashboard() {
         />
 
         <DashboardCard
-          title="المرضى هذا الشهر"
+          title="الخروج هذا الشهر"
           value={totalDischarges}
           icon={Activity}
           color="pink"
           stats={[
-            { label: "اليوم", value: todayDischarges },
-            { label: "الأسبوع", value: weekDischarges },
+            { label: "اليوم", value: dischargesData?.filter(
+              (d) => format(new Date(d.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+            ).length || 0 },
+            { label: "الأسبوع", value: dischargesData?.filter(
+              (d) => new Date(d.created_at || "") >= startOfWeek(new Date())
+            ).length || 0 },
           ]}
         />
 
         <DashboardCard
-          title="إجمالي الزيارات"
-          value={totalEmergencies}
-          icon={Users}
-          color="green"
-          stats={[
-            { label: "اليوم", value: todayAdmissions },
-            { label: "الأسبوع", value: weekAdmissions },
-          ]}
-        />
-
-        <DashboardCard
-          title="إجمالي المرضى"
+          title="المناظير"
           value={totalEndoscopies}
-          icon={UserCheck}
+          icon={Microscope}
           color="purple"
           stats={[
-            { label: "اليوم", value: todayDischarges },
-            { label: "الأسبوع", value: weekDischarges },
+            { label: "اليوم", value: todayEndoscopies },
+            { label: "الأسبوع", value: weekEndoscopies },
+          ]}
+        />
+
+        <DashboardCard
+          title="البذل"
+          value={totalProcedures}
+          icon={Syringe}
+          color="green"
+          stats={[
+            { label: "اليوم", value: todayProcedures },
+            { label: "الأسبوع", value: weekProcedures },
           ]}
         />
       </div>
 
-      {/* Clinic/Department Stats */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="shadow-lg border-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <CalendarDays className="h-5 w-5 text-primary" />
-              عيادة الحجوزات
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[
-                { label: "اليوم", value: 173, color: "text-green" },
-                { label: "الأسبوع", value: 2399, color: "text-orange" },
-                { label: "الشهر", value: 5582, color: "text-orange" },
-                { label: "الإجمالي", value: 5595, color: "text-primary" },
-              ].map((stat, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-                  <span className="text-sm text-muted-foreground">{stat.label}:</span>
-                  <span className={`text-xl font-bold ${stat.color}`}>{stat.value}</span>
+      {/* Department Stats - Detailed */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {departmentStats.map((dept, idx) => (
+          <Card key={idx} className="shadow-lg border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-foreground">
+                <Building2 className="h-5 w-5 text-primary" />
+                {dept.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-cyan/10 border border-cyan/20">
+                  <span className="text-sm text-muted-foreground">الدخول:</span>
+                  <span className="text-2xl font-bold text-cyan">{dept.admissions}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <UserX className="h-5 w-5 text-primary" />
-              عيادة المحفوظين
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[
-                { label: "اليوم", value: 47, color: "text-green" },
-                { label: "الأسبوع", value: 622, color: "text-orange" },
-                { label: "الشهر", value: 1700, color: "text-orange" },
-                { label: "الإجمالي", value: 1707, color: "text-primary" },
-              ].map((stat, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-                  <span className="text-sm text-muted-foreground">{stat.label}:</span>
-                  <span className={`text-xl font-bold ${stat.color}`}>{stat.value}</span>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-pink/10 border border-pink/20">
+                  <span className="text-sm text-muted-foreground">الخروج:</span>
+                  <span className="text-2xl font-bold text-pink">{dept.discharges}</span>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green/10 border border-green/20">
+                  <span className="text-sm text-muted-foreground">المحجوزين حالياً:</span>
+                  <span className="text-2xl font-bold text-green">{dept.active}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="text-sm text-muted-foreground font-semibold">الإجمالي:</span>
+                  <span className="text-2xl font-bold text-primary">{dept.totalCases}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Charts Grid */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Department Distribution */}
+        {/* Department Distribution Chart */}
         <Card className="shadow-lg border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -376,45 +478,6 @@ export default function Dashboard() {
                 />
               </PieChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Additional Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="shadow-lg border-border bg-gradient-to-br from-destructive/20 to-destructive/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">حالات الوفاة</p>
-                <p className="text-3xl font-bold text-destructive">{deathCases}</p>
-              </div>
-              <UserX className="h-12 w-12 text-destructive opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-border bg-gradient-to-br from-green/20 to-green/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">الحالات النشطة</p>
-                <p className="text-3xl font-bold text-green">{activeAdmissions?.length || 0}</p>
-              </div>
-              <UserCheck className="h-12 w-12 text-green opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-lg border-border bg-gradient-to-br from-orange/20 to-orange/10">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">الطوارئ</p>
-                <p className="text-3xl font-bold text-orange">{totalEmergencies}</p>
-              </div>
-              <Activity className="h-12 w-12 text-orange opacity-50" />
-            </div>
           </CardContent>
         </Card>
       </div>
