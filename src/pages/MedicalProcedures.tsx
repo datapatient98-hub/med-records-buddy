@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import Layout from "@/components/Layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Save, Search, Microscope, AlertTriangle, Syringe } from "lucide-react";
+import { Bar, BarChart, ResponsiveContainer } from "recharts";
+import { format, subDays } from "date-fns";
 
 type ProcedureType = "endoscopy" | "emergency" | "procedure";
 
@@ -35,6 +38,35 @@ const procedureSchema = z.object({
 });
 
 type ProcedureFormValues = z.infer<typeof procedureSchema>;
+
+type SparkTable = "endoscopies" | "emergencies" | "procedures";
+
+function useSparkData(table: SparkTable, from: Date) {
+  return useQuery({
+    queryKey: ["spark", table, from.toISOString()],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(table)
+        .select("created_at")
+        .gte("created_at", from.toISOString());
+      if (error) throw error;
+
+      const days = Array.from({ length: 7 }).map((_, idx) => {
+        const d = subDays(new Date(), 6 - idx);
+        const dayKey = format(d, "yyyy-MM-dd");
+        const count = (data || []).filter((r: any) =>
+          String(r.created_at || "").startsWith(dayKey)
+        ).length;
+        return { day: format(d, "dd/MM"), count };
+      });
+
+      return {
+        total: (data || []).length,
+        days,
+      };
+    },
+  });
+}
 
 export default function MedicalProcedures() {
   const { toast } = useToast();
@@ -74,6 +106,12 @@ export default function MedicalProcedures() {
     },
   });
 
+  const sparkFrom = useMemo(() => subDays(new Date(), 6), []);
+  const { data: endoscopySpark } = useSparkData("endoscopies", sparkFrom);
+  const { data: emergencySpark } = useSparkData("emergencies", sparkFrom);
+  const { data: procedureSpark } = useSparkData("procedures", sparkFrom);
+
+
   const handleSearch = async () => {
     if (!searchNumber.trim()) {
       toast({
@@ -88,7 +126,7 @@ export default function MedicalProcedures() {
       .from("admissions")
       .select("*")
       .eq("unified_number", searchNumber)
-      .single();
+      .maybeSingle();
 
     if (error || !data) {
       toast({
@@ -192,32 +230,83 @@ export default function MedicalProcedures() {
   const Icon = tabInfo.icon;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
-        <p className="text-muted-foreground">المناظير - الطوارئ - البذل</p>
-      </div>
+    <Layout>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
+          <p className="text-muted-foreground">المناظير - الطوارئ - البذل</p>
+        </div>
 
-      <Card className="shadow-lg border-border">
-        <CardHeader>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureType)}>
-            <TabsList className="grid w-full grid-cols-3 bg-secondary/50">
-              <TabsTrigger value="endoscopy" className="flex items-center gap-2">
-                <Microscope className="h-4 w-4" />
-                المناظير
-              </TabsTrigger>
-              <TabsTrigger value="emergency" className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                الطوارئ
-              </TabsTrigger>
-              <TabsTrigger value="procedure" className="flex items-center gap-2">
-                <Syringe className="h-4 w-4" />
-                البذل
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureType)}>
+              <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 gap-3 bg-transparent">
+                <TabsTrigger value="endoscopy" className="p-0 data-[state=active]:shadow-medical-lg">
+                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Microscope className="h-4 w-4" />
+                          <span className="text-sm font-medium">المناظير</span>
+                        </div>
+                        <div className="mt-2 text-3xl font-bold">{endoscopySpark?.total ?? 0}</div>
+                      </div>
+                      <div className="h-10 w-24">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={endoscopySpark?.days ?? []}>
+                            <Bar dataKey="count" fill="hsl(var(--chart-4))" radius={[3, 3, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                </TabsTrigger>
+
+                <TabsTrigger value="emergency" className="p-0 data-[state=active]:shadow-medical-lg">
+                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span className="text-sm font-medium">الطوارئ</span>
+                        </div>
+                        <div className="mt-2 text-3xl font-bold">{emergencySpark?.total ?? 0}</div>
+                      </div>
+                      <div className="h-10 w-24">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={emergencySpark?.days ?? []}>
+                            <Bar dataKey="count" fill="hsl(var(--chart-3))" radius={[3, 3, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                </TabsTrigger>
+
+                <TabsTrigger value="procedure" className="p-0 data-[state=active]:shadow-medical-lg">
+                  <div className="w-full rounded-lg border bg-card p-4 text-right">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Syringe className="h-4 w-4" />
+                          <span className="text-sm font-medium">البذل</span>
+                        </div>
+                        <div className="mt-2 text-3xl font-bold">{procedureSpark?.total ?? 0}</div>
+                      </div>
+                      <div className="h-10 w-24">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={procedureSpark?.days ?? []}>
+                            <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+          <CardContent className="space-y-6">
           {/* Search Section */}
           <div className="space-y-2">
             <CardTitle className="flex items-center gap-2">
@@ -233,7 +322,7 @@ export default function MedicalProcedures() {
                 onKeyPress={(e) => e.key === "Enter" && handleSearch()}
               />
               <Button onClick={handleSearch}>
-                <Search className="ml-2 h-4 w-4" />
+                <Search className="mr-2 h-4 w-4" />
                 بحث
               </Button>
             </div>
@@ -454,7 +543,7 @@ export default function MedicalProcedures() {
                   إلغاء
                 </Button>
                 <Button type="submit" disabled={mutation.isPending}>
-                  <Save className="ml-2 h-4 w-4" />
+                  <Save className="mr-2 h-4 w-4" />
                   {mutation.isPending ? "جاري الحفظ..." : "حفظ البيانات"}
                 </Button>
               </div>
@@ -463,5 +552,6 @@ export default function MedicalProcedures() {
         </CardContent>
       </Card>
     </div>
+    </Layout>
   );
 }

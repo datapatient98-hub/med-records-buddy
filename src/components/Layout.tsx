@@ -74,13 +74,13 @@ export default function Layout({ children }: LayoutProps) {
           {/* Search Bar */}
           <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 hidden md:flex">
             <div className="relative w-full">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="بحث بالرقم الموحد أو الاسم..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-10 bg-secondary/50 border-border"
+                className="pl-10 bg-secondary/50 border-border"
               />
             </div>
           </form>

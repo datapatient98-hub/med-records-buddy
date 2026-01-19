@@ -259,7 +259,7 @@ export default function Reports() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-6" dir="rtl">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">التقارير الطبية</h1>
         </div>
@@ -352,7 +352,7 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={() => refetch()} disabled={isLoading}>
             عرض التقرير
           </Button>
@@ -361,10 +361,11 @@ export default function Reports() {
             onClick={handleExportExcel}
             disabled={!reportData || isLoading}
           >
-            <FileSpreadsheet className="ml-2 h-4 w-4" />
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
             تصدير Excel
           </Button>
         </div>
+
 
         {reportData && (
           <div className="space-y-6">
