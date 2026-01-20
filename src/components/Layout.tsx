@@ -18,6 +18,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 interface LayoutProps {
   children: ReactNode;
@@ -86,8 +87,9 @@ export default function Layout({ children }: LayoutProps) {
           </form>
 
 
-          {/* Right Side - Excel Status & Theme Toggle */}
-          <div className="flex items-center gap-4">
+          {/* Right Side - Notifications, Excel Status & Theme Toggle */}
+          <div className="flex items-center gap-2">
+            <NotificationBell />
             <ExcelConnectionIndicator />
             <ThemeToggle />
           </div>

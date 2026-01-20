@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { FileDown, FileSpreadsheet } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import SearchableSelect from "@/components/SearchableSelect";
+import LookupCreateDialog, { LookupCreateType } from "@/components/LookupCreateDialog";
+import { FileDown, FileSpreadsheet, FileX } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 
@@ -17,6 +20,11 @@ export default function Reports() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [diagnosisFilter, setDiagnosisFilter] = useState("all");
   const [doctorFilter, setDoctorFilter] = useState("all");
+  const [showUnreturnedLoans, setShowUnreturnedLoans] = useState(false);
+  
+  // Quick-add dialogs
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createDialogType, setCreateDialogType] = useState<LookupCreateType>("department");
 
   // Fetch departments
   const { data: departments } = useQuery({
@@ -48,7 +56,20 @@ export default function Reports() {
     },
   });
 
-  // Fetch filtered data
+  // Fetch unreturned loans
+  const { data: unreturnedLoansData } = useQuery({
+    queryKey: ["unreturned-loans-report"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("file_loans")
+        .select("*, admissions(patient_name, unified_number, internal_number)")
+        .eq("is_returned", false)
+        .order("loan_date", { ascending: false });
+      return data || [];
+    },
+  });
+
+  // Fetch filtered data - NOW enabled by default
   const { data: reportData, isLoading, refetch } = useQuery({
     queryKey: ["report", startDate, endDate, recordType, departmentFilter, diagnosisFilter, doctorFilter],
     queryFn: async () => {
@@ -168,7 +189,7 @@ export default function Reports() {
 
       return results;
     },
-    enabled: false,
+    enabled: true, // Changed from false to true
   });
 
   const handleExportExcel = () => {
@@ -259,12 +280,86 @@ export default function Reports() {
 
   return (
     <Layout>
+      <LookupCreateDialog
+        open={createDialogOpen}
+        type={createDialogType}
+        onOpenChange={setCreateDialogOpen}
+      />
+      
       <div className="space-y-6" dir="rtl">
-        <div className="flex justify-between items-center">
+        {/* Header with Tabs */}
+        <div className="flex justify-between items-center flex-wrap gap-4">
           <h1 className="text-3xl font-bold">التقارير الطبية</h1>
+          
+          <div className="flex gap-2">
+            <Button
+              variant={!showUnreturnedLoans ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowUnreturnedLoans(false)}
+            >
+              التقارير العامة
+            </Button>
+            <Button
+              variant={showUnreturnedLoans ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowUnreturnedLoans(true)}
+              className="gap-2"
+            >
+              <FileX className="h-4 w-4" />
+              ملفات لم تُرجع ({unreturnedLoansData?.length || 0})
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {showUnreturnedLoans ? (
+          /* Unreturned Loans Section */
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold mb-4">
+                الملفات المستعارة التي لم تُرجع ({unreturnedLoansData?.length || 0})
+              </h2>
+              
+              {unreturnedLoansData && unreturnedLoansData.length > 0 ? (
+                <div className="rounded-lg border bg-card overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>الرقم الموحد</TableHead>
+                        <TableHead>الرقم الداخلي</TableHead>
+                        <TableHead>اسم المريض</TableHead>
+                        <TableHead>مستعار بواسطة</TableHead>
+                        <TableHead>القسم المستعير</TableHead>
+                        <TableHead>تاريخ الاستعارة</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {unreturnedLoansData.map((loan: any) => (
+                        <TableRow key={loan.id}>
+                          <TableCell>{loan.unified_number}</TableCell>
+                          <TableCell>{loan.internal_number}</TableCell>
+                          <TableCell>{loan.admissions?.patient_name}</TableCell>
+                          <TableCell>{loan.borrowed_by}</TableCell>
+                          <TableCell>{loan.borrowed_to_department}</TableCell>
+                          <TableCell>
+                            {format(new Date(loan.loan_date), "dd/MM/yyyy")}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileX className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">جميع الملفات تم إرجاعها ✓</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          /* Regular Reports Section */
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">من تاريخ</label>
             <Input
@@ -302,59 +397,62 @@ export default function Reports() {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">القسم</label>
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="الكل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">الكل</SelectItem>
-                {departments?.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={departmentFilter}
+              onValueChange={setDepartmentFilter}
+              options={[
+                { id: "all", name: "الكل" },
+                ...(departments?.map((d) => ({ id: d.id, name: d.name })) || []),
+              ]}
+              placeholder="اختر القسم"
+              onAddNew={() => {
+                setCreateDialogType("department");
+                setCreateDialogOpen(true);
+              }}
+              addNewLabel="إضافة قسم"
+            />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">التشخيص</label>
-            <Select value={diagnosisFilter} onValueChange={setDiagnosisFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="الكل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">الكل</SelectItem>
-                {diagnoses?.map((diag) => (
-                  <SelectItem key={diag.id} value={diag.id}>
-                    {diag.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={diagnosisFilter}
+              onValueChange={setDiagnosisFilter}
+              options={[
+                { id: "all", name: "الكل" },
+                ...(diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []),
+              ]}
+              placeholder="اختر التشخيص"
+              onAddNew={() => {
+                setCreateDialogType("diagnosis");
+                setCreateDialogOpen(true);
+              }}
+              addNewLabel="إضافة تشخيص"
+            />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">الطبيب</label>
-            <Select value={doctorFilter} onValueChange={setDoctorFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="الكل" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">الكل</SelectItem>
-                {doctors?.map((doc) => (
-                  <SelectItem key={doc.id} value={doc.id}>
-                    {doc.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={doctorFilter}
+              onValueChange={setDoctorFilter}
+              options={[
+                { id: "all", name: "الكل" },
+                ...(doctors?.map((d) => ({ id: d.id, name: d.name })) || []),
+              ]}
+              placeholder="اختر الطبيب"
+              onAddNew={() => {
+                setCreateDialogType("doctor");
+                setCreateDialogOpen(true);
+              }}
+              addNewLabel="إضافة طبيب"
+            />
           </div>
         </div>
 
         <div className="flex gap-2 flex-wrap">
           <Button onClick={() => refetch()} disabled={isLoading}>
-            عرض التقرير
+            {isLoading ? "جاري التحميل..." : "تحديث التقرير"}
           </Button>
           <Button
             variant="outline"
@@ -441,6 +539,8 @@ export default function Reports() {
               </div>
             )}
           </div>
+        )}
+          </>
         )}
       </div>
     </Layout>
