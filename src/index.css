@@ -8,15 +8,15 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Dark Professional Medical Theme */
-    --background: 222 20% 8%;
-    --foreground: 210 20% 92%;
+    /* Light Professional Medical Theme */
+    --background: 0 0% 100%;
+    --foreground: 222 20% 10%;
 
-    --card: 222 20% 12%;
-    --card-foreground: 210 20% 92%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 10%;
 
-    --popover: 222 20% 10%;
-    --popover-foreground: 210 20% 92%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 10%;
 
     /* Vibrant Blue - Primary brand color */
     --primary: 200 95% 55%;
@@ -43,20 +43,20 @@ All colors MUST be HSL.
     --orange: 35 91% 60%;
     --orange-foreground: 0 0% 100%;
 
-    --secondary: 222 20% 18%;
-    --secondary-foreground: 210 20% 92%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 222 20% 10%;
 
-    --muted: 222 20% 16%;
-    --muted-foreground: 210 15% 60%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 222 15% 45%;
 
-    --accent: 222 20% 20%;
+    --accent: 0 0% 96%;
     --accent-foreground: 200 95% 55%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 222 20% 22%;
-    --input: 222 20% 18%;
+    --border: 0 0% 90%;
+    --input: 0 0% 96%;
     --ring: 200 95% 55%;
 
     --radius: 0.75rem;
@@ -79,13 +79,13 @@ All colors MUST be HSL.
     --excel-disconnected: 0 84% 60%;
 
     /* Sidebar */
-    --sidebar-background: 222 22% 6%;
-    --sidebar-foreground: 210 15% 85%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222 15% 20%;
     --sidebar-primary: 200 95% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 22% 10%;
-    --sidebar-accent-foreground: 210 15% 85%;
-    --sidebar-border: 222 22% 12%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 222 15% 20%;
+    --sidebar-border: 0 0% 90%;
     --sidebar-ring: 200 95% 55%;
 
     /* Shadows for depth */
@@ -95,9 +95,33 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Same as root - we're going dark by default */
+    /* Dark Professional Medical Theme */
     --background: 222 20% 8%;
     --foreground: 210 20% 92%;
+
+    --card: 222 20% 12%;
+    --card-foreground: 210 20% 92%;
+
+    --popover: 222 20% 10%;
+    --popover-foreground: 210 20% 92%;
+
+    --secondary: 222 20% 18%;
+    --secondary-foreground: 210 20% 92%;
+
+    --muted: 222 20% 16%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 222 20% 20%;
+    --accent-foreground: 200 95% 55%;
+
+    --border: 222 20% 22%;
+    --input: 222 20% 18%;
+
+    --sidebar-background: 222 22% 6%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-accent: 222 22% 10%;
+    --sidebar-accent-foreground: 210 15% 85%;
+    --sidebar-border: 222 22% 12%;
   }
 }
 

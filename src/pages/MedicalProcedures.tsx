@@ -10,10 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import ColoredStatTab from "@/components/ColoredStatTab";
+import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Save, Search, Microscope, AlertTriangle, Syringe } from "lucide-react";
-import { Bar, BarChart, ResponsiveContainer } from "recharts";
 import { format, subDays } from "date-fns";
 
 type ProcedureType = "endoscopy" | "emergency" | "procedure";
@@ -39,40 +39,13 @@ const procedureSchema = z.object({
 
 type ProcedureFormValues = z.infer<typeof procedureSchema>;
 
-type SparkTable = "endoscopies" | "emergencies" | "procedures";
-
-function useSparkData(table: SparkTable, from: Date) {
-  return useQuery({
-    queryKey: ["spark", table, from.toISOString()],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from(table)
-        .select("created_at")
-        .gte("created_at", from.toISOString());
-      if (error) throw error;
-
-      const days = Array.from({ length: 7 }).map((_, idx) => {
-        const d = subDays(new Date(), 6 - idx);
-        const dayKey = format(d, "yyyy-MM-dd");
-        const count = (data || []).filter((r: any) =>
-          String(r.created_at || "").startsWith(dayKey)
-        ).length;
-        return { day: format(d, "dd/MM"), count };
-      });
-
-      return {
-        total: (data || []).length,
-        days,
-      };
-    },
-  });
-}
 
 export default function MedicalProcedures() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ProcedureType>("endoscopy");
   const [searchNumber, setSearchNumber] = useState("");
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
 
   const form = useForm<ProcedureFormValues>({
     resolver: zodResolver(procedureSchema),
@@ -106,10 +79,46 @@ export default function MedicalProcedures() {
     },
   });
 
-  const sparkFrom = useMemo(() => subDays(new Date(), 6), []);
-  const { data: endoscopySpark } = useSparkData("endoscopies", sparkFrom);
-  const { data: emergencySpark } = useSparkData("emergencies", sparkFrom);
-  const { data: procedureSpark } = useSparkData("procedures", sparkFrom);
+  const { start, end } = getTimeRangeDates(timeRange);
+  
+  const { data: endoscopyCount } = useQuery({
+    queryKey: ["endoscopies-count", timeRange],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("endoscopies")
+        .select("id", { count: "exact", head: true })
+        .gte("procedure_date", start.toISOString())
+        .lte("procedure_date", end.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: emergencyCount } = useQuery({
+    queryKey: ["emergencies-count", timeRange],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("emergencies")
+        .select("id", { count: "exact", head: true })
+        .gte("visit_date", start.toISOString())
+        .lte("visit_date", end.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: procedureCount } = useQuery({
+    queryKey: ["procedures-count", timeRange],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("procedures")
+        .select("id", { count: "exact", head: true })
+        .gte("procedure_date", start.toISOString())
+        .lte("procedure_date", end.toISOString());
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
 
   const handleSearch = async () => {
@@ -232,92 +241,49 @@ export default function MedicalProcedures() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
-          <p className="text-muted-foreground">المناظير - الطوارئ - البذل</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
+            <p className="text-muted-foreground">المناظير - الطوارئ - البذل</p>
+          </div>
+          <TimeFilter value={timeRange} onChange={setTimeRange} />
+        </div>
+
+        {/* Colored Tabs */}
+        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+            <ColoredStatTab
+              title="المناظير"
+              value={endoscopyCount ?? 0}
+              subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
+              icon={Microscope}
+              color="purple"
+              onClick={() => setActiveTab("endoscopy")}
+              active={activeTab === "endoscopy"}
+            />
+            <ColoredStatTab
+              title="الطوارئ"
+              value={emergencyCount ?? 0}
+              subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
+              icon={AlertTriangle}
+              color="orange"
+              onClick={() => setActiveTab("emergency")}
+              active={activeTab === "emergency"}
+            />
+            <ColoredStatTab
+              title="البذل"
+              value={procedureCount ?? 0}
+              subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
+              icon={Syringe}
+              color="green"
+              onClick={() => setActiveTab("procedure")}
+              active={activeTab === "procedure"}
+            />
+          </div>
         </div>
 
         <Card className="shadow-lg border-border">
-          <CardHeader className="sticky top-28 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ProcedureType)}>
-              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-xl border border-border bg-muted/30 p-2 md:grid-cols-3">
-                <TabsTrigger
-                  value="endoscopy"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Microscope className="h-4 w-4" />
-                          <span className="text-sm font-medium">المناظير</span>
-                        </div>
-                        <div className="mt-2 text-3xl font-bold">{endoscopySpark?.total ?? 0}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
-                      </div>
-                      <div className="h-10 w-24">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={endoscopySpark?.days ?? []}>
-                            <Bar dataKey="count" fill="hsl(var(--chart-4))" radius={[3, 3, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="emergency"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span className="text-sm font-medium">الطوارئ</span>
-                        </div>
-                        <div className="mt-2 text-3xl font-bold">{emergencySpark?.total ?? 0}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
-                      </div>
-                      <div className="h-10 w-24">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={emergencySpark?.days ?? []}>
-                            <Bar dataKey="count" fill="hsl(var(--chart-3))" radius={[3, 3, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="procedure"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Syringe className="h-4 w-4" />
-                          <span className="text-sm font-medium">البذل</span>
-                        </div>
-                        <div className="mt-2 text-3xl font-bold">{procedureSpark?.total ?? 0}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">آخر 7 أيام</div>
-                      </div>
-                      <div className="h-10 w-24">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={procedureSpark?.days ?? []}>
-                            <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[3, 3, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardHeader>
+          <CardHeader>
 
           <CardContent className="space-y-6 pt-6">
           {/* Search Section */}
