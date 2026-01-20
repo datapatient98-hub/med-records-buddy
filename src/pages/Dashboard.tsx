@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import DashboardCard from "@/components/DashboardCard";
+import KPICard from "@/components/KPICard";
 import LoanAlertNotification from "@/components/LoanAlertNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,8 +22,8 @@ import {
   Microscope,
   Syringe,
   Building2,
-  Skull,
   FileText,
+  FileX,
 } from "lucide-react";
 import {
   Bar,
@@ -60,14 +61,13 @@ export default function Dashboard() {
   const [exportEndDate, setExportEndDate] = useState("");
   const [exportType, setExportType] = useState<ExportType>("all");
   
-  // Chart visibility toggles
+  // Chart visibility toggles - merged procedures (بذل) into emergencies
   const [visibleSeries, setVisibleSeries] = useState({
     admissions: true,
     discharges: true,
     emergencies: true,
     endoscopies: true,
-    procedures: true,
-    loans: true,
+    unreturned_loans: true,
   });
 
   const getDateRange = () => {
@@ -245,26 +245,68 @@ export default function Dashboard() {
   const totalLoans = loansData?.length || 0;
   const unreturnedCount = unreturnedLoans?.length || 0;
 
-  // Gender distribution
-  const genderStats = [
-    { name: "ذكر", value: admissionsData?.filter((a) => a.gender === "ذكر").length || 0 },
-    { name: "أنثى", value: admissionsData?.filter((a) => a.gender === "أنثى").length || 0 },
-  ];
+  // Combined emergencies + procedures (البذل مدمج مع الطوارئ)
+  const combinedEmergencies = (emergenciesData?.length || 0) + (proceduresData?.length || 0);
+  const todayCombinedEmergencies = todayEmergencies + todayProcedures;
+  const weekCombinedEmergencies = weekEmergencies + weekProcedures;
 
-  // Monthly data for interactive chart
+  // KPI calculations for previous period (for comparison)
+  const { data: previousAdmissions } = useQuery({
+    queryKey: ["previous-admissions", period],
+    queryFn: async () => {
+      const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : period === "quarter" ? 90 : 365;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - periodDays * 2);
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - periodDays);
+      
+      const { data } = await supabase
+        .from("admissions")
+        .select("*")
+        .gte("created_at", format(startDate, "yyyy-MM-dd"))
+        .lte("created_at", format(endDate, "yyyy-MM-dd"));
+      return data || [];
+    },
+  });
+
+  const { data: previousDischarges } = useQuery({
+    queryKey: ["previous-discharges", period],
+    queryFn: async () => {
+      const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : period === "quarter" ? 90 : 365;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - periodDays * 2);
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - periodDays);
+      
+      const { data } = await supabase
+        .from("discharges")
+        .select("*")
+        .gte("created_at", format(startDate, "yyyy-MM-dd"))
+        .lte("created_at", format(endDate, "yyyy-MM-dd"));
+      return data || [];
+    },
+  });
+
+  // Monthly data for interactive chart - merged procedures into emergencies
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const month = i + 1;
-    const monthStr = month.toString().padStart(2, '0');
+    const admissionsCount = admissionsData?.filter(a => new Date(a.created_at || '').getMonth() === i).length || 0;
+    const dischargesCount = dischargesData?.filter(d => new Date(d.created_at || '').getMonth() === i).length || 0;
+    const emergenciesCount = emergenciesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
+    const proceduresCount = proceduresData?.filter(p => new Date(p.created_at || '').getMonth() === i).length || 0;
+    const endoscopiesCount = endoscopiesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
+    const loansCount = loansData?.filter(l => new Date(l.created_at || '').getMonth() === i).length || 0;
+    const unreturnedLoansCount = loansData?.filter(l => 
+      new Date(l.created_at || '').getMonth() === i && !l.is_returned
+    ).length || 0;
     
     return {
-      month: `${monthStr}`,
+      month: `${(i + 1).toString().padStart(2, '0')}`,
       monthName: new Date(2024, i, 1).toLocaleDateString('ar', { month: 'short' }),
-      admissions: admissionsData?.filter(a => new Date(a.created_at || '').getMonth() === i).length || 0,
-      discharges: dischargesData?.filter(d => new Date(d.created_at || '').getMonth() === i).length || 0,
-      emergencies: emergenciesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0,
-      endoscopies: endoscopiesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0,
-      procedures: proceduresData?.filter(p => new Date(p.created_at || '').getMonth() === i).length || 0,
-      loans: loansData?.filter(l => new Date(l.created_at || '').getMonth() === i).length || 0,
+      admissions: admissionsCount,
+      discharges: dischargesCount,
+      emergencies: emergenciesCount + proceduresCount, // Combined
+      endoscopies: endoscopiesCount,
+      unreturned_loans: unreturnedLoansCount,
     };
   });
 
@@ -493,6 +535,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Emergencies + Procedures Combined */}
         <Card className="shadow-lg border-0 bg-gradient-to-br from-orange/80 to-orange overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-10">
             <div className="absolute bottom-4 right-4 w-24 h-24 bg-white rounded-full blur-2xl" />
@@ -502,33 +545,33 @@ export default function Dashboard() {
               <AlertTriangle className="h-10 w-10 opacity-90" />
             </div>
             <div className="space-y-1 mb-4">
-              <h3 className="text-sm font-medium opacity-90">الطوارئ</h3>
-              <p className="text-4xl font-bold">{totalEmergencies}</p>
+              <h3 className="text-sm font-medium opacity-90">الطوارئ + البذل</h3>
+              <p className="text-4xl font-bold">{combinedEmergencies}</p>
             </div>
             <div className="flex gap-4 pt-4 border-t border-white/20">
               <div className="flex-1">
                 <p className="text-xs opacity-80">اليوم</p>
-                <p className="text-lg font-semibold">{todayEmergencies}</p>
+                <p className="text-lg font-semibold">{todayCombinedEmergencies}</p>
               </div>
               <div className="flex-1">
                 <p className="text-xs opacity-80">الأسبوع</p>
-                <p className="text-lg font-semibold">{weekEmergencies}</p>
+                <p className="text-lg font-semibold">{weekCombinedEmergencies}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Loan Stats Cards */}
+        {/* Unreturned Loans Stats */}
         <Card className="shadow-lg border-0 bg-gradient-to-br from-purple/80 to-purple overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-10">
             <div className="absolute top-4 left-4 w-32 h-32 bg-white rounded-full blur-3xl" />
           </div>
           <CardContent className="p-6 text-white relative z-10">
             <div className="flex items-center justify-between mb-4">
-              <FileText className="h-10 w-10 opacity-90" />
+              <FileX className="h-10 w-10 opacity-90" />
             </div>
             <div className="space-y-1 mb-4">
-              <h3 className="text-sm font-medium opacity-90">ملفات مستعارة (لم تُرجع)</h3>
+              <h3 className="text-sm font-medium opacity-90">ملفات لم تُرجع</h3>
               <p className="text-4xl font-bold">{unreturnedCount}</p>
             </div>
             <div className="flex gap-4 pt-4 border-t border-white/20">
@@ -542,7 +585,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <DashboardCard
           title="الدخول (الداخلي)"
           value={totalAdmissions}
@@ -579,17 +622,40 @@ export default function Dashboard() {
             { label: "الأسبوع", value: weekEndoscopies },
           ]}
         />
+      </div>
 
-        <DashboardCard
-          title="البذل (متخصص)"
-          value={totalProcedures}
-          icon={Syringe}
-          color="green"
-          stats={[
-            { label: "اليوم", value: todayProcedures },
-            { label: "الأسبوع", value: weekProcedures },
-          ]}
-        />
+      {/* KPI Performance Indicators */}
+      <div>
+        <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+          <TrendingUp className="h-6 w-6 text-primary" />
+          مؤشرات الأداء الرئيسية
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <KPICard
+            title="معدل الدخول"
+            value={totalAdmissions}
+            previousValue={previousAdmissions?.length}
+            colorScheme="cyan"
+          />
+          <KPICard
+            title="معدل الخروج"
+            value={totalDischarges}
+            previousValue={previousDischarges?.length}
+            colorScheme="pink"
+          />
+          <KPICard
+            title="معدل الاشغال"
+            value={activeAdmissions?.length || 0}
+            format="number"
+            colorScheme="green"
+          />
+          <KPICard
+            title="حالات الوفاة"
+            value={deathCases}
+            previousValue={previousDischarges?.filter(d => d.discharge_status === "وفاة").length}
+            colorScheme="orange"
+          />
+        </div>
       </div>
 
       {/* Department Stats - Detailed */}
@@ -658,7 +724,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Interactive Monthly Chart */}
+        {/* Interactive Monthly Chart - Merged Procedures into Emergencies */}
         <Card className="shadow-lg border-border">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -706,7 +772,7 @@ export default function Dashboard() {
                 />
                 <label htmlFor="emergencies-check" className="text-sm cursor-pointer">
                   <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.orange }}></span>
-                  الطوارئ
+                  الطوارئ + البذل
                 </label>
               </div>
               
@@ -726,29 +792,15 @@ export default function Dashboard() {
               
               <div className="flex items-center gap-2">
                 <Checkbox
-                  id="procedures-check"
-                  checked={visibleSeries.procedures}
+                  id="unreturned-loans-check"
+                  checked={visibleSeries.unreturned_loans}
                   onCheckedChange={(checked) =>
-                    setVisibleSeries({ ...visibleSeries, procedures: !!checked })
+                    setVisibleSeries({ ...visibleSeries, unreturned_loans: !!checked })
                   }
                 />
-                <label htmlFor="procedures-check" className="text-sm cursor-pointer">
-                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.green }}></span>
-                  البذل
-                </label>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="loans-check"
-                  checked={visibleSeries.loans}
-                  onCheckedChange={(checked) =>
-                    setVisibleSeries({ ...visibleSeries, loans: !!checked })
-                  }
-                />
-                <label htmlFor="loans-check" className="text-sm cursor-pointer">
-                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: '#8b5cf6' }}></span>
-                  الاستعارات
+                <label htmlFor="unreturned-loans-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.purple }}></span>
+                  ملفات لم تُرجع
                 </label>
               </div>
             </div>
@@ -773,50 +825,15 @@ export default function Dashboard() {
                   <Line type="monotone" dataKey="discharges" stroke={COLORS.pink} strokeWidth={2} name="الخروج" />
                 )}
                 {visibleSeries.emergencies && (
-                  <Line type="monotone" dataKey="emergencies" stroke={COLORS.orange} strokeWidth={2} name="الطوارئ" />
+                  <Line type="monotone" dataKey="emergencies" stroke={COLORS.orange} strokeWidth={2} name="الطوارئ + البذل" />
                 )}
                 {visibleSeries.endoscopies && (
                   <Line type="monotone" dataKey="endoscopies" stroke={COLORS.purple} strokeWidth={2} name="المناظير" />
                 )}
-                {visibleSeries.procedures && (
-                  <Line type="monotone" dataKey="procedures" stroke={COLORS.green} strokeWidth={2} name="البذل" />
-                )}
-                {visibleSeries.loans && (
-                  <Line type="monotone" dataKey="loans" stroke="#8b5cf6" strokeWidth={2} name="الاستعارات" />
+                {visibleSeries.unreturned_loans && (
+                  <Line type="monotone" dataKey="unreturned_loans" stroke="#8b5cf6" strokeWidth={2} name="ملفات لم تُرجع" />
                 )}
               </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Gender Distribution */}
-        <Card className="shadow-lg border-border">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Users className="h-5 w-5 text-primary" />
-              توزيع المرضى (ذكر/أنثى)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={genderStats} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                <XAxis type="number" stroke="hsl(var(--muted-foreground))" />
-                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "var(--radius)",
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="value" fill={COLORS.cyan} radius={[0, 8, 8, 0]} name="عدد المرضى">
-                  {genderStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.cyan : COLORS.pink} />
-                  ))}
-                </Bar>
-              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

@@ -598,6 +598,41 @@ export type Database = {
         }
         Relationships: []
       }
+      notes: {
+        Row: {
+          admission_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          note_text: string
+          updated_at: string
+        }
+        Insert: {
+          admission_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          note_text: string
+          updated_at?: string
+        }
+        Update: {
+          admission_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          note_text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_admission_id_fkey"
+            columns: ["admission_id"]
+            isOneToOne: false
+            referencedRelation: "admissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       occupations: {
         Row: {
           created_at: string | null
