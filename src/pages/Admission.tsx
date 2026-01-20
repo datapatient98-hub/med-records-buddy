@@ -30,6 +30,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
@@ -394,21 +396,21 @@ export default function Admission() {
           />
         )}
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-foreground">تسجيل دخول مريض</h2>
-            <p className="text-muted-foreground">إضافة حالة جديدة للنظام</p>
+        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold text-foreground">تسجيل دخول المريض</h2>
+              <p className="text-muted-foreground">إضافة حالة جديدة للنظام</p>
+            </div>
+            <div className="flex gap-2">
+              <TimeFilter value={timeRange} onChange={setTimeRange} />
+              <Button variant="outline">
+                <FileUp className="ml-2 h-4 w-4" />
+                استيراد من Excel
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <TimeFilter value={timeRange} onChange={setTimeRange} />
-            <Button variant="outline">
-              <FileUp className="ml-2 h-4 w-4" />
-              استيراد من Excel
-            </Button>
-          </div>
-        </div>
 
-        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <ColoredStatTab
               title="الحالات المحجوزة"
@@ -551,17 +553,22 @@ export default function Admission() {
                         <FormLabel>
                           <RequiredLabel>النوع</RequiredLabel>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر النوع" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="ذكر">ذكر</SelectItem>
-                            <SelectItem value="أنثى">أنثى</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="flex gap-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="gender-male" className="cursor-pointer">ذكر</Label>
+                              <RadioGroupItem value="ذكر" id="gender-male" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="gender-female" className="cursor-pointer">أنثى</Label>
+                              <RadioGroupItem value="أنثى" id="gender-female" />
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -599,19 +606,30 @@ export default function Admission() {
                         <FormLabel>
                           <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر الحالة" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="أعزب">أعزب</SelectItem>
-                            <SelectItem value="متزوج">متزوج</SelectItem>
-                            <SelectItem value="مطلق">مطلق</SelectItem>
-                            <SelectItem value="أرمل">أرمل</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            value={field.value}
+                            className="flex flex-wrap gap-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="marital-single" className="cursor-pointer">أعزب</Label>
+                              <RadioGroupItem value="أعزب" id="marital-single" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="marital-married" className="cursor-pointer">متزوج</Label>
+                              <RadioGroupItem value="متزوج" id="marital-married" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="marital-divorced" className="cursor-pointer">مطلق</Label>
+                              <RadioGroupItem value="مطلق" id="marital-divorced" />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="marital-widowed" className="cursor-pointer">أرمل</Label>
+                              <RadioGroupItem value="أرمل" id="marital-widowed" />
+                            </div>
+                          </RadioGroup>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -881,16 +899,16 @@ export default function Admission() {
                   />
 
                   <FormItem>
-                    <FormLabel>تاريخ الإنشاء</FormLabel>
+                    <FormLabel>تاريخ التعديل</FormLabel>
                     <FormControl>
                       <Input
                         disabled
-                        value={new Date().toLocaleString("ar-EG")}
+                        value="يتم تسجيله تلقائياً عند التعديل"
                         readOnly
                       />
                     </FormControl>
                     <FormDescription className="text-xs text-muted-foreground">
-                      يتم تسجيله تلقائياً عند الحفظ
+                      يظهر تاريخ آخر تعديل للسجل
                     </FormDescription>
                   </FormItem>
                 </div>

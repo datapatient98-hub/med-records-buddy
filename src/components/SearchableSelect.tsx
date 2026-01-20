@@ -14,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SearchableSelectProps {
   value: string;
@@ -57,74 +58,81 @@ export default function SearchableSelect({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between"
-          onFocus={() => openAndSeedQuery()}
-          onKeyDown={(e) => {
-            // allow users to "قف على الحقل واكتب" مباشرة
-            if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-              if (!open) openAndSeedQuery(e.key);
-            }
-          }}
-        >
-          {selectedOption ? selectedOption.name : placeholder}
-          <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandInput
-            ref={inputRef}
-            placeholder="ابحث..."
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-          />
-          <CommandEmpty>{emptyText}</CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-auto">
-            {options.map((option) => (
-              <CommandItem
-                key={option.id}
-                value={option.name}
-                onSelect={() => {
-                  onValueChange(option.id === value ? "" : option.id);
-                  setOpen(false);
-                  setSearchQuery("");
-                }}
-              >
-                <Check
-                  className={cn(
-                    "ml-2 h-4 w-4",
-                    value === option.id ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                {option.name}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          {onAddNew && (
-            <div className="border-t p-1">
+    <div className="relative w-full">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between pr-10"
+            onFocus={() => openAndSeedQuery()}
+            onKeyDown={(e) => {
+              // allow users to "قف على الحقل واكتب" مباشرة
+              if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                if (!open) openAndSeedQuery(e.key);
+              }
+            }}
+          >
+            {selectedOption ? selectedOption.name : placeholder}
+            <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-full p-0" align="start">
+          <Command>
+            <CommandInput
+              ref={inputRef}
+              placeholder="ابحث..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+            />
+            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandGroup className="max-h-64 overflow-auto">
+              {options.map((option) => (
+                <CommandItem
+                  key={option.id}
+                  value={option.name}
+                  onSelect={() => {
+                    onValueChange(option.id === value ? "" : option.id);
+                    setOpen(false);
+                    setSearchQuery("");
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "ml-2 h-4 w-4",
+                      value === option.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {option.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {onAddNew && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <Button
+                type="button"
                 variant="ghost"
-                size="sm"
-                className="w-full justify-start"
+                size="icon"
+                className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-primary/10"
                 onClick={() => {
                   onAddNew();
-                  setOpen(false);
-                  setSearchQuery("");
                 }}
               >
-                <Plus className="ml-2 h-4 w-4" />
-                {addNewLabel}
+                <Plus className="h-4 w-4 text-primary" />
               </Button>
-            </div>
-          )}
-        </Command>
-      </PopoverContent>
-    </Popover>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>{addNewLabel}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
   );
 }
