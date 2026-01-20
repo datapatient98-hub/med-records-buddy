@@ -5,8 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "react-router-dom";
 
 export default function Records() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -145,6 +147,9 @@ export default function Records() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">سجل المرضى</h1>
+          <Button asChild variant="outline">
+            <Link to="/unified-database">قاعدة البيانات الموحدة</Link>
+          </Button>
         </div>
 
         <div className="relative">

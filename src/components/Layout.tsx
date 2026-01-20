@@ -31,6 +31,7 @@ const navigation = [
   { name: "الإجراءات الطبية", href: "/medical-procedures", icon: Microscope },
   { name: "الاستعارات", href: "/loans", icon: FileArchive },
   { name: "سجل المرضى", href: "/records", icon: Users },
+  { name: "قاعدة البيانات الموحدة", href: "/unified-database", icon: Database },
   { name: "التقارير", href: "/reports", icon: FileText },
 ];
 
