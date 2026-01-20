@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +8,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -45,69 +46,68 @@ export default function SearchableSelect({
   );
 
   useEffect(() => {
-    if (!open) return;
-    const t = window.setTimeout(() => {
-      inputRef.current?.focus();
-    }, 0);
-    return () => window.clearTimeout(t);
+    if (open) {
+      const t = window.setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+      return () => window.clearTimeout(t);
+    }
   }, [open]);
 
-  const openAndSeedQuery = (seed?: string) => {
-    setOpen(true);
-    if (seed) setSearchQuery((prev) => (prev ? prev : seed));
-  };
+  const filteredOptions = useMemo(() => {
+    if (!searchQuery) return options;
+    return options.filter((opt) =>
+      opt.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [options, searchQuery]);
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full flex gap-1">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between pr-10"
-            onFocus={() => openAndSeedQuery()}
-            onKeyDown={(e) => {
-              // allow users to "قف على الحقل واكتب" مباشرة
-              if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                if (!open) openAndSeedQuery(e.key);
-              }
-            }}
+            className="w-full justify-between text-right"
           >
             {selectedOption ? selectedOption.name : placeholder}
-            <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0" align="start">
-          <Command>
+        <PopoverContent className="w-full p-0 bg-background" align="start" style={{ zIndex: 9999 }}>
+          <Command shouldFilter={false}>
             <CommandInput
               ref={inputRef}
               placeholder="ابحث..."
               value={searchQuery}
               onValueChange={setSearchQuery}
+              className="text-right"
             />
-            <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup className="max-h-64 overflow-auto">
-              {options.map((option) => (
-                <CommandItem
-                  key={option.id}
-                  value={option.name}
-                  onSelect={() => {
-                    onValueChange(option.id === value ? "" : option.id);
-                    setOpen(false);
-                    setSearchQuery("");
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "ml-2 h-4 w-4",
-                      value === option.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {option.name}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            <CommandList>
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup className="max-h-64 overflow-auto">
+                {filteredOptions.map((option) => (
+                  <CommandItem
+                    key={option.id}
+                    value={option.name}
+                    onSelect={() => {
+                      onValueChange(option.id === value ? "" : option.id);
+                      setOpen(false);
+                      setSearchQuery("");
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <span>{option.name}</span>
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        value === option.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
@@ -117,9 +117,9 @@ export default function SearchableSelect({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-primary/10"
+                className="shrink-0 h-10 w-10 hover:bg-primary/10"
                 onClick={() => {
                   onAddNew();
                 }}
