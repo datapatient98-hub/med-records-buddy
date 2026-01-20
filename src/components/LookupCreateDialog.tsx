@@ -1,27 +1,90 @@
 import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
-export type LookupCreateType = "department" | "diagnosis" | "doctor" | "governorate";
+export type LookupCreateType =
+  | "department"
+  | "diagnosis"
+  | "doctor"
+  | "governorate"
+  | "occupation"
+  | "station"
+  | "district";
 
-const typeMeta: Record<LookupCreateType, { table: string; title: string; placeholder: string; queryKey: string }>= {
-  department: { table: "departments", title: "إضافة قسم", placeholder: "اسم القسم", queryKey: "departments" },
-  diagnosis: { table: "diagnoses", title: "إضافة تشخيص", placeholder: "اسم التشخيص", queryKey: "diagnoses" },
-  doctor: { table: "doctors", title: "إضافة طبيب", placeholder: "اسم الطبيب", queryKey: "doctors" },
-  governorate: { table: "governorates", title: "إضافة محافظة", placeholder: "اسم المحافظة", queryKey: "governorates" },
+const typeMeta: Record<
+  LookupCreateType,
+  { table: string; title: string; placeholder: string; queryKey: string }
+> = {
+  department: {
+    table: "departments",
+    title: "إضافة قسم",
+    placeholder: "اسم القسم",
+    queryKey: "departments",
+  },
+  diagnosis: {
+    table: "diagnoses",
+    title: "إضافة تشخيص",
+    placeholder: "اسم التشخيص",
+    queryKey: "diagnoses",
+  },
+  doctor: {
+    table: "doctors",
+    title: "إضافة طبيب",
+    placeholder: "اسم الطبيب",
+    queryKey: "doctors",
+  },
+  governorate: {
+    table: "governorates",
+    title: "إضافة محافظة",
+    placeholder: "اسم المحافظة",
+    queryKey: "governorates",
+  },
+  occupation: {
+    table: "occupations",
+    title: "إضافة مهنة",
+    placeholder: "اسم المهنة",
+    queryKey: "occupations",
+  },
+  station: {
+    table: "stations",
+    title: "إضافة محطة",
+    placeholder: "اسم المحطة",
+    queryKey: "stations",
+  },
+  district: {
+    table: "districts",
+    title: "إضافة مركز/حي",
+    placeholder: "اسم المركز/الحي",
+    queryKey: "districts",
+  },
 };
 
 interface LookupCreateDialogProps {
   open: boolean;
   type: LookupCreateType;
   onOpenChange: (open: boolean) => void;
+  /** Optional context for certain types (e.g., district governorate). */
+  context?: {
+    governorate_id?: string;
+  };
 }
 
-export default function LookupCreateDialog({ open, type, onOpenChange }: LookupCreateDialogProps) {
+export default function LookupCreateDialog({
+  open,
+  type,
+  onOpenChange,
+  context,
+}: LookupCreateDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -37,20 +100,33 @@ export default function LookupCreateDialog({ open, type, onOpenChange }: LookupC
   const handleSave = async () => {
     const clean = name.trim();
     if (!clean) {
-      toast({ title: "خطأ", description: "من فضلك اكتب الاسم أولاً", variant: "destructive" });
+      toast({
+        title: "خطأ",
+        description: "من فضلك اكتب الاسم أولاً",
+        variant: "destructive",
+      });
       return;
     }
 
     setSaving(true);
     try {
-      const { error } = await supabase.from(meta.table as any).insert([{ name: clean }]);
+      const payload: Record<string, any> = { name: clean };
+      if (type === "district" && context?.governorate_id) {
+        payload.governorate_id = context.governorate_id;
+      }
+
+      const { error } = await supabase.from(meta.table as any).insert([payload]);
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: [meta.queryKey] });
       toast({ title: "تمت الإضافة", description: `تم إضافة: ${clean}` });
       handleClose();
     } catch (e: any) {
-      toast({ title: "تعذر الحفظ", description: e?.message ?? "حدث خطأ غير متوقع", variant: "destructive" });
+      toast({
+        title: "تعذر الحفظ",
+        description: e?.message ?? "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -65,9 +141,9 @@ export default function LookupCreateDialog({ open, type, onOpenChange }: LookupC
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">الاسم</label>
-          <Input 
-            value={name} 
-            onChange={(e) => setName(e.target.value)} 
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder={meta.placeholder}
             autoFocus
           />
@@ -86,3 +162,4 @@ export default function LookupCreateDialog({ open, type, onOpenChange }: LookupC
     </Dialog>
   );
 }
+
