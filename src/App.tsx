@@ -9,6 +9,7 @@ import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
 import Loans from "./pages/Loans";
 import Records from "./pages/Records";
+import UnifiedDatabase from "./pages/UnifiedDatabase";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/medical-procedures" element={<MedicalProcedures />} />
           <Route path="/loans" element={<Loans />} />
           <Route path="/records" element={<Records />} />
+          <Route path="/unified-database" element={<UnifiedDatabase />} />
           <Route path="/reports" element={<Reports />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
