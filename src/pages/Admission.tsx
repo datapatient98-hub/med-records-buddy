@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
-import { Plus, Save, FileUp, Users, LogOut } from "lucide-react";
+import ColoredStatTab from "@/components/ColoredStatTab";
+import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
+import { Plus, Save, FileUp, UserPlus, Users, LogOut, Activity } from "lucide-react";
 
 const admissionSchema = z.object({
   unified_number: z.string().min(1, "الرقم الموحد مطلوب"),
@@ -40,6 +42,8 @@ export default function Admission() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [selectedTab, setSelectedTab] = useState<"active" | "discharged" | "total" | "admissions">("total");
 
   const form = useForm<AdmissionFormValues>({
     resolver: zodResolver(admissionSchema),
@@ -82,7 +86,9 @@ export default function Admission() {
     },
   });
 
-  // Top stats
+  // Top stats with time filter
+  const { start, end } = getTimeRangeDates(timeRange);
+  
   const { data: activeCount } = useQuery({
     queryKey: ["admissions-count", "active"],
     queryFn: async () => {
@@ -102,6 +108,30 @@ export default function Admission() {
         .from("admissions")
         .select("id", { count: "exact", head: true })
         .eq("admission_status", "خروج");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: totalCount } = useQuery({
+    queryKey: ["admissions-count", "total"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("admissions")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: newAdmissionsCount } = useQuery({
+    queryKey: ["admissions-count", "new", timeRange],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("admissions")
+        .select("id", { count: "exact", head: true })
+        .gte("admission_date", start.toISOString())
+        .lte("admission_date", end.toISOString());
       if (error) throw error;
       return count ?? 0;
     },
@@ -165,37 +195,57 @@ export default function Admission() {
             <h2 className="text-3xl font-bold text-foreground">تسجيل دخول مريض</h2>
             <p className="text-muted-foreground">إضافة حالة جديدة للنظام</p>
           </div>
-          <Button variant="outline">
-            <FileUp className="ml-2 h-4 w-4" />
-            استيراد من Excel
-          </Button>
+          <div className="flex gap-2">
+            <TimeFilter value={timeRange} onChange={setTimeRange} />
+            <Button variant="outline">
+              <FileUp className="ml-2 h-4 w-4" />
+              استيراد من Excel
+            </Button>
+          </div>
         </div>
 
-        {/* Top stats */}
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card className="bg-card/50 backdrop-blur">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">عدد المحجوزين</p>
-                  <p className="text-2xl font-bold text-foreground">{activeCount ?? 0}</p>
-                </div>
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/50 backdrop-blur">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">إجمالي حالات الخروج</p>
-                  <p className="text-2xl font-bold text-foreground">{dischargedCount ?? 0}</p>
-                </div>
-                <LogOut className="h-6 w-6 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
+        {/* Colored Tabs */}
+        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+            <ColoredStatTab
+              title="الحالات المحجوزة"
+              value={activeCount ?? 0}
+              icon={Users}
+              color="cyan"
+              onClick={() => setSelectedTab("active")}
+              active={selectedTab === "active"}
+            />
+            <ColoredStatTab
+              title="حالات الخروج"
+              value={dischargedCount ?? 0}
+              icon={LogOut}
+              color="pink"
+              onClick={() => setSelectedTab("discharged")}
+              active={selectedTab === "discharged"}
+            />
+            <ColoredStatTab
+              title="إجمالي الحالات"
+              value={totalCount ?? 0}
+              icon={Activity}
+              color="green"
+              onClick={() => setSelectedTab("total")}
+              active={selectedTab === "total"}
+            />
+            <ColoredStatTab
+              title="عدد الدخول"
+              value={newAdmissionsCount ?? 0}
+              subtitle={`خلال ${
+                timeRange === "day" ? "اليوم" : 
+                timeRange === "week" ? "الأسبوع" : 
+                timeRange === "month" ? "الشهر" : 
+                "3 أشهر"
+              }`}
+              icon={UserPlus}
+              color="purple"
+              onClick={() => setSelectedTab("admissions")}
+              active={selectedTab === "admissions"}
+            />
+          </div>
         </div>
 
         <Card className="shadow-medical">
@@ -338,7 +388,21 @@ export default function Admission() {
                                 <SelectValue placeholder="اختر المحافظة" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
+                            <SelectContent className="max-h-[200px]">
+                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                                <Input
+                                  placeholder="بحث..."
+                                  className="h-8"
+                                  onChange={(e) => {
+                                    const search = e.target.value.toLowerCase();
+                                    const items = document.querySelectorAll('[role="option"]');
+                                    items.forEach((item) => {
+                                      const text = item.textContent?.toLowerCase() || "";
+                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
+                                    });
+                                  }}
+                                />
+                              </div>
                               {governorates?.map((gov) => (
                                 <SelectItem key={gov.id} value={gov.id}>
                                   {gov.name}
@@ -373,7 +437,21 @@ export default function Admission() {
                                 <SelectValue placeholder="اختر القسم" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
+                            <SelectContent className="max-h-[200px]">
+                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                                <Input
+                                  placeholder="بحث..."
+                                  className="h-8"
+                                  onChange={(e) => {
+                                    const search = e.target.value.toLowerCase();
+                                    const items = document.querySelectorAll('[role="option"]');
+                                    items.forEach((item) => {
+                                      const text = item.textContent?.toLowerCase() || "";
+                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
+                                    });
+                                  }}
+                                />
+                              </div>
                               {departments?.map((dept) => (
                                 <SelectItem key={dept.id} value={dept.id}>
                                   {dept.name}
@@ -408,7 +486,21 @@ export default function Admission() {
                                 <SelectValue placeholder="اختر التشخيص" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
+                            <SelectContent className="max-h-[200px]">
+                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                                <Input
+                                  placeholder="بحث..."
+                                  className="h-8"
+                                  onChange={(e) => {
+                                    const search = e.target.value.toLowerCase();
+                                    const items = document.querySelectorAll('[role="option"]');
+                                    items.forEach((item) => {
+                                      const text = item.textContent?.toLowerCase() || "";
+                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
+                                    });
+                                  }}
+                                />
+                              </div>
                               {diagnoses?.map((diag) => (
                                 <SelectItem key={diag.id} value={diag.id}>
                                   {diag.name}
@@ -443,7 +535,21 @@ export default function Admission() {
                                 <SelectValue placeholder="اختر الطبيب" />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
+                            <SelectContent className="max-h-[200px]">
+                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
+                                <Input
+                                  placeholder="بحث..."
+                                  className="h-8"
+                                  onChange={(e) => {
+                                    const search = e.target.value.toLowerCase();
+                                    const items = document.querySelectorAll('[role="option"]');
+                                    items.forEach((item) => {
+                                      const text = item.textContent?.toLowerCase() || "";
+                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
+                                    });
+                                  }}
+                                />
+                              </div>
                               {doctors?.map((doc) => (
                                 <SelectItem key={doc.id} value={doc.id}>
                                   {doc.name}

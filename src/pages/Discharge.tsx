@@ -11,6 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import ColoredStatTab from "@/components/ColoredStatTab";
+import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban } from "lucide-react";
 
 const dischargeSchema = z.object({
@@ -31,6 +33,8 @@ export default function Discharge() {
   const [unifiedNumber, setUnifiedNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
   const [showDischargeForm, setShowDischargeForm] = useState(false);
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [selectedTab, setSelectedTab] = useState<"تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج">("تحسن");
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -73,27 +77,31 @@ export default function Discharge() {
     },
   });
 
-  // Top stats (discharge status)
+  // Top stats (discharge status) with time filter
+  const { start, end } = getTimeRangeDates(timeRange);
+  
   const dischargeStatuses = useMemo(
     () => [
-      { key: "تحسن" as const, label: "تحسن", icon: TrendingUp },
-      { key: "تحويل" as const, label: "تحويل", icon: Shuffle },
-      { key: "وفاة" as const, label: "وفاة", icon: Skull },
-      { key: "هروب" as const, label: "هروب", icon: UserMinus },
-      { key: "رفض العلاج" as const, label: "حسب الطلب", icon: Ban },
+      { key: "تحسن" as const, label: "تحسن", icon: TrendingUp, color: "green" as const },
+      { key: "تحويل" as const, label: "تحويل", icon: Shuffle, color: "cyan" as const },
+      { key: "وفاة" as const, label: "وفاة", icon: Skull, color: "pink" as const },
+      { key: "هروب" as const, label: "هروب", icon: UserMinus, color: "purple" as const },
+      { key: "رفض العلاج" as const, label: "حسب الطلب", icon: Ban, color: "orange" as const },
     ],
     []
   );
 
   const { data: dischargeCounts } = useQuery({
-    queryKey: ["discharges-counts"],
+    queryKey: ["discharges-counts", timeRange],
     queryFn: async () => {
       const entries = await Promise.all(
         dischargeStatuses.map(async (s) => {
           const { count, error } = await supabase
             .from("discharges")
             .select("id", { count: "exact", head: true })
-            .eq("discharge_status", s.key);
+            .eq("discharge_status", s.key)
+            .gte("discharge_date", start.toISOString())
+            .lte("discharge_date", end.toISOString());
           if (error) throw error;
           return [s.key, count ?? 0] as const;
         })
@@ -191,29 +199,35 @@ export default function Discharge() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
-          <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
+            <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
+          </div>
+          <TimeFilter value={timeRange} onChange={setTimeRange} />
         </div>
 
-        {/* Top stats */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
-          {dischargeStatuses.map((s) => {
-            const Icon = s.icon;
-            return (
-              <Card key={s.key} className="bg-card/50 backdrop-blur">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">{s.label}</p>
-                      <p className="text-2xl font-bold text-foreground">{dischargeCounts?.[s.key] ?? 0}</p>
-                    </div>
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        {/* Colored Tabs */}
+        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+            {dischargeStatuses.map((s) => (
+              <ColoredStatTab
+                key={s.key}
+                title={s.label}
+                value={dischargeCounts?.[s.key] ?? 0}
+                subtitle={`خلال ${
+                  timeRange === "day" ? "اليوم" : 
+                  timeRange === "week" ? "الأسبوع" : 
+                  timeRange === "month" ? "الشهر" : 
+                  "3 أشهر"
+                }`}
+                icon={s.icon}
+                color={s.color}
+                onClick={() => setSelectedTab(s.key)}
+                active={selectedTab === s.key}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Search Section */}

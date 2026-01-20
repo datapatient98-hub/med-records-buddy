@@ -5,14 +5,15 @@ import * as z from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
+import ColoredStatTab from "@/components/ColoredStatTab";
+import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { FileArchive, Save, Search } from "lucide-react";
+import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
 
 const loanSchema = z.object({
   borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
@@ -49,6 +50,7 @@ export default function Loans() {
   const [activeTab, setActiveTab] = useState<LoanTab>("borrowed");
   const [searchNumber, setSearchNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
 
   const form = useForm<LoanFormValues>({
     resolver: zodResolver(loanSchema),
