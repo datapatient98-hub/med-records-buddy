@@ -1,21 +1,42 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import Layout from "@/components/Layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import AdmissionSuccessNotification from "@/components/AdmissionSuccessNotification";
-import { Plus, Save, FileUp, UserPlus, Users, LogOut, Activity } from "lucide-react";
+import SearchableSelect from "@/components/SearchableSelect";
+import TopLeftNotice from "@/components/TopLeftNotice";
+import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
 
 const admissionSchema = z.object({
   unified_number: z.string().min(1, "الرقم الموحد مطلوب"),
@@ -39,29 +60,54 @@ const admissionSchema = z.object({
 
 type AdmissionFormValues = z.infer<typeof admissionSchema>;
 
+type InlineNoticeState =
+  | null
+  | {
+      title: string;
+      description?: string;
+      variant: "success" | "error" | "info";
+      durationMs?: number;
+    };
+
 export default function Admission() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
-  const [selectedTab, setSelectedTab] = useState<"active" | "discharged" | "total" | "admissions">("total");
+  const [selectedTab, setSelectedTab] = useState<
+    "active" | "discharged" | "total" | "admissions"
+  >("total");
   const [successNotification, setSuccessNotification] = useState<{
     unifiedNumber: string;
     patientName: string;
     departmentName: string;
   } | null>(null);
-  
+  const [notice, setNotice] = useState<InlineNoticeState>(null);
+
   const unifiedNumberRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<AdmissionFormValues>({
     resolver: zodResolver(admissionSchema),
     defaultValues: {
+      unified_number: "",
+      patient_name: "",
+      national_id: "",
+      gender: "ذكر",
+      occupation_id: "",
+      marital_status: "أعزب",
+      phone: "",
+      age: 0,
+      governorate_id: "",
+      district_id: "",
+      address_details: "",
+      station_id: "",
+      department_id: "",
       admission_status: "محجوز",
+      diagnosis_id: "",
+      doctor_id: "",
       admission_date: new Date().toISOString().slice(0, 16),
     },
   });
 
-  // Fetch lookup data
   const { data: departments } = useQuery({
     queryKey: ["departments"],
     queryFn: async () => {
@@ -94,9 +140,9 @@ export default function Admission() {
     },
   });
 
-  // Top stats with time filter
+  // Top stats
   const { start, end } = getTimeRangeDates(timeRange);
-  
+
   const { data: activeCount } = useQuery({
     queryKey: ["admissions-count", "active"],
     queryFn: async () => {
@@ -145,13 +191,12 @@ export default function Admission() {
     },
   });
 
-  // Fetch patient by unified number
   const fetchPatientByUnifiedNumber = async (unifiedNumber: string) => {
     if (!unifiedNumber) return;
-    
+
     const { data, error } = await supabase
       .from("admissions")
-      .select("*, departments(name)")
+      .select("*")
       .eq("unified_number", unifiedNumber)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -159,11 +204,16 @@ export default function Admission() {
 
     if (error) {
       console.error("Error fetching patient:", error);
+      setNotice({
+        title: "حدث خطأ أثناء البحث",
+        description: "يرجى المحاولة مرة أخرى",
+        variant: "error",
+        durationMs: 5000,
+      });
       return;
     }
 
     if (data) {
-      // Fill form with existing patient data
       form.setValue("patient_name", data.patient_name);
       form.setValue("national_id", data.national_id);
       form.setValue("gender", data.gender);
@@ -175,11 +225,19 @@ export default function Admission() {
       if (data.address_details) form.setValue("address_details", data.address_details);
       if (data.occupation_id) form.setValue("occupation_id", data.occupation_id);
       if (data.station_id) form.setValue("station_id", data.station_id);
+
+      setNotice({
+        title: "تم العثور على بيانات سابقة",
+        description: "تم تعبئة البيانات تلقائياً",
+        variant: "info",
+        durationMs: 5000,
+      });
     } else {
-      toast({
-        title: "لا توجد بيانات سابقة",
+      setNotice({
+        title: "لا يوجد مريض بهذا الرقم",
         description: "هذا الرقم الموحد غير مسجل من قبل",
-        variant: "default",
+        variant: "error",
+        durationMs: 5000,
       });
     }
   };
@@ -188,25 +246,27 @@ export default function Admission() {
     mutationFn: async (values: AdmissionFormValues) => {
       const { data, error } = await supabase
         .from("admissions")
-        .insert([{
-          unified_number: values.unified_number,
-          patient_name: values.patient_name,
-          national_id: values.national_id,
-          gender: values.gender as any,
-          occupation_id: values.occupation_id || null,
-          marital_status: values.marital_status as any,
-          phone: values.phone,
-          age: Number(values.age),
-          governorate_id: values.governorate_id || null,
-          district_id: values.district_id || null,
-          address_details: values.address_details || null,
-          station_id: values.station_id || null,
-          department_id: values.department_id,
-          admission_status: values.admission_status as any,
-          diagnosis_id: values.diagnosis_id || null,
-          doctor_id: values.doctor_id || null,
-          admission_date: values.admission_date,
-        }])
+        .insert([
+          {
+            unified_number: values.unified_number,
+            patient_name: values.patient_name,
+            national_id: values.national_id,
+            gender: values.gender as any,
+            occupation_id: values.occupation_id || null,
+            marital_status: values.marital_status as any,
+            phone: values.phone,
+            age: Number(values.age),
+            governorate_id: values.governorate_id || null,
+            district_id: values.district_id || null,
+            address_details: values.address_details || null,
+            station_id: values.station_id || null,
+            department_id: values.department_id,
+            admission_status: values.admission_status as any,
+            diagnosis_id: values.diagnosis_id || null,
+            doctor_id: values.doctor_id || null,
+            admission_date: values.admission_date,
+          },
+        ])
         .select("*, departments(name)")
         .single();
 
@@ -215,40 +275,59 @@ export default function Admission() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      
-      // Show custom success notification
+
       setSuccessNotification({
         unifiedNumber: data.unified_number,
         patientName: data.patient_name,
         departmentName: data.departments?.name || "غير محدد",
       });
-      
-      // Reset form and focus on unified number
+
       form.reset({
+        unified_number: "",
+        patient_name: "",
+        national_id: "",
+        gender: "ذكر",
+        occupation_id: "",
+        marital_status: "أعزب",
+        phone: "",
+        age: 0,
+        governorate_id: "",
+        district_id: "",
+        address_details: "",
+        station_id: "",
+        department_id: "",
         admission_status: "محجوز",
+        diagnosis_id: "",
+        doctor_id: "",
         admission_date: new Date().toISOString().slice(0, 16),
       });
-      
-      setTimeout(() => {
-        unifiedNumberRef.current?.focus();
-      }, 100);
+
+      window.setTimeout(() => unifiedNumberRef.current?.focus(), 50);
     },
     onError: (error: any) => {
-      toast({
+      console.error(error);
+      setNotice({
         title: "خطأ في الحفظ",
-        description: error.message,
-        variant: "destructive",
+        description: "تعذر حفظ البيانات. تأكد من إدخال البيانات بشكل صحيح.",
+        variant: "error",
+        durationMs: 5000,
       });
     },
   });
 
-  const onSubmit = (data: AdmissionFormValues) => {
-    mutation.mutate(data);
-  };
-
   return (
     <Layout>
       <div className="space-y-6">
+        {notice && (
+          <TopLeftNotice
+            title={notice.title}
+            description={notice.description}
+            variant={notice.variant}
+            durationMs={notice.durationMs}
+            onClose={() => setNotice(null)}
+          />
+        )}
+
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold text-foreground">تسجيل دخول مريض</h2>
@@ -263,7 +342,6 @@ export default function Admission() {
           </div>
         </div>
 
-        {/* Colored Tabs */}
         <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
             <ColoredStatTab
@@ -294,10 +372,13 @@ export default function Admission() {
               title="عدد الدخول"
               value={newAdmissionsCount ?? 0}
               subtitle={`خلال ${
-                timeRange === "day" ? "اليوم" : 
-                timeRange === "week" ? "الأسبوع" : 
-                timeRange === "month" ? "الشهر" : 
-                "3 أشهر"
+                timeRange === "day"
+                  ? "اليوم"
+                  : timeRange === "week"
+                  ? "الأسبوع"
+                  : timeRange === "month"
+                  ? "الشهر"
+                  : "3 أشهر"
               }`}
               icon={UserPlus}
               color="purple"
@@ -316,7 +397,7 @@ export default function Admission() {
           </CardHeader>
           <CardContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form onSubmit={form.handleSubmit((data) => mutation.mutate(data))} className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-3">
                   <FormField
                     control={form.control}
@@ -325,8 +406,8 @@ export default function Admission() {
                       <FormItem>
                         <FormLabel>الرقم الموحد *</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="أدخل الرقم الموحد" 
+                          <Input
+                            placeholder="أدخل الرقم الموحد"
                             {...field}
                             ref={unifiedNumberRef}
                             onBlur={(e) => {
@@ -451,44 +532,17 @@ export default function Admission() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>المحافظة *</FormLabel>
-                        <div className="flex gap-2">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="اختر المحافظة" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px]">
-                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
-                                <Input
-                                  placeholder="بحث..."
-                                  className="h-8"
-                                  onChange={(e) => {
-                                    const search = e.target.value.toLowerCase();
-                                    const items = document.querySelectorAll('[role="option"]');
-                                    items.forEach((item) => {
-                                      const text = item.textContent?.toLowerCase() || "";
-                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
-                                    });
-                                  }}
-                                />
-                              </div>
-                              {governorates?.map((gov) => (
-                                <SelectItem key={gov.id} value={gov.id}>
-                                  {gov.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setShowNewItemDialog("governorate")}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={governorates ?? []}
+                            placeholder="اختر المحافظة"
+                            emptyText="لا توجد محافظة بهذا الاسم"
+                            onAddNew={() => setShowNewItemDialog("governorate")}
+                            addNewLabel="إضافة محافظة جديدة"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -500,44 +554,17 @@ export default function Admission() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>القسم *</FormLabel>
-                        <div className="flex gap-2">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="اختر القسم" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px]">
-                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
-                                <Input
-                                  placeholder="بحث..."
-                                  className="h-8"
-                                  onChange={(e) => {
-                                    const search = e.target.value.toLowerCase();
-                                    const items = document.querySelectorAll('[role="option"]');
-                                    items.forEach((item) => {
-                                      const text = item.textContent?.toLowerCase() || "";
-                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
-                                    });
-                                  }}
-                                />
-                              </div>
-                              {departments?.map((dept) => (
-                                <SelectItem key={dept.id} value={dept.id}>
-                                  {dept.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setShowNewItemDialog("department")}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={departments ?? []}
+                            placeholder="اختر القسم"
+                            emptyText="لا يوجد قسم بهذا الاسم"
+                            onAddNew={() => setShowNewItemDialog("department")}
+                            addNewLabel="إضافة قسم جديد"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -549,44 +576,17 @@ export default function Admission() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>التشخيص</FormLabel>
-                        <div className="flex gap-2">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="اختر التشخيص" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px]">
-                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
-                                <Input
-                                  placeholder="بحث..."
-                                  className="h-8"
-                                  onChange={(e) => {
-                                    const search = e.target.value.toLowerCase();
-                                    const items = document.querySelectorAll('[role="option"]');
-                                    items.forEach((item) => {
-                                      const text = item.textContent?.toLowerCase() || "";
-                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
-                                    });
-                                  }}
-                                />
-                              </div>
-                              {diagnoses?.map((diag) => (
-                                <SelectItem key={diag.id} value={diag.id}>
-                                  {diag.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setShowNewItemDialog("diagnosis")}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={diagnoses ?? []}
+                            placeholder="اختر التشخيص"
+                            emptyText="لا يوجد تشخيص بهذا الاسم"
+                            onAddNew={() => setShowNewItemDialog("diagnosis")}
+                            addNewLabel="إضافة تشخيص جديد"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -598,44 +598,17 @@ export default function Admission() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>الطبيب</FormLabel>
-                        <div className="flex gap-2">
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="اختر الطبيب" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="max-h-[200px]">
-                              <div className="px-2 pb-2 sticky top-0 bg-popover z-10">
-                                <Input
-                                  placeholder="بحث..."
-                                  className="h-8"
-                                  onChange={(e) => {
-                                    const search = e.target.value.toLowerCase();
-                                    const items = document.querySelectorAll('[role="option"]');
-                                    items.forEach((item) => {
-                                      const text = item.textContent?.toLowerCase() || "";
-                                      (item as HTMLElement).style.display = text.includes(search) ? "" : "none";
-                                    });
-                                  }}
-                                />
-                              </div>
-                              {doctors?.map((doc) => (
-                                <SelectItem key={doc.id} value={doc.id}>
-                                  {doc.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="outline"
-                            onClick={() => setShowNewItemDialog("doctor")}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={doctors ?? []}
+                            placeholder="اختر الطبيب"
+                            emptyText="لا يوجد طبيب بهذا الاسم"
+                            onAddNew={() => setShowNewItemDialog("doctor")}
+                            addNewLabel="إضافة طبيب جديد"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
