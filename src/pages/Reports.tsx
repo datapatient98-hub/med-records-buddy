@@ -20,7 +20,6 @@ export default function Reports() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [diagnosisFilter, setDiagnosisFilter] = useState("all");
   const [doctorFilter, setDoctorFilter] = useState("all");
-  const [showUnreturnedLoans, setShowUnreturnedLoans] = useState(false);
   
   // Quick-add dialogs
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -56,18 +55,6 @@ export default function Reports() {
     },
   });
 
-  // Fetch unreturned loans
-  const { data: unreturnedLoansData } = useQuery({
-    queryKey: ["unreturned-loans-report"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("file_loans")
-        .select("*, admissions(patient_name, unified_number, internal_number)")
-        .eq("is_returned", false)
-        .order("loan_date", { ascending: false });
-      return data || [];
-    },
-  });
 
   // Fetch filtered data - NOW enabled by default
   const { data: reportData, isLoading, refetch } = useQuery({
@@ -287,79 +274,13 @@ export default function Reports() {
       />
       
       <div className="space-y-6" dir="rtl">
-        {/* Header with Tabs */}
+        {/* Header */}
         <div className="flex justify-between items-center flex-wrap gap-4">
-          <h1 className="text-3xl font-bold">التقارير الطبية</h1>
-          
-          <div className="flex gap-2">
-            <Button
-              variant={!showUnreturnedLoans ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowUnreturnedLoans(false)}
-            >
-              التقارير العامة
-            </Button>
-            <Button
-              variant={showUnreturnedLoans ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowUnreturnedLoans(true)}
-              className="gap-2"
-            >
-              <FileX className="h-4 w-4" />
-              ملفات لم تُرجع ({unreturnedLoansData?.length || 0})
-            </Button>
-          </div>
+          <h1 className="text-3xl font-bold">التقارير الطبية والإحصائيات المتقدمة</h1>
         </div>
 
-        {showUnreturnedLoans ? (
-          /* Unreturned Loans Section */
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-xl font-semibold mb-4">
-                الملفات المستعارة التي لم تُرجع ({unreturnedLoansData?.length || 0})
-              </h2>
-              
-              {unreturnedLoansData && unreturnedLoansData.length > 0 ? (
-                <div className="rounded-lg border bg-card overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>الرقم الموحد</TableHead>
-                        <TableHead>الرقم الداخلي</TableHead>
-                        <TableHead>اسم المريض</TableHead>
-                        <TableHead>مستعار بواسطة</TableHead>
-                        <TableHead>القسم المستعير</TableHead>
-                        <TableHead>تاريخ الاستعارة</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {unreturnedLoansData.map((loan: any) => (
-                        <TableRow key={loan.id}>
-                          <TableCell>{loan.unified_number}</TableCell>
-                          <TableCell>{loan.internal_number}</TableCell>
-                          <TableCell>{loan.admissions?.patient_name}</TableCell>
-                          <TableCell>{loan.borrowed_by}</TableCell>
-                          <TableCell>{loan.borrowed_to_department}</TableCell>
-                          <TableCell>
-                            {format(new Date(loan.loan_date), "dd/MM/yyyy")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileX className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                  <p className="text-lg">جميع الملفات تم إرجاعها ✓</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          /* Regular Reports Section */
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Filters Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">من تاريخ</label>
             <Input
@@ -464,7 +385,6 @@ export default function Reports() {
           </Button>
         </div>
 
-
         {reportData && (
           <div className="space-y-6">
             {reportData.admissions.length > 0 && (
@@ -539,8 +459,6 @@ export default function Reports() {
               </div>
             )}
           </div>
-        )}
-          </>
         )}
       </div>
     </Layout>

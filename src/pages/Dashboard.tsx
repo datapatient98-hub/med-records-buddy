@@ -503,8 +503,8 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Priority Stats - Deaths, Active, Emergencies */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Priority Stats - Deaths, Active, Emergencies, Unreturned Loans */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="shadow-lg border-0 bg-gradient-to-br from-destructive/80 to-destructive overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-10">
             <div className="absolute top-4 left-4 w-32 h-32 bg-white rounded-full blur-3xl" />
