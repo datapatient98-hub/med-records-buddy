@@ -554,20 +554,15 @@ export default function Admission() {
                           <RequiredLabel>النوع</RequiredLabel>
                         </FormLabel>
                         <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
+                          <SearchableSelect
                             value={field.value}
-                            className="flex gap-4"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="gender-male" className="cursor-pointer">ذكر</Label>
-                              <RadioGroupItem value="ذكر" id="gender-male" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="gender-female" className="cursor-pointer">أنثى</Label>
-                              <RadioGroupItem value="أنثى" id="gender-female" />
-                            </div>
-                          </RadioGroup>
+                            onValueChange={field.onChange}
+                            options={[
+                              { id: "ذكر", name: "ذكر" },
+                              { id: "أنثى", name: "أنثى" },
+                            ]}
+                            placeholder="اختر النوع"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -607,28 +602,26 @@ export default function Admission() {
                           <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
                         </FormLabel>
                         <FormControl>
-                          <RadioGroup
-                            onValueChange={field.onChange}
+                          <SearchableSelect
                             value={field.value}
-                            className="flex flex-wrap gap-4"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="marital-single" className="cursor-pointer">أعزب</Label>
-                              <RadioGroupItem value="أعزب" id="marital-single" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="marital-married" className="cursor-pointer">متزوج</Label>
-                              <RadioGroupItem value="متزوج" id="marital-married" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="marital-divorced" className="cursor-pointer">مطلق</Label>
-                              <RadioGroupItem value="مطلق" id="marital-divorced" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="marital-widowed" className="cursor-pointer">أرمل</Label>
-                              <RadioGroupItem value="أرمل" id="marital-widowed" />
-                            </div>
-                          </RadioGroup>
+                            onValueChange={field.onChange}
+                            options={[
+                              { id: "أعزب", name: "أعزب" },
+                              { id: "متزوج", name: "متزوج" },
+                              { id: "مطلق", name: "مطلق" },
+                              { id: "أرمل", name: "أرمل" },
+                            ]}
+                            placeholder="اختر الحالة الاجتماعية"
+                            onAddNew={() => {
+                              setNotice({
+                                title: "إضافة حالة اجتماعية جديدة",
+                                description: "يتم إضافة القيم الثابتة من خلال إعدادات النظام",
+                                variant: "info",
+                                durationMs: 5000,
+                              });
+                            }}
+                            addNewLabel="إضافة حالة جديدة"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
