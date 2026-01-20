@@ -25,6 +25,8 @@ interface SearchableSelectProps {
   emptyText?: string;
   onAddNew?: () => void;
   addNewLabel?: string;
+  /** Callback when new item is created via dialog */
+  onItemCreated?: (item: { id: string; name: string }) => void;
 }
 
 export default function SearchableSelect({
@@ -35,6 +37,7 @@ export default function SearchableSelect({
   emptyText = "لا توجد نتائج",
   onAddNew,
   addNewLabel = "إضافة جديد",
+  onItemCreated,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,16 +65,39 @@ export default function SearchableSelect({
   }, [options, searchQuery]);
 
   return (
-    <div className="relative w-full flex gap-1">
+    <div className="relative w-full">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between text-right"
+            className="w-full justify-between text-right pr-3"
           >
-            {selectedOption ? selectedOption.name : placeholder}
+            <span className="flex-1 text-right truncate">
+              {selectedOption ? selectedOption.name : placeholder}
+            </span>
+            {onAddNew && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddNew();
+                      }}
+                      className="ml-2 mr-2 flex-shrink-0 h-6 w-6 rounded-sm hover:bg-primary/10 flex items-center justify-center transition-colors border border-primary/20"
+                    >
+                      <Plus className="h-3.5 w-3.5 text-primary" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">{addNewLabel}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0 bg-background" align="start" style={{ zIndex: 9999 }}>
@@ -111,28 +137,6 @@ export default function SearchableSelect({
           </Command>
         </PopoverContent>
       </Popover>
-      {onAddNew && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="shrink-0 h-10 w-10 hover:bg-primary/10"
-                onClick={() => {
-                  onAddNew();
-                }}
-              >
-                <Plus className="h-4 w-4 text-primary" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{addNewLabel}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
     </div>
   );
 }

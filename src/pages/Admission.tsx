@@ -101,6 +101,7 @@ export default function Admission() {
   const queryClient = useQueryClient();
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
   const [dialogContext, setDialogContext] = useState<{ governorate_id?: string } | undefined>(undefined);
+  const [onItemCreatedCallback, setOnItemCreatedCallback] = useState<((item: { id: string; name: string }) => void) | undefined>(undefined);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [selectedTab, setSelectedTab] = useState<
     "active" | "discharged" | "total" | "admissions"
@@ -207,6 +208,28 @@ export default function Admission() {
     if (age === null) return;
     form.setValue("age", age, { shouldValidate: true, shouldDirty: true });
   }, [form, nationalId]);
+
+  // Clear form fields when unified_number is cleared
+  const watchUnifiedNumber = form.watch("unified_number");
+  useEffect(() => {
+    if (!watchUnifiedNumber || watchUnifiedNumber.trim() === "") {
+      // Reset all fields except defaults
+      form.setValue("patient_name", "");
+      form.setValue("national_id", "");
+      form.setValue("gender", "ذكر");
+      form.setValue("occupation_id", "");
+      form.setValue("marital_status", "أعزب");
+      form.setValue("phone", "");
+      form.setValue("age", 0);
+      form.setValue("governorate_id", "");
+      form.setValue("district_id", "");
+      form.setValue("address_details", "");
+      form.setValue("station_id", "");
+      form.setValue("department_id", "");
+      form.setValue("diagnosis_id", "");
+      form.setValue("doctor_id", "");
+    }
+  }, [watchUnifiedNumber, form]);
 
   // Top stats
   const { start, end } = getTimeRangeDates(timeRange);
@@ -374,11 +397,44 @@ export default function Admission() {
     },
     onError: (error: any) => {
       console.error(error);
+      
+      let errorDescription = "تعذر حفظ البيانات. تأكد من إدخال البيانات بشكل صحيح.";
+      
+      // Parse specific errors
+      const errorMsg = error?.message?.toLowerCase() || "";
+      
+      if (errorMsg.includes("foreign key") || errorMsg.includes("violates foreign key")) {
+        // Foreign key constraint violation
+        if (errorMsg.includes("department")) {
+          errorDescription = "القسم المحدد غير موجود. يرجى اختيار قسم صحيح أو إضافة قسم جديد.";
+        } else if (errorMsg.includes("governorate")) {
+          errorDescription = "المحافظة المحددة غير موجودة. يرجى اختيار محافظة صحيحة أو إضافة محافظة جديدة.";
+        } else if (errorMsg.includes("doctor")) {
+          errorDescription = "الطبيب المحدد غير موجود. يرجى اختيار طبيب صحيح أو إضافة طبيب جديد.";
+        } else if (errorMsg.includes("diagnosis")) {
+          errorDescription = "التشخيص المحدد غير موجود. يرجى اختيار تشخيص صحيح أو إضافة تشخيص جديد.";
+        } else if (errorMsg.includes("occupation")) {
+          errorDescription = "المهنة المحددة غير موجودة. يرجى اختيار مهنة صحيحة أو إضافة مهنة جديدة.";
+        } else if (errorMsg.includes("district")) {
+          errorDescription = "المركز/الحي المحدد غير موجود. يرجى اختيار مركز صحيح أو إضافة مركز جديد.";
+        } else if (errorMsg.includes("station")) {
+          errorDescription = "المحطة المحددة غير موجودة. يرجى اختيار محطة صحيحة أو إضافة محطة جديدة.";
+        } else {
+          errorDescription = "أحد الحقول المحددة غير صحيح. يرجى التحقق من جميع الحقول والمحاولة مرة أخرى.";
+        }
+      } else if (errorMsg.includes("unique") || errorMsg.includes("duplicate")) {
+        errorDescription = "الرقم الموحد موجود بالفعل. يرجى استخدام رقم موحد آخر.";
+      } else if (errorMsg.includes("not null") || errorMsg.includes("null value")) {
+        errorDescription = "بعض الحقول الإلزامية لم يتم تعبئتها. يرجى التحقق من جميع الحقول المطلوبة.";
+      } else if (errorMsg.includes("check constraint")) {
+        errorDescription = "أحد الحقول يحتوي على قيمة غير صحيحة. يرجى التحقق من البيانات المدخلة.";
+      }
+      
       setNotice({
         title: "خطأ في الحفظ",
-        description: "تعذر حفظ البيانات. تأكد من إدخال البيانات بشكل صحيح.",
+        description: errorDescription,
         variant: "error",
-        durationMs: 5000,
+        durationMs: 8000,
       });
     },
   });
@@ -583,6 +639,9 @@ export default function Admission() {
                             placeholder="اختر المهنة"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("occupation");
                             }}
                             addNewLabel="إضافة مهنة جديدة"
@@ -700,6 +759,9 @@ export default function Admission() {
                             placeholder="اختر المحافظة"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("governorate");
                             }}
                             addNewLabel="إضافة محافظة جديدة"
@@ -724,6 +786,9 @@ export default function Admission() {
                             placeholder="اختر المركز/الحي"
                             onAddNew={() => {
                               setDialogContext({ governorate_id: selectedGovernorateId || undefined });
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("district");
                             }}
                             addNewLabel="إضافة مركز/حي"
@@ -762,6 +827,9 @@ export default function Admission() {
                             placeholder="اختر المحطة"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("station");
                             }}
                             addNewLabel="إضافة محطة جديدة"
@@ -788,6 +856,9 @@ export default function Admission() {
                             placeholder="اختر القسم/المركز"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("department");
                             }}
                             addNewLabel="إضافة قسم جديد"
@@ -838,6 +909,9 @@ export default function Admission() {
                             placeholder="اختر التشخيص"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("diagnosis");
                             }}
                             addNewLabel="إضافة تشخيص جديد"
@@ -862,6 +936,9 @@ export default function Admission() {
                             placeholder="اختر الطبيب"
                             onAddNew={() => {
                               setDialogContext(undefined);
+                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                field.onChange(item.id);
+                              });
                               setShowNewItemDialog("doctor");
                             }}
                             addNewLabel="إضافة طبيب جديد"
@@ -925,7 +1002,13 @@ export default function Admission() {
             open={!!showNewItemDialog}
             type={showNewItemDialog}
             context={dialogContext}
-            onOpenChange={(open) => setShowNewItemDialog(open ? showNewItemDialog : null)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setOnItemCreatedCallback(undefined);
+              }
+              setShowNewItemDialog(open ? showNewItemDialog : null);
+            }}
+            onCreated={onItemCreatedCallback}
           />
         )}
 

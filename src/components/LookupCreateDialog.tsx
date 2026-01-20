@@ -77,6 +77,8 @@ interface LookupCreateDialogProps {
   context?: {
     governorate_id?: string;
   };
+  /** Callback when item is created, returns the created item. */
+  onCreated?: (item: { id: string; name: string }) => void;
 }
 
 export default function LookupCreateDialog({
@@ -84,6 +86,7 @@ export default function LookupCreateDialog({
   type,
   onOpenChange,
   context,
+  onCreated,
 }: LookupCreateDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -115,11 +118,21 @@ export default function LookupCreateDialog({
         payload.governorate_id = context.governorate_id;
       }
 
-      const { error } = await supabase.from(meta.table as any).insert([payload]);
+      const { data, error } = await supabase
+        .from(meta.table as any)
+        .insert([payload])
+        .select("id, name")
+        .single();
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: [meta.queryKey] });
       toast({ title: "تمت الإضافة", description: `تم إضافة: ${clean}` });
+      
+      // Call onCreated callback with the new item
+      if (data && onCreated && 'id' in data && 'name' in data) {
+        onCreated({ id: data.id as string, name: data.name as string });
+      }
+      
       handleClose();
     } catch (e: any) {
       toast({
