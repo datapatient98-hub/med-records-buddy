@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Layout from "@/components/Layout";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,13 +7,14 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
+import AdmissionSuccessNotification from "@/components/AdmissionSuccessNotification";
 import { Plus, Save, FileUp, UserPlus, Users, LogOut, Activity } from "lucide-react";
 
 const admissionSchema = z.object({
@@ -44,6 +45,13 @@ export default function Admission() {
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [selectedTab, setSelectedTab] = useState<"active" | "discharged" | "total" | "admissions">("total");
+  const [successNotification, setSuccessNotification] = useState<{
+    unifiedNumber: string;
+    patientName: string;
+    departmentName: string;
+  } | null>(null);
+  
+  const unifiedNumberRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<AdmissionFormValues>({
     resolver: zodResolver(admissionSchema),
@@ -137,6 +145,45 @@ export default function Admission() {
     },
   });
 
+  // Fetch patient by unified number
+  const fetchPatientByUnifiedNumber = async (unifiedNumber: string) => {
+    if (!unifiedNumber) return;
+    
+    const { data, error } = await supabase
+      .from("admissions")
+      .select("*, departments(name)")
+      .eq("unified_number", unifiedNumber)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching patient:", error);
+      return;
+    }
+
+    if (data) {
+      // Fill form with existing patient data
+      form.setValue("patient_name", data.patient_name);
+      form.setValue("national_id", data.national_id);
+      form.setValue("gender", data.gender);
+      form.setValue("age", data.age);
+      form.setValue("phone", data.phone);
+      form.setValue("marital_status", data.marital_status);
+      if (data.governorate_id) form.setValue("governorate_id", data.governorate_id);
+      if (data.district_id) form.setValue("district_id", data.district_id);
+      if (data.address_details) form.setValue("address_details", data.address_details);
+      if (data.occupation_id) form.setValue("occupation_id", data.occupation_id);
+      if (data.station_id) form.setValue("station_id", data.station_id);
+    } else {
+      toast({
+        title: "لا توجد بيانات سابقة",
+        description: "هذا الرقم الموحد غير مسجل من قبل",
+        variant: "default",
+      });
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: async (values: AdmissionFormValues) => {
       const { data, error } = await supabase
@@ -160,7 +207,7 @@ export default function Admission() {
           doctor_id: values.doctor_id || null,
           admission_date: values.admission_date,
         }])
-        .select()
+        .select("*, departments(name)")
         .single();
 
       if (error) throw error;
@@ -168,11 +215,23 @@ export default function Admission() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      toast({
-        title: "تم الحفظ بنجاح",
-        description: `تم حفظ المريض ${data.patient_name} برقم موحد ${data.unified_number} في قسم ${data.department_id}`,
+      
+      // Show custom success notification
+      setSuccessNotification({
+        unifiedNumber: data.unified_number,
+        patientName: data.patient_name,
+        departmentName: data.departments?.name || "غير محدد",
       });
-      form.reset();
+      
+      // Reset form and focus on unified number
+      form.reset({
+        admission_status: "محجوز",
+        admission_date: new Date().toISOString().slice(0, 16),
+      });
+      
+      setTimeout(() => {
+        unifiedNumberRef.current?.focus();
+      }, 100);
     },
     onError: (error: any) => {
       toast({
@@ -266,8 +325,19 @@ export default function Admission() {
                       <FormItem>
                         <FormLabel>الرقم الموحد *</FormLabel>
                         <FormControl>
-                          <Input placeholder="أدخل الرقم الموحد" {...field} />
+                          <Input 
+                            placeholder="أدخل الرقم الموحد" 
+                            {...field}
+                            ref={unifiedNumberRef}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              fetchPatientByUnifiedNumber(e.target.value);
+                            }}
+                          />
                         </FormControl>
+                        <FormDescription className="text-xs text-muted-foreground">
+                          يتم البحث عند الضغط على أي مربع آخر
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -576,7 +646,7 @@ export default function Admission() {
                     name="admission_date"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>تاريخ وساعة الحجز *</FormLabel>
+                        <FormLabel>تاريخ وساعة الحجز * (AM صباحاً / PM مساءً)</FormLabel>
                         <FormControl>
                           <Input type="datetime-local" {...field} />
                         </FormControl>
@@ -629,6 +699,15 @@ export default function Admission() {
             open={!!showNewItemDialog}
             type={showNewItemDialog}
             onOpenChange={(open) => setShowNewItemDialog(open ? showNewItemDialog : null)}
+          />
+        )}
+
+        {successNotification && (
+          <AdmissionSuccessNotification
+            unifiedNumber={successNotification.unifiedNumber}
+            patientName={successNotification.patientName}
+            departmentName={successNotification.departmentName}
+            onClose={() => setSuccessNotification(null)}
           />
         )}
       </div>
