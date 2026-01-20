@@ -38,6 +38,10 @@ import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/Time
 import AdmissionSuccessNotification from "@/components/AdmissionSuccessNotification";
 import SearchableSelect from "@/components/SearchableSelect";
 import TopLeftNotice from "@/components/TopLeftNotice";
+import ExcelImportDialog from "@/components/ExcelImportDialog";
+import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
+import { downloadImportSummaryPdf } from "@/lib/pdf/exportImportPdf";
+import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
 import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
 
@@ -103,6 +107,7 @@ export default function Admission() {
   const [dialogContext, setDialogContext] = useState<{ governorate_id?: string } | undefined>(undefined);
   const [onItemCreatedCallback, setOnItemCreatedCallback] = useState<((item: { id: string; name: string }) => void) | undefined>(undefined);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [importOpen, setImportOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<
     "active" | "discharged" | "total" | "admissions"
   >("total");
@@ -460,7 +465,7 @@ export default function Admission() {
             </div>
             <div className="flex gap-2">
               <TimeFilter value={timeRange} onChange={setTimeRange} />
-              <Button variant="outline">
+              <Button variant="outline" type="button" onClick={() => setImportOpen(true)}>
                 <FileUp className="ml-2 h-4 w-4" />
                 استيراد من Excel
               </Button>
@@ -996,6 +1001,50 @@ export default function Admission() {
             </Form>
           </CardContent>
         </Card>
+
+        <ExcelImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          title="استيراد الحجوزات من Excel"
+          onConfirm={async (preview) => {
+            const result = await importAdmissionsFromExcel(preview.toImport);
+            await queryClient.invalidateQueries({ queryKey: ["admissions"] });
+
+            downloadImportSummaryPdf({
+              title: "تقرير استيراد الحجوزات",
+              fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
+              stats: {
+                "اسم الملف": preview.fileName,
+                "عدد الأعمدة": preview.headers.length,
+                "صفوف تم استيرادها": result.inserted,
+                "صفوف متطابقة تم تجاهلها": preview.duplicates.length,
+                "صفوف بها أخطاء": result.failed.length,
+              },
+              previewColumns: preview.headers,
+              previewRows: preview.toImport.slice(0, 40).map((r) => {
+                const obj: Record<string, string> = {};
+                preview.headers.forEach((h) => (obj[h] = normalizeCellValue(r[h])));
+                return obj;
+              }),
+            });
+
+            if (result.failed.length > 0) {
+              setNotice({
+                title: "تم الاستيراد مع ملاحظات",
+                description: `تم استيراد ${result.inserted} صف، وفشل ${result.failed.length} صف. تم تحميل تقرير PDF للتفاصيل.`,
+                variant: "info",
+                durationMs: 9000,
+              });
+            } else {
+              setNotice({
+                title: "تم الاستيراد بنجاح",
+                description: `تم استيراد ${result.inserted} صف، وتجاهل ${preview.duplicates.length} صف متطابق. تم تحميل تقرير PDF.`,
+                variant: "success",
+                durationMs: 7000,
+              });
+            }
+          }}
+        />
 
         {showNewItemDialog && (
           <LookupCreateDialog
