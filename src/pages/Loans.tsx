@@ -154,70 +154,46 @@ export default function Loans() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center justify-between">
           <div>
             <h2 className="text-3xl font-bold text-foreground">الاستعارات</h2>
             <p className="text-muted-foreground">تسجيل وتتبع الملفات المستعارة</p>
           </div>
+          <TimeFilter value={timeRange} onChange={setTimeRange} />
         </div>
 
-        {/* Tabs (Top) */}
-        <Card className="shadow-lg border-border">
-          <CardHeader className="sticky top-28 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LoanTab)}>
-              <TabsList className="grid h-auto w-full grid-cols-1 gap-2 rounded-xl border border-border bg-muted/30 p-2 md:grid-cols-3">
-                <TabsTrigger
-                  value="borrowed"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">حالات تم استعارتها</p>
-                        <p className="text-3xl font-bold text-foreground">{borrowedLoans.length}</p>
-                        <p className="text-xs text-muted-foreground">ملفات لم تُرجع بعد</p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="returned"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">حالات تم رجعوها</p>
-                        <p className="text-3xl font-bold text-foreground">{returnedLoans.length}</p>
-                        <p className="text-xs text-muted-foreground">ملفات أُعيدت</p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-
-                <TabsTrigger
-                  value="all"
-                  className="p-0 rounded-lg data-[state=active]:shadow-medical-lg data-[state=active]:ring-1 data-[state=active]:ring-ring"
-                >
-                  <div className="w-full rounded-lg bg-card p-4 text-right">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">عدد الحالات كلها</p>
-                        <p className="text-3xl font-bold text-foreground">{(loans || []).length}</p>
-                        <p className="text-xs text-muted-foreground">الإجمالي</p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="borrowed" className="hidden" />
-              <TabsContent value="returned" className="hidden" />
-              <TabsContent value="all" className="hidden" />
-            </Tabs>
-          </CardHeader>
-        </Card>
+        {/* Colored Tabs */}
+        <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+            <ColoredStatTab
+              title="حالات تم استعارتها"
+              value={borrowedLoans.length}
+              subtitle="ملفات لم تُرجع بعد"
+              icon={FolderOpen}
+              color="cyan"
+              onClick={() => setActiveTab("borrowed")}
+              active={activeTab === "borrowed"}
+            />
+            <ColoredStatTab
+              title="حالات تم رجعوها"
+              value={returnedLoans.length}
+              subtitle="ملفات أُعيدت"
+              icon={FolderCheck}
+              color="green"
+              onClick={() => setActiveTab("returned")}
+              active={activeTab === "returned"}
+            />
+            <ColoredStatTab
+              title="عدد الحالات كلها"
+              value={(loans || []).length}
+              subtitle="الإجمالي"
+              icon={Files}
+              color="purple"
+              onClick={() => setActiveTab("all")}
+              active={activeTab === "all"}
+            />
+          </div>
+        </div>
 
         {/* Registration (under tabs) */}
         <Card className="shadow-lg border-border">

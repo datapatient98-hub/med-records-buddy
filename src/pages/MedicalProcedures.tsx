@@ -284,15 +284,15 @@ export default function MedicalProcedures() {
 
         <Card className="shadow-lg border-border">
           <CardHeader>
-
-          <CardContent className="space-y-6 pt-6">
-          {/* Search Section */}
-          <div className="space-y-2">
             <CardTitle className="flex items-center gap-2">
               <Icon className={`h-5 w-5 ${tabInfo.color}`} />
               {tabInfo.title}
             </CardTitle>
             <CardDescription>ابحث بالرقم الموحد لتحميل بيانات المريض</CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {/* Search Section */}
             <div className="flex gap-2">
               <Input
                 placeholder="الرقم الموحد"
@@ -305,7 +305,6 @@ export default function MedicalProcedures() {
                 بحث
               </Button>
             </div>
-          </div>
 
           {/* Form */}
           <Form {...form}>
