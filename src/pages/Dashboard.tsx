@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import DashboardCard from "@/components/DashboardCard";
+import LoanAlertNotification from "@/components/LoanAlertNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   TrendingUp,
   FileDown,
@@ -20,6 +22,7 @@ import {
   Syringe,
   Building2,
   Skull,
+  FileText,
 } from "lucide-react";
 import {
   Bar,
@@ -56,6 +59,16 @@ export default function Dashboard() {
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
   const [exportType, setExportType] = useState<ExportType>("all");
+  
+  // Chart visibility toggles
+  const [visibleSeries, setVisibleSeries] = useState({
+    admissions: true,
+    discharges: true,
+    emergencies: true,
+    endoscopies: true,
+    procedures: true,
+    loans: true,
+  });
 
   const getDateRange = () => {
     const now = new Date();
@@ -152,6 +165,29 @@ export default function Dashboard() {
     },
   });
 
+  // Fetch loans data
+  const { data: loansData } = useQuery({
+    queryKey: ["loans-period", period],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("file_loans")
+        .select("*")
+        .gte("created_at", dateRange.start);
+      return data || [];
+    },
+  });
+
+  const { data: unreturnedLoans } = useQuery({
+    queryKey: ["unreturned-loans"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("file_loans")
+        .select("*")
+        .eq("is_returned", false);
+      return data || [];
+    },
+  });
+
   // Calculate stats
   const totalAdmissions = admissionsData?.length || 0;
   const todayAdmissions = admissionsData?.filter(
@@ -205,11 +241,32 @@ export default function Dashboard() {
     };
   }) || [];
 
+  // Loan stats
+  const totalLoans = loansData?.length || 0;
+  const unreturnedCount = unreturnedLoans?.length || 0;
+
   // Gender distribution
   const genderStats = [
     { name: "ذكر", value: admissionsData?.filter((a) => a.gender === "ذكر").length || 0 },
     { name: "أنثى", value: admissionsData?.filter((a) => a.gender === "أنثى").length || 0 },
   ];
+
+  // Monthly data for interactive chart
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const month = i + 1;
+    const monthStr = month.toString().padStart(2, '0');
+    
+    return {
+      month: `${monthStr}`,
+      monthName: new Date(2024, i, 1).toLocaleDateString('ar', { month: 'short' }),
+      admissions: admissionsData?.filter(a => new Date(a.created_at || '').getMonth() === i).length || 0,
+      discharges: dischargesData?.filter(d => new Date(d.created_at || '').getMonth() === i).length || 0,
+      emergencies: emergenciesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0,
+      endoscopies: endoscopiesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0,
+      procedures: proceduresData?.filter(p => new Date(p.created_at || '').getMonth() === i).length || 0,
+      loans: loansData?.filter(l => new Date(l.created_at || '').getMonth() === i).length || 0,
+    };
+  });
 
   // Export to Excel
   const handleExport = () => {
@@ -460,12 +517,34 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Loan Stats Cards */}
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-purple/80 to-purple overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10">
+            <div className="absolute top-4 left-4 w-32 h-32 bg-white rounded-full blur-3xl" />
+          </div>
+          <CardContent className="p-6 text-white relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <FileText className="h-10 w-10 opacity-90" />
+            </div>
+            <div className="space-y-1 mb-4">
+              <h3 className="text-sm font-medium opacity-90">ملفات مستعارة (لم تُرجع)</h3>
+              <p className="text-4xl font-bold">{unreturnedCount}</p>
+            </div>
+            <div className="flex gap-4 pt-4 border-t border-white/20">
+              <div className="flex-1">
+                <p className="text-xs opacity-80">الإجمالي</p>
+                <p className="text-lg font-semibold">{totalLoans}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DashboardCard
-          title="الدخول هذا الشهر"
+          title="الدخول (الداخلي)"
           value={totalAdmissions}
           icon={Users}
           color="cyan"
@@ -475,9 +554,8 @@ export default function Dashboard() {
           ]}
         />
 
-
         <DashboardCard
-          title="الخروج هذا الشهر"
+          title="الخروج"
           value={totalDischarges}
           icon={Activity}
           color="pink"
@@ -492,7 +570,7 @@ export default function Dashboard() {
         />
 
         <DashboardCard
-          title="المناظير"
+          title="المناظير (متخصص)"
           value={totalEndoscopies}
           icon={Microscope}
           color="purple"
@@ -503,7 +581,7 @@ export default function Dashboard() {
         />
 
         <DashboardCard
-          title="البذل"
+          title="البذل (متخصص)"
           value={totalProcedures}
           icon={Syringe}
           color="green"
@@ -580,6 +658,137 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Interactive Monthly Chart */}
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              الإحصائيات الشهرية (تفاعلي)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="admissions-check"
+                  checked={visibleSeries.admissions}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, admissions: !!checked })
+                  }
+                />
+                <label htmlFor="admissions-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.cyan }}></span>
+                  الدخول
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="discharges-check"
+                  checked={visibleSeries.discharges}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, discharges: !!checked })
+                  }
+                />
+                <label htmlFor="discharges-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.pink }}></span>
+                  الخروج
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="emergencies-check"
+                  checked={visibleSeries.emergencies}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, emergencies: !!checked })
+                  }
+                />
+                <label htmlFor="emergencies-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.orange }}></span>
+                  الطوارئ
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="endoscopies-check"
+                  checked={visibleSeries.endoscopies}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, endoscopies: !!checked })
+                  }
+                />
+                <label htmlFor="endoscopies-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.purple }}></span>
+                  المناظير
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="procedures-check"
+                  checked={visibleSeries.procedures}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, procedures: !!checked })
+                  }
+                />
+                <label htmlFor="procedures-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: COLORS.green }}></span>
+                  البذل
+                </label>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="loans-check"
+                  checked={visibleSeries.loans}
+                  onCheckedChange={(checked) =>
+                    setVisibleSeries({ ...visibleSeries, loans: !!checked })
+                  }
+                />
+                <label htmlFor="loans-check" className="text-sm cursor-pointer">
+                  <span className="inline-block w-3 h-3 rounded-full mr-1" style={{ backgroundColor: '#8b5cf6' }}></span>
+                  الاستعارات
+                </label>
+              </div>
+            </div>
+            
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis dataKey="monthName" stroke="hsl(var(--muted-foreground))" />
+                <YAxis stroke="hsl(var(--muted-foreground))" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "var(--radius)",
+                  }}
+                />
+                <Legend />
+                {visibleSeries.admissions && (
+                  <Line type="monotone" dataKey="admissions" stroke={COLORS.cyan} strokeWidth={2} name="الدخول" />
+                )}
+                {visibleSeries.discharges && (
+                  <Line type="monotone" dataKey="discharges" stroke={COLORS.pink} strokeWidth={2} name="الخروج" />
+                )}
+                {visibleSeries.emergencies && (
+                  <Line type="monotone" dataKey="emergencies" stroke={COLORS.orange} strokeWidth={2} name="الطوارئ" />
+                )}
+                {visibleSeries.endoscopies && (
+                  <Line type="monotone" dataKey="endoscopies" stroke={COLORS.purple} strokeWidth={2} name="المناظير" />
+                )}
+                {visibleSeries.procedures && (
+                  <Line type="monotone" dataKey="procedures" stroke={COLORS.green} strokeWidth={2} name="البذل" />
+                )}
+                {visibleSeries.loans && (
+                  <Line type="monotone" dataKey="loans" stroke="#8b5cf6" strokeWidth={2} name="الاستعارات" />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
         {/* Gender Distribution */}
         <Card className="shadow-lg border-border">
           <CardHeader>
@@ -589,27 +798,11 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={genderStats}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value, percent }) =>
-                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                  }
-                  outerRadius={100}
-                  fill={COLORS.primary}
-                  dataKey="value"
-                >
-                  {genderStats.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={index === 0 ? COLORS.cyan : COLORS.pink}
-                    />
-                  ))}
-                </Pie>
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={genderStats} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis type="number" stroke="hsl(var(--muted-foreground))" />
+                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
@@ -617,12 +810,21 @@ export default function Dashboard() {
                     borderRadius: "var(--radius)",
                   }}
                 />
-              </PieChart>
+                <Legend />
+                <Bar dataKey="value" fill={COLORS.cyan} radius={[0, 8, 8, 0]} name="عدد المرضى">
+                  {genderStats.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.cyan : COLORS.pink} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
     </div>
+    
+    {/* Loan Alert Notification */}
+    <LoanAlertNotification />
     </Layout>
   );
 }

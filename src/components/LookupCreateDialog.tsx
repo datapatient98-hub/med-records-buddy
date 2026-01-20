@@ -65,7 +65,12 @@ export default function LookupCreateDialog({ open, type, onOpenChange }: LookupC
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-foreground">الاسم</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={meta.placeholder} />
+          <Input 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            placeholder={meta.placeholder}
+            autoFocus
+          />
           <p className="text-xs text-muted-foreground">بعد الحفظ سيتم تحديث القائمة تلقائياً.</p>
         </div>
 
