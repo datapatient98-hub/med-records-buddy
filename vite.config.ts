@@ -4,7 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
-  base: "/lovable-project/", // 👈 مهم جدًا (اسم الريبو)
+  base: "/med-records-buddy/", // ✅ اسم الريبو الصحيح
   server: {
     host: "::",
     port: 8080,
