@@ -23,7 +23,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
 
   return (
     <div className="rounded-md border">
-      <ScrollArea className="h-[50vh] w-full">
+      <div className="h-[50vh] w-full overflow-auto">
         <div className="min-w-[900px]">
           <Table>
             <TableHeader>
@@ -46,7 +46,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
             </TableBody>
           </Table>
         </div>
-      </ScrollArea>
+      </div>
       <div className="px-3 py-2 text-xs text-muted-foreground" dir="rtl">
         عرض أول {Math.min(200, rows.length)} صف (من {rows.length})
       </div>
