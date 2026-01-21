@@ -1007,41 +1007,56 @@ export default function Admission() {
           onOpenChange={setImportOpen}
           title="استيراد الحجوزات من Excel"
           onConfirm={async (preview) => {
-            const result = await importAdmissionsFromExcel(preview.toImport);
-            await queryClient.invalidateQueries({ queryKey: ["admissions"] });
+            try {
+              const result = await importAdmissionsFromExcel(preview.toImport);
 
-            downloadImportSummaryPdf({
-              title: "تقرير استيراد الحجوزات",
-              fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
-              stats: {
-                "اسم الملف": preview.fileName,
-                "عدد الأعمدة": preview.headers.length,
-                "صفوف تم استيرادها": result.inserted,
-                "صفوف متطابقة تم تجاهلها": preview.duplicates.length,
-                "صفوف بها أخطاء": result.failed.length,
-              },
-              previewColumns: preview.headers,
-              previewRows: preview.toImport.slice(0, 40).map((r) => {
-                const obj: Record<string, string> = {};
-                preview.headers.forEach((h) => (obj[h] = normalizeCellValue(r[h])));
-                return obj;
-              }),
-            });
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),
+                queryClient.invalidateQueries({ queryKey: ["admissions-count"], exact: false }),
+              ]);
 
-            if (result.failed.length > 0) {
+              downloadImportSummaryPdf({
+                title: "تقرير استيراد الحجوزات",
+                fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
+                stats: {
+                  "اسم الملف": preview.fileName,
+                  "عدد الأعمدة": preview.headers.length,
+                  "صفوف تم استيرادها": result.inserted,
+                  "صفوف متطابقة تم تجاهلها": preview.duplicates.length,
+                  "صفوف بها أخطاء": result.failed.length,
+                },
+                previewColumns: preview.headers,
+                previewRows: preview.toImport.slice(0, 40).map((r) => {
+                  const obj: Record<string, string> = {};
+                  preview.headers.forEach((h) => (obj[h] = normalizeCellValue(r[h])));
+                  return obj;
+                }),
+              });
+
+              if (result.failed.length > 0) {
+                setNotice({
+                  title: "تم الاستيراد مع ملاحظات",
+                  description: `تم استيراد ${result.inserted} صف، وفشل ${result.failed.length} صف. تم تحميل تقرير PDF للتفاصيل.` ,
+                  variant: "info",
+                  durationMs: 9000,
+                });
+              } else {
+                setNotice({
+                  title: "تم الاستيراد بنجاح",
+                  description: `تم استيراد ${result.inserted} صف، وتجاهل ${preview.duplicates.length} صف متطابق. تم تحميل تقرير PDF.` ,
+                  variant: "success",
+                  durationMs: 7000,
+                });
+              }
+            } catch (e: any) {
+              console.error(e);
               setNotice({
-                title: "تم الاستيراد مع ملاحظات",
-                description: `تم استيراد ${result.inserted} صف، وفشل ${result.failed.length} صف. تم تحميل تقرير PDF للتفاصيل.`,
-                variant: "info",
+                title: "فشل الاستيراد",
+                description: e?.message || "حدث خطأ أثناء الاستيراد.",
+                variant: "error",
                 durationMs: 9000,
               });
-            } else {
-              setNotice({
-                title: "تم الاستيراد بنجاح",
-                description: `تم استيراد ${result.inserted} صف، وتجاهل ${preview.duplicates.length} صف متطابق. تم تحميل تقرير PDF.`,
-                variant: "success",
-                durationMs: 7000,
-              });
+              throw e;
             }
           }}
         />
