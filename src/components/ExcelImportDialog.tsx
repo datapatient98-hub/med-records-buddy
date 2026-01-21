@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileUp } from "lucide-react";
 import { parseFirstSheet } from "@/lib/excel/parseWorkbook";
 import { dedupeExactRows } from "@/lib/excel/exactDedupe";
@@ -65,6 +65,7 @@ export default function ExcelImportDialog(props: {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<ExcelImportPreview | null>(null);
   const [activeTab, setActiveTab] = useState<"import" | "duplicates" | "errors">("import");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const counts = useMemo(() => {
     if (!preview) return null;
@@ -79,6 +80,7 @@ export default function ExcelImportDialog(props: {
   const reset = () => {
     setPreview(null);
     setActiveTab("import");
+    setErrorMessage(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -86,6 +88,7 @@ export default function ExcelImportDialog(props: {
 
   const handleFile = async (file: File) => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const parsed = await parseFirstSheet(file);
       const { unique, duplicates } = dedupeExactRows(parsed.headers, parsed.rows);
@@ -107,6 +110,13 @@ export default function ExcelImportDialog(props: {
         errors,
         fileName: file.name,
       });
+    } catch (e: any) {
+      console.error("Excel import parse failed:", e);
+      setPreview(null);
+      setActiveTab("import");
+      setErrorMessage(
+        "تعذر قراءة ملف Excel. تأكد أن الملف .xlsx أو .xls وغير محمي بكلمة مرور، وأن أول صف يحتوي على عناوين الأعمدة."
+      );
     } finally {
       setLoading(false);
     }
@@ -126,6 +136,13 @@ export default function ExcelImportDialog(props: {
         <DialogHeader>
           <DialogTitle>{props.title ?? "استيراد من Excel"}</DialogTitle>
         </DialogHeader>
+
+        {errorMessage && (
+          <Alert>
+            <AlertTitle>فشل الاستيراد</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
 
         <input
           ref={fileInputRef}
@@ -228,9 +245,16 @@ export default function ExcelImportDialog(props: {
             onClick={async () => {
               if (!preview) return;
               setLoading(true);
+              setErrorMessage(null);
               try {
                 await props.onConfirm(preview);
                 props.onOpenChange(false);
+              } catch (e: any) {
+                console.error("Excel import confirm failed:", e);
+                const msg =
+                  (typeof e?.message === "string" && e.message) ||
+                  "حدث خطأ أثناء الاستيراد. راجع البيانات وحاول مرة أخرى.";
+                setErrorMessage(msg);
               } finally {
                 setLoading(false);
               }
