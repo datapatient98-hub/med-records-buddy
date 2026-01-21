@@ -188,6 +188,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       : null;
 
     payloads.push({
+      __rowIndex: i,
       unified_number,
       patient_name,
       national_id,
@@ -210,8 +211,47 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
   if (payloads.length === 0) return { inserted: 0, failed };
 
-  const { error } = await supabase.from("admissions").insert(payloads);
-  if (error) throw error;
+  // Skip rows whose unified_number already exists in DB (unique constraint)
+  try {
+    const numbers = Array.from(new Set(payloads.map((p) => p.unified_number).filter(Boolean)));
+    if (numbers.length > 0) {
+      const { data: existing, error: existingErr } = await supabase
+        .from("admissions")
+        .select("unified_number")
+        .in("unified_number", numbers);
+      if (existingErr) throw existingErr;
 
-  return { inserted: payloads.length, failed };
+      const existingSet = new Set((existing ?? []).map((r: any) => String(r.unified_number)));
+      if (existingSet.size > 0) {
+        const nextPayloads: any[] = [];
+        for (let i = 0; i < payloads.length; i++) {
+          const p = payloads[i];
+          if (existingSet.has(String(p.unified_number))) {
+            failed.push({ index: Number(p.__rowIndex ?? i), reason: "الرقم الموحد موجود بالفعل (تم تجاهل الصف)" });
+            continue;
+          }
+          nextPayloads.push(p);
+        }
+        payloads.length = 0;
+        payloads.push(...nextPayloads);
+      }
+    }
+  } catch {
+    // If this pre-check fails, we still attempt insert and rely on DB error handling below
+  }
+
+  if (payloads.length === 0) return { inserted: 0, failed };
+
+  const cleanedPayloads = payloads.map(({ __rowIndex, ...rest }) => rest);
+
+  const { error } = await supabase.from("admissions").insert(cleanedPayloads);
+  if (error) {
+    const msg = String((error as any)?.message ?? "");
+    if (msg.includes("admissions_unified_number_key") || msg.toLowerCase().includes("duplicate key")) {
+      throw new Error("يوجد رقم موحد مكرر بالفعل داخل قاعدة البيانات. تم رفض العملية.");
+    }
+    throw error;
+  }
+
+  return { inserted: cleanedPayloads.length, failed };
 }
