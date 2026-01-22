@@ -148,6 +148,36 @@ export default function Loans() {
     },
   });
 
+  const returnMutation = useMutation({
+    mutationFn: async (loanId: string) => {
+      const { data, error } = await supabase
+        .from("file_loans")
+        .update({ is_returned: true, return_date: new Date().toISOString() })
+        .eq("id", loanId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["file_loans"] });
+      queryClient.invalidateQueries({ queryKey: ["unreturned-loans-count"] });
+      queryClient.invalidateQueries({ queryKey: ["loans-notifications-latest"] });
+      toast({
+        title: "تم تسجيل الإرجاع",
+        description: "تم تحديث حالة الاستعارة إلى (تم الإرجاع).",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "تعذر تسجيل الإرجاع",
+        description: error?.message || "حدث خطأ أثناء تحديث حالة الإرجاع.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const onSubmit = (data: LoanFormValues) => mutation.mutate(data);
 
   const loansForTab = activeTab === "borrowed" ? borrowedLoans : activeTab === "returned" ? returnedLoans : loans || [];
@@ -338,12 +368,13 @@ export default function Loans() {
                       <TableHead className="text-right">تاريخ الاستعارة</TableHead>
                       <TableHead className="text-right">تاريخ الإرجاع</TableHead>
                       <TableHead className="text-right">حالة الرجوع</TableHead>
+                      <TableHead className="text-right">إرجاع</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loansForTab.length === 0 ? (
                       <TableRow>
-                        <TableCell className="text-right text-muted-foreground" colSpan={7}>
+                        <TableCell className="text-right text-muted-foreground" colSpan={8}>
                           لا توجد بيانات.
                         </TableCell>
                       </TableRow>
@@ -361,6 +392,25 @@ export default function Loans() {
                               <Badge variant="secondary">تم الإرجاع</Badge>
                             ) : (
                               <Badge variant="destructive">لم يُرجع</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {loan.is_returned ? (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={returnMutation.isPending}
+                                onClick={() => {
+                                  const ok = window.confirm("تأكيد تسجيل الإرجاع لهذا الملف؟");
+                                  if (!ok) return;
+                                  returnMutation.mutate(loan.id);
+                                }}
+                              >
+                                تسجيل الإرجاع
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>

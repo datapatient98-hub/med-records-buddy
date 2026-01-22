@@ -19,16 +19,14 @@ export type ExcelImportPreview = {
 };
 
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, unknown>[] }) {
-  const shownHeaders = headers.slice(0, 30); // safety for very wide sheets
-
   return (
     <div className="rounded-md border">
       <div className="h-[50vh] w-full overflow-auto">
-        <div className="min-w-[900px]">
+        <div className="min-w-max">
           <Table>
             <TableHeader>
               <TableRow>
-                {shownHeaders.map((h) => (
+                {headers.map((h) => (
                   <TableHead key={h} className="whitespace-nowrap">{h}</TableHead>
                 ))}
               </TableRow>
@@ -36,7 +34,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
             <TableBody>
               {rows.slice(0, 200).map((r, idx) => (
                 <TableRow key={idx}>
-                  {shownHeaders.map((h) => (
+                  {headers.map((h) => (
                     <TableCell key={h} className="whitespace-nowrap">
                       {normalizeCellValue(r[h])}
                     </TableCell>
