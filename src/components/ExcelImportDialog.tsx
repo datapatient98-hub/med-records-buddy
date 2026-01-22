@@ -21,21 +21,27 @@ export type ExcelImportPreview = {
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, unknown>[] }) {
   return (
     <div className="rounded-md border">
-      <div className="h-[50vh] w-full overflow-auto">
+      <div className="h-[55vh] w-full overflow-auto">
         <div className="min-w-max">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
+                <TableHead className="whitespace-nowrap text-right">#</TableHead>
                 {headers.map((h) => (
-                  <TableHead key={h} className="whitespace-nowrap">{h}</TableHead>
+                  <TableHead key={h} className="whitespace-nowrap text-right">
+                    {h}
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.slice(0, 200).map((r, idx) => (
                 <TableRow key={idx}>
+                  <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground">
+                    {idx + 1}
+                  </TableCell>
                   {headers.map((h) => (
-                    <TableCell key={h} className="whitespace-nowrap">
+                    <TableCell key={h} className="whitespace-nowrap text-right text-sm">
                       {normalizeCellValue(r[h])}
                     </TableCell>
                   ))}
