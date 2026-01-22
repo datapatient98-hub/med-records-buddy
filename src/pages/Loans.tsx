@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
 
@@ -52,6 +53,10 @@ export default function Loans() {
   const [searchNumber, setSearchNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
+
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [loanToReturn, setLoanToReturn] = useState<LoanRow | null>(null);
+  const [returnDateLocal, setReturnDateLocal] = useState(() => new Date().toISOString().slice(0, 16));
 
   const form = useForm<LoanFormValues>({
     resolver: zodResolver(loanSchema),
@@ -149,11 +154,12 @@ export default function Loans() {
   });
 
   const returnMutation = useMutation({
-    mutationFn: async (loanId: string) => {
+    mutationFn: async (params: { loanId: string; returnDateLocal: string }) => {
+      const iso = new Date(params.returnDateLocal).toISOString();
       const { data, error } = await supabase
         .from("file_loans")
-        .update({ is_returned: true, return_date: new Date().toISOString() })
-        .eq("id", loanId)
+        .update({ is_returned: true, return_date: iso })
+        .eq("id", params.loanId)
         .select()
         .single();
 
@@ -164,6 +170,8 @@ export default function Loans() {
       queryClient.invalidateQueries({ queryKey: ["file_loans"] });
       queryClient.invalidateQueries({ queryKey: ["unreturned-loans-count"] });
       queryClient.invalidateQueries({ queryKey: ["loans-notifications-latest"] });
+      setReturnDialogOpen(false);
+      setLoanToReturn(null);
       toast({
         title: "تم تسجيل الإرجاع",
         description: "تم تحديث حالة الاستعارة إلى (تم الإرجاع).",
@@ -181,6 +189,12 @@ export default function Loans() {
   const onSubmit = (data: LoanFormValues) => mutation.mutate(data);
 
   const loansForTab = activeTab === "borrowed" ? borrowedLoans : activeTab === "returned" ? returnedLoans : loans || [];
+
+  const openReturnDialog = (loan: LoanRow) => {
+    setLoanToReturn(loan);
+    setReturnDateLocal(new Date().toISOString().slice(0, 16));
+    setReturnDialogOpen(true);
+  };
 
   return (
     <Layout>
@@ -404,9 +418,7 @@ export default function Loans() {
                                 variant="outline"
                                 disabled={returnMutation.isPending}
                                 onClick={() => {
-                                  const ok = window.confirm("تأكيد تسجيل الإرجاع لهذا الملف؟");
-                                  if (!ok) return;
-                                  returnMutation.mutate(loan.id);
+                                  openReturnDialog(loan);
                                 }}
                               >
                                 تسجيل الإرجاع
@@ -422,6 +434,67 @@ export default function Loans() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog
+          open={returnDialogOpen}
+          onOpenChange={(open) => {
+            setReturnDialogOpen(open);
+            if (!open) setLoanToReturn(null);
+          }}
+        >
+          <DialogContent dir="rtl">
+            <DialogHeader>
+              <DialogTitle>تسجيل الإرجاع</DialogTitle>
+            </DialogHeader>
+
+            {loanToReturn && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">المريض</p>
+                      <p className="font-semibold">{loanToReturn.admissions?.patient_name ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">الرقم الموحد</p>
+                      <p className="font-semibold">{loanToReturn.unified_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">الرقم الداخلي</p>
+                      <p className="font-semibold">{loanToReturn.internal_number}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">تاريخ وساعة الإرجاع</label>
+                  <Input
+                    type="datetime-local"
+                    value={returnDateLocal}
+                    onChange={(e) => setReturnDateLocal(e.target.value)}
+                  />
+                  <div className="text-xs text-muted-foreground">سيتم حفظ الحالة: <span className="font-medium">تم الإرجاع</span></div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setReturnDialogOpen(false)}>
+                إلغاء
+              </Button>
+              <Button
+                type="button"
+                disabled={!loanToReturn || returnMutation.isPending || !returnDateLocal}
+                onClick={() => {
+                  if (!loanToReturn) return;
+                  returnMutation.mutate({ loanId: loanToReturn.id, returnDateLocal });
+                }}
+              >
+                {returnMutation.isPending ? "جاري الحفظ..." : "تم الإرجاع"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

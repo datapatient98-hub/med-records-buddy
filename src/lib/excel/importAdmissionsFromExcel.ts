@@ -97,6 +97,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
   const failed: { index: number; reason: string }[] = [];
   const payloads: any[] = [];
+  const seenUnifiedNumbers = new Set<string>();
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -131,6 +132,13 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       failed.push({ index: i, reason: "بيانات ناقصة: الرقم الموحد/اسم المريض" });
       continue;
     }
+
+    // Dedupe داخل نفس ملف الإكسل (نفس الرقم الموحد مكرر أكثر من مرة)
+    if (seenUnifiedNumbers.has(String(unified_number))) {
+      failed.push({ index: i, reason: "الرقم الموحد مكرر داخل ملف الإكسل (تم تجاهل الصف)" });
+      continue;
+    }
+    seenUnifiedNumbers.add(String(unified_number));
     if (!national_id || national_id.length !== 14) {
       failed.push({ index: i, reason: "الرقم القومي غير صالح (يجب 14 رقم)" });
       continue;
@@ -244,14 +252,37 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
   const cleanedPayloads = payloads.map(({ __rowIndex, ...rest }) => rest);
 
+  // محاولة إدخال دفعة واحدة (الأسرع)
   const { error } = await supabase.from("admissions").insert(cleanedPayloads);
-  if (error) {
-    const msg = String((error as any)?.message ?? "");
-    if (msg.includes("admissions_unified_number_key") || msg.toLowerCase().includes("duplicate key")) {
-      throw new Error("يوجد رقم موحد مكرر بالفعل داخل قاعدة البيانات. تم رفض العملية.");
-    }
-    throw error;
+  if (!error) {
+    return { inserted: cleanedPayloads.length, failed };
   }
 
-  return { inserted: cleanedPayloads.length, failed };
+  // في حال وجود تكرار/تعارض (409) نحاول إدخال صف-بصف حتى لا تفشل العملية بالكامل
+  // ونحوّل الصفوف المتعارضة إلى أخطاء عربية داخل تقرير الاستيراد.
+  const msg = String((error as any)?.message ?? "");
+  const isDup = msg.includes("admissions_unified_number_key") || msg.toLowerCase().includes("duplicate key");
+  if (!isDup) throw error;
+
+  let inserted = 0;
+  for (let i = 0; i < payloads.length; i++) {
+    const { __rowIndex, ...rowPayload } = payloads[i];
+    const rowIndex = Number(__rowIndex ?? i);
+    const { error: rowErr } = await supabase.from("admissions").insert([rowPayload]);
+    if (rowErr) {
+      const rowMsg = String((rowErr as any)?.message ?? "");
+      const rowIsDup =
+        rowMsg.includes("admissions_unified_number_key") || rowMsg.toLowerCase().includes("duplicate key");
+      failed.push({
+        index: rowIndex,
+        reason: rowIsDup
+          ? "الرقم الموحد موجود بالفعل داخل قاعدة البيانات (تم تجاهل الصف)"
+          : "تعذر إدخال الصف بسبب خطأ في قاعدة البيانات",
+      });
+      continue;
+    }
+    inserted += 1;
+  }
+
+  return { inserted, failed };
 }
