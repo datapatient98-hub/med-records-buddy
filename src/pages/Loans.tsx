@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
 
@@ -325,38 +326,50 @@ export default function Loans() {
               </div>
             )}
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">المريض</TableHead>
-                  <TableHead className="text-right">الرقم الموحد</TableHead>
-                  <TableHead className="text-right">القسم</TableHead>
-                  <TableHead className="text-right">المستعير</TableHead>
-                  <TableHead className="text-right">تاريخ الاستعارة</TableHead>
-                  <TableHead className="text-right">تاريخ الإرجاع</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loansForTab.length === 0 ? (
-                  <TableRow>
-                    <TableCell className="text-right text-muted-foreground" colSpan={6}>
-                      لا توجد بيانات.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  loansForTab.map((loan) => (
-                    <TableRow key={loan.id}>
-                      <TableCell className="text-right font-medium">{loan.admissions?.patient_name ?? "—"}</TableCell>
-                      <TableCell className="text-right">{loan.unified_number}</TableCell>
-                      <TableCell className="text-right">{loan.borrowed_to_department}</TableCell>
-                      <TableCell className="text-right">{loan.borrowed_by}</TableCell>
-                      <TableCell className="text-right">{formatDateTime(loan.loan_date)}</TableCell>
-                      <TableCell className="text-right">{formatDateTime(loan.return_date)}</TableCell>
+            <div className="w-full overflow-x-auto">
+              <div className="min-w-[1000px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-right">المريض</TableHead>
+                      <TableHead className="text-right">الرقم الموحد</TableHead>
+                      <TableHead className="text-right">القسم</TableHead>
+                      <TableHead className="text-right">المستعير</TableHead>
+                      <TableHead className="text-right">تاريخ الاستعارة</TableHead>
+                      <TableHead className="text-right">تاريخ الإرجاع</TableHead>
+                      <TableHead className="text-right">حالة الرجوع</TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {loansForTab.length === 0 ? (
+                      <TableRow>
+                        <TableCell className="text-right text-muted-foreground" colSpan={7}>
+                          لا توجد بيانات.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      loansForTab.map((loan) => (
+                        <TableRow key={loan.id}>
+                          <TableCell className="text-right font-medium">{loan.admissions?.patient_name ?? "—"}</TableCell>
+                          <TableCell className="text-right">{loan.unified_number}</TableCell>
+                          <TableCell className="text-right">{loan.borrowed_to_department}</TableCell>
+                          <TableCell className="text-right">{loan.borrowed_by}</TableCell>
+                          <TableCell className="text-right">{formatDateTime(loan.loan_date)}</TableCell>
+                          <TableCell className="text-right">{formatDateTime(loan.return_date)}</TableCell>
+                          <TableCell className="text-right">
+                            {loan.is_returned ? (
+                              <Badge variant="secondary">تم الإرجاع</Badge>
+                            ) : (
+                              <Badge variant="destructive">لم يُرجع</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

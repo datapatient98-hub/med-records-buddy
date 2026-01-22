@@ -17,22 +17,37 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch unreturned loans
-  const { data: unreturnedLoans } = useQuery({
-    queryKey: ["unreturned-loans-notifications"],
+  // Count: unreturned loans (badge)
+  const { data: unreturnedCount } = useQuery({
+    queryKey: ["unreturned-loans-count"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { count, error } = await supabase
         .from("file_loans")
-        .select("*, admissions(patient_name, unified_number)")
-        .eq("is_returned", false)
-        .order("loan_date", { ascending: false })
-        .limit(10);
-      return data || [];
+        .select("id", { count: "exact", head: true })
+        .eq("is_returned", false);
+      if (error) throw error;
+      return count ?? 0;
     },
-    refetchInterval: 5 * 60 * 1000, // Refresh every 5 minutes
+    refetchInterval: 5 * 60 * 1000,
   });
 
-  const notificationCount = unreturnedLoans?.length || 0;
+  // List: latest loans (shows return status)
+  const { data: latestLoans } = useQuery({
+    queryKey: ["loans-notifications-latest"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("file_loans")
+        .select("id, unified_number, borrowed_by, borrowed_to_department, loan_date, return_date, is_returned, admissions(patient_name)")
+        .order("loan_date", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  const notificationCount = unreturnedCount ?? 0;
+  const hasItems = (latestLoans?.length ?? 0) > 0;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -62,19 +77,19 @@ export default function NotificationBell() {
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-semibold text-lg">الإشعارات</h3>
           {notificationCount > 0 && (
-            <Badge variant="secondary">{notificationCount}</Badge>
+              <Badge variant="secondary">غير مُرجع: {notificationCount}</Badge>
           )}
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {notificationCount === 0 ? (
+          {!hasItems ? (
             <div className="p-8 text-center text-muted-foreground">
               <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>لا توجد إشعارات جديدة</p>
             </div>
           ) : (
             <div className="divide-y">
-              {unreturnedLoans?.map((loan: any) => (
+              {latestLoans?.map((loan: any) => (
                 <Card
                   key={loan.id}
                   className="border-0 rounded-none hover:bg-accent cursor-pointer transition-colors"
@@ -89,9 +104,14 @@ export default function NotificationBell() {
                         <Bell className="h-4 w-4 text-destructive" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-semibold text-sm text-foreground">
-                          ملف لم يُرجع
-                        </p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-sm text-foreground">ملف استعارة</p>
+                          {loan.is_returned ? (
+                            <Badge variant="secondary">تم الإرجاع</Badge>
+                          ) : (
+                            <Badge variant="destructive">لم يُرجع</Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground mt-1">
                           {loan.admissions?.patient_name} - {loan.unified_number}
                         </p>
@@ -102,6 +122,11 @@ export default function NotificationBell() {
                           تاريخ الاستعارة:{" "}
                           {format(new Date(loan.loan_date), "yyyy-MM-dd")}
                         </p>
+                        {loan.is_returned && loan.return_date && (
+                          <p className="text-xs text-muted-foreground">
+                            تاريخ الإرجاع: {format(new Date(loan.return_date), "yyyy-MM-dd")}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -111,7 +136,7 @@ export default function NotificationBell() {
           )}
         </div>
 
-        {notificationCount > 0 && (
+        {hasItems && (
           <div className="p-3 border-t">
             <Button
               variant="ghost"
