@@ -825,6 +825,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       admission_status: "محجوز" | "خروج" | "متوفى" | "تحويل"

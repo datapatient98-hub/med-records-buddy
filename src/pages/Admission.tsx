@@ -33,6 +33,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
+import LookupManageDialog from "@/components/LookupManageDialog";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import AdmissionSuccessNotification from "@/components/AdmissionSuccessNotification";
@@ -71,7 +72,7 @@ const admissionSchema = z.object({
   district_id: z.string().optional(),
   address_details: z.string().trim().max(500, "العنوان طويل جداً").optional(),
   station_id: z.string().optional(),
-  department_id: z.string().min(1, "القسم/المركز مطلوب"),
+  department_id: z.string().min(1, "قسم الحجز مطلوب"),
   admission_status: z.enum(["محجوز", "خروج", "متوفى", "تحويل"]),
   diagnosis_id: z.string().optional(),
   doctor_id: z.string().optional(),
@@ -104,6 +105,7 @@ function RequiredLabel({ children }: { children: React.ReactNode }) {
 export default function Admission() {
   const queryClient = useQueryClient();
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
+  const [showManageDialog, setShowManageDialog] = useState<LookupCreateType | null>(null);
   const [dialogContext, setDialogContext] = useState<{ governorate_id?: string } | undefined>(undefined);
   const [onItemCreatedCallback, setOnItemCreatedCallback] = useState<((item: { id: string; name: string }) => void) | undefined>(undefined);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
@@ -198,6 +200,36 @@ export default function Admission() {
       return data || [];
     },
   });
+
+  const manageItems = useMemo(() => {
+    switch (showManageDialog) {
+      case "department":
+        return (departments ?? []) as any;
+      case "governorate":
+        return (governorates ?? []) as any;
+      case "district":
+        return (districts ?? []) as any;
+      case "station":
+        return (stations ?? []) as any;
+      case "occupation":
+        return (occupations ?? []) as any;
+      case "doctor":
+        return (doctors ?? []) as any;
+      case "diagnosis":
+        return (diagnoses ?? []) as any;
+      default:
+        return [] as any[];
+    }
+  }, [
+    showManageDialog,
+    departments,
+    governorates,
+    districts,
+    stations,
+    occupations,
+    doctors,
+    diagnoses,
+  ]);
 
   const selectedGovernorateId = form.watch("governorate_id");
   const filteredDistricts = useMemo(() => {
@@ -642,6 +674,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={occupations ?? []}
                             placeholder="اختر المهنة"
+                            onManage={() => setShowManageDialog("occupation")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -762,6 +795,7 @@ export default function Admission() {
                             }}
                             options={governorates ?? []}
                             placeholder="اختر المحافظة"
+                            onManage={() => setShowManageDialog("governorate")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -789,6 +823,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={filteredDistricts as any}
                             placeholder="اختر المركز/الحي"
+                            onManage={() => setShowManageDialog("district")}
                             onAddNew={() => {
                               setDialogContext({ governorate_id: selectedGovernorateId || undefined });
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -830,6 +865,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={stations ?? []}
                             placeholder="اختر المحطة"
+                            onManage={() => setShowManageDialog("station")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -851,14 +887,15 @@ export default function Admission() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>القسم أو المركز</RequiredLabel>
+                          <RequiredLabel>قسم الحجز</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <SearchableSelect
                             value={field.value}
                             onValueChange={field.onChange}
                             options={departments ?? []}
-                            placeholder="اختر القسم/المركز"
+                            placeholder="اختر قسم الحجز"
+                            onManage={() => setShowManageDialog("department")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -866,7 +903,7 @@ export default function Admission() {
                               });
                               setShowNewItemDialog("department");
                             }}
-                            addNewLabel="إضافة قسم جديد"
+                            addNewLabel="إضافة قسم حجز"
                           />
                         </FormControl>
                         <FormMessage />
@@ -912,6 +949,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={diagnoses ?? []}
                             placeholder="اختر التشخيص"
+                            onManage={() => setShowManageDialog("diagnosis")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -939,6 +977,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={doctors ?? []}
                             placeholder="اختر الطبيب"
+                            onManage={() => setShowManageDialog("doctor")}
                             onAddNew={() => {
                               setDialogContext(undefined);
                               setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
@@ -1073,6 +1112,15 @@ export default function Admission() {
               setShowNewItemDialog(open ? showNewItemDialog : null);
             }}
             onCreated={onItemCreatedCallback}
+          />
+        )}
+
+        {showManageDialog && (
+          <LookupManageDialog
+            open={!!showManageDialog}
+            type={showManageDialog}
+            items={manageItems}
+            onOpenChange={(open) => setShowManageDialog(open ? showManageDialog : null)}
           />
         )}
 

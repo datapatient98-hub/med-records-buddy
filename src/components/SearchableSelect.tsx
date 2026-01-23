@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   emptyText?: string;
   onAddNew?: () => void;
+  onManage?: () => void;
   addNewLabel?: string;
   /** Callback when new item is created via dialog */
   onItemCreated?: (item: { id: string; name: string }) => void;
@@ -36,6 +37,7 @@ export default function SearchableSelect({
   placeholder = "اختر...",
   emptyText = "لا توجد نتائج",
   onAddNew,
+  onManage,
   addNewLabel = "إضافة جديد",
   onItemCreated,
 }: SearchableSelectProps) {
@@ -77,20 +79,41 @@ export default function SearchableSelect({
             <span className="flex-1 text-right truncate">
               {selectedOption ? selectedOption.name : placeholder}
             </span>
-            {onAddNew && (
+            {(onAddNew || onManage) && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAddNew();
-                      }}
-                      className="ml-2 mr-2 flex-shrink-0 h-6 w-6 rounded-sm hover:bg-primary/10 flex items-center justify-center transition-colors border border-primary/20"
-                    >
-                      <Plus className="h-3.5 w-3.5 text-primary" />
-                    </button>
+                    <div className="ml-2 mr-2 flex items-center gap-1">
+                      {onManage && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onManage();
+                          }}
+                          className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-accent flex items-center justify-center transition-colors border border-border"
+                          aria-label="تعديل القائمة"
+                          title="تعديل القائمة"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-foreground" />
+                        </button>
+                      )}
+
+                      {onAddNew && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddNew();
+                          }}
+                          className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-primary/10 flex items-center justify-center transition-colors border border-primary/20"
+                          aria-label={addNewLabel}
+                          title={addNewLabel}
+                        >
+                          <Plus className="h-3.5 w-3.5 text-primary" />
+                        </button>
+                      )}
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent side="top">
                     <p className="text-xs">{addNewLabel}</p>
@@ -100,7 +123,7 @@ export default function SearchableSelect({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full p-0 bg-background" align="start" style={{ zIndex: 9999 }}>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
               ref={inputRef}
