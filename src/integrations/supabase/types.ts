@@ -184,6 +184,7 @@ export type Database = {
           discharge_status: Database["public"]["Enums"]["discharge_status"]
           finance_source: Database["public"]["Enums"]["finance_source"] | null
           id: string
+          internal_number: number
         }
         Insert: {
           admission_id: string
@@ -196,6 +197,7 @@ export type Database = {
           discharge_status: Database["public"]["Enums"]["discharge_status"]
           finance_source?: Database["public"]["Enums"]["finance_source"] | null
           id?: string
+          internal_number?: number
         }
         Update: {
           admission_id?: string
@@ -208,6 +210,7 @@ export type Database = {
           discharge_status?: Database["public"]["Enums"]["discharge_status"]
           finance_source?: Database["public"]["Enums"]["finance_source"] | null
           id?: string
+          internal_number?: number
         }
         Relationships: [
           {
@@ -659,6 +662,7 @@ export type Database = {
           created_at: string | null
           department_id: string
           diagnosis_id: string | null
+          discharge_department_id: string | null
           district_id: string | null
           doctor_id: string | null
           gender: Database["public"]["Enums"]["patient_gender"]
@@ -670,6 +674,7 @@ export type Database = {
           patient_name: string
           phone: string
           procedure_date: string
+          procedure_type: Database["public"]["Enums"]["procedure_type"] | null
           station_id: string | null
           unified_number: string
         }
@@ -680,6 +685,7 @@ export type Database = {
           created_at?: string | null
           department_id: string
           diagnosis_id?: string | null
+          discharge_department_id?: string | null
           district_id?: string | null
           doctor_id?: string | null
           gender: Database["public"]["Enums"]["patient_gender"]
@@ -691,6 +697,7 @@ export type Database = {
           patient_name: string
           phone: string
           procedure_date: string
+          procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
           unified_number: string
         }
@@ -701,6 +708,7 @@ export type Database = {
           created_at?: string | null
           department_id?: string
           diagnosis_id?: string | null
+          discharge_department_id?: string | null
           district_id?: string | null
           doctor_id?: string | null
           gender?: Database["public"]["Enums"]["patient_gender"]
@@ -712,6 +720,7 @@ export type Database = {
           patient_name?: string
           phone?: string
           procedure_date?: string
+          procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
           unified_number?: string
         }
@@ -735,6 +744,13 @@ export type Database = {
             columns: ["diagnosis_id"]
             isOneToOne: false
             referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedures_discharge_department_id_fkey"
+            columns: ["discharge_department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
           {
@@ -867,6 +883,7 @@ export type Database = {
       finance_source: "تأمين صحي" | "علاج على نفقة الدولة" | "خاص"
       marital_status: "أعزب" | "متزوج" | "مطلق" | "أرمل"
       patient_gender: "ذكر" | "أنثى"
+      procedure_type: "مناظير" | "بذل" | "استقبال" | "كلي"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1000,6 +1017,7 @@ export const Constants = {
       finance_source: ["تأمين صحي", "علاج على نفقة الدولة", "خاص"],
       marital_status: ["أعزب", "متزوج", "مطلق", "أرمل"],
       patient_gender: ["ذكر", "أنثى"],
+      procedure_type: ["مناظير", "بذل", "استقبال", "كلي"],
     },
   },
 } as const
