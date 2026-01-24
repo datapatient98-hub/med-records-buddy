@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,15 +37,16 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
     s.scrollLeft = b.scrollLeft;
   };
 
-  // Update scroll width whenever content changes (headers/rows).
-  // Also helps show a clear bottom horizontal scrollbar for wide sheets.
-  useMemo(() => {
-    window.setTimeout(() => {
-      const w = scrollRef.current?.scrollWidth ?? 0;
-      setScrollWidth(w);
-    }, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [headers.join("\u241F"), rows.length]);
+  // Update scroll width whenever content changes (headers/rows) or container resizes.
+  useEffect(() => {
+    const update = () => setScrollWidth(scrollRef.current?.scrollWidth ?? 0);
+    const t = window.setTimeout(update, 0);
+    window.addEventListener("resize", update);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", update);
+    };
+  }, [headers, rows.length]);
 
   return (
     <div className="rounded-md border">
