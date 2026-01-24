@@ -15,8 +15,9 @@
  import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
  import { Save, Search, Microscope, Syringe, UserCheck, Activity } from "lucide-react";
  import SearchableSelect from "@/components/SearchableSelect";
- import LookupCreateDialog from "@/components/LookupCreateDialog";
+ import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
  import LookupManageDialog from "@/components/LookupManageDialog";
+ import { Database } from "@/integrations/supabase/types";
  
  type ProcedureType = "endoscopy" | "procedure" | "reception" | "kidney";
  
@@ -48,8 +49,8 @@
    const [activeTab, setActiveTab] = useState<ProcedureType>("endoscopy");
    const [searchNumber, setSearchNumber] = useState("");
    const [timeRange, setTimeRange] = useState<TimeRange>("month");
-   const [manageLookupType, setManageLookupType] = useState<"departments" | "doctors" | "diagnoses" | null>(null);
-   const [createLookupType, setCreateLookupType] = useState<"departments" | "doctors" | "diagnoses" | null>(null);
+ const [manageLookupType, setManageLookupType] = useState<LookupCreateType | null>(null);
+ const [createLookupType, setCreateLookupType] = useState<LookupCreateType | null>(null);
  
    const form = useForm<ProcedureFormValues>({
      resolver: zodResolver(procedureSchema),
@@ -121,19 +122,19 @@
    const { data: procedureCounts } = useQuery({
      queryKey: ["procedures-counts", timeRange],
      queryFn: async () => {
-       const types: ProcedureType[] = ["endoscopy", "procedure", "reception", "kidney"];
-       const typeMap: Record<ProcedureType, string> = {
+     const types = ["endoscopy", "procedure", "reception", "kidney"] as const;
+     const typeMap = {
          endoscopy: "مناظير",
          procedure: "بذل",
          reception: "استقبال",
          kidney: "كلي"
-       };
+     } as const;
  
        const counts = await Promise.all(types.map(async (type) => {
          const { count, error } = await supabase
            .from("procedures")
            .select("id", { count: "exact", head: true })
-           .eq("procedure_type", typeMap[type])
+         .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
            .gte("procedure_date", start.toISOString())
            .lte("procedure_date", end.toISOString());
          if (error) throw error;
@@ -488,11 +489,11 @@
                          <FormControl>
                            <SearchableSelect
                              value={field.value}
-                             onChange={field.onChange}
-                             options={departments?.map(d => ({ value: d.id, label: d.name })) || []}
+                       onValueChange={field.onChange}
+                         options={departments || []}
                              placeholder="اختر قسم الدخول"
-                             onAddNew={() => setCreateLookupType("departments")}
-                             onManage={() => setManageLookupType("departments")}
+                         onAddNew={() => setCreateLookupType("department")}
+                         onManage={() => setManageLookupType("department")}
                            />
                          </FormControl>
                          <FormMessage />
@@ -509,11 +510,11 @@
                          <FormControl>
                            <SearchableSelect
                              value={field.value}
-                             onChange={field.onChange}
-                             options={departments?.map(d => ({ value: d.id, label: d.name })) || []}
+                       onValueChange={field.onChange}
+                         options={departments || []}
                              placeholder="اختر قسم الخروج"
-                             onAddNew={() => setCreateLookupType("departments")}
-                             onManage={() => setManageLookupType("departments")}
+                         onAddNew={() => setCreateLookupType("department")}
+                         onManage={() => setManageLookupType("department")}
                            />
                          </FormControl>
                          <FormMessage />
@@ -530,11 +531,11 @@
                          <FormControl>
                            <SearchableSelect
                              value={field.value}
-                             onChange={field.onChange}
-                             options={diagnoses?.map(d => ({ value: d.id, label: d.name })) || []}
+                       onValueChange={field.onChange}
+                         options={diagnoses || []}
                              placeholder="اختر التشخيص"
-                             onAddNew={() => setCreateLookupType("diagnoses")}
-                             onManage={() => setManageLookupType("diagnoses")}
+                         onAddNew={() => setCreateLookupType("diagnosis")}
+                         onManage={() => setManageLookupType("diagnosis")}
                            />
                          </FormControl>
                          <FormMessage />
@@ -551,11 +552,11 @@
                          <FormControl>
                            <SearchableSelect
                              value={field.value}
-                             onChange={field.onChange}
-                             options={doctors?.map(d => ({ value: d.id, label: d.name })) || []}
+                       onValueChange={field.onChange}
+                         options={doctors || []}
                              placeholder="اختر الطبيب"
-                             onAddNew={() => setCreateLookupType("doctors")}
-                             onManage={() => setManageLookupType("doctors")}
+                         onAddNew={() => setCreateLookupType("doctor")}
+                         onManage={() => setManageLookupType("doctor")}
                            />
                          </FormControl>
                          <FormMessage />
@@ -598,13 +599,13 @@
              type={createLookupType}
              open={!!createLookupType}
              onOpenChange={(open) => !open && setCreateLookupType(null)}
-             onSuccess={(newId) => {
-               if (createLookupType === "departments") {
-                 form.setValue("department_id", newId);
-               } else if (createLookupType === "diagnoses") {
-                 form.setValue("diagnosis_id", newId);
-               } else if (createLookupType === "doctors") {
-                 form.setValue("doctor_id", newId);
+             onCreated={(item) => {
+             if (createLookupType === "department") {
+                 form.setValue("department_id", item.id);
+             } else if (createLookupType === "diagnosis") {
+                 form.setValue("diagnosis_id", item.id);
+             } else if (createLookupType === "doctor") {
+                 form.setValue("doctor_id", item.id);
                }
                setCreateLookupType(null);
              }}
@@ -616,6 +617,15 @@
              type={manageLookupType}
              open={!!manageLookupType}
              onOpenChange={(open) => !open && setManageLookupType(null)}
+             items={
+               manageLookupType === "department"
+                 ? departments || []
+                 : manageLookupType === "diagnosis"
+                 ? diagnoses || []
+                 : manageLookupType === "doctor"
+                 ? doctors || []
+                 : []
+             }
            />
          )}
        </div>
