@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { normalizeArabicText } from "@/lib/excel/normalizeArabic";
 
 export type ParsedExcel = {
   sheetName: string;
@@ -17,12 +18,97 @@ export async function parseFirstSheet(file: File): Promise<ParsedExcel> {
   const headerRow = (aoa[0] ?? []) as string[];
   const headers = headerRow.map((h) => String(h).trim()).filter(Boolean);
 
+  // Map common header variations (Arabic/English) to the canonical keys used by import code.
+  // We keep `headers` as-is for preview display, but we also inject canonical keys into each row object.
+  const normalizeHeaderKey = (h: string) =>
+    normalizeArabicText(String(h))
+      .toLowerCase()
+      .replace(/[\s_\-–—:؛،,./\\]+/g, " ")
+      .trim();
+
+  const headerAliasMap: Record<string, string> = {
+    // unified
+    [normalizeHeaderKey("الرقم الموحد")]: "الرقم الموحد",
+    [normalizeHeaderKey("رقم موحد")]: "الرقم الموحد",
+    [normalizeHeaderKey("unified number")]: "الرقم الموحد",
+    // patient
+    [normalizeHeaderKey("اسم المريض")]: "اسم المريض",
+    [normalizeHeaderKey("اسم")]: "اسم المريض",
+    [normalizeHeaderKey("patient name")]: "اسم المريض",
+    // national id
+    [normalizeHeaderKey("الرقم القومي")]: "الرقم القومي",
+    [normalizeHeaderKey("رقم قومي")]: "الرقم القومي",
+    [normalizeHeaderKey("national id")]: "الرقم القومي",
+    // gender
+    [normalizeHeaderKey("النوع")]: "النوع",
+    [normalizeHeaderKey("gender")]: "النوع",
+    // marital
+    [normalizeHeaderKey("الحالة الاجتماعية")]: "الحالة الاجتماعية",
+    [normalizeHeaderKey("الحاله الاجتماعيه")]: "الحالة الاجتماعية",
+    [normalizeHeaderKey("marital status")]: "الحالة الاجتماعية",
+    // phone
+    [normalizeHeaderKey("رقم الهاتف")]: "رقم الهاتف",
+    [normalizeHeaderKey("الهاتف")]: "رقم الهاتف",
+    [normalizeHeaderKey("phone")]: "رقم الهاتف",
+    // age
+    [normalizeHeaderKey("السن")]: "السن",
+    [normalizeHeaderKey("سن")]: "السن",
+    [normalizeHeaderKey("age")]: "السن",
+    // governorate
+    [normalizeHeaderKey("المحافظة")]: "المحافظة",
+    [normalizeHeaderKey("محافظة")]: "المحافظة",
+    [normalizeHeaderKey("governorate")]: "المحافظة",
+    // district
+    [normalizeHeaderKey("القسم أو المركز")]: "القسم أو المركز",
+    [normalizeHeaderKey("القسم او المركز")]: "القسم أو المركز",
+    [normalizeHeaderKey("المركز")]: "القسم أو المركز",
+    [normalizeHeaderKey("الحي")]: "القسم أو المركز",
+    [normalizeHeaderKey("district")]: "القسم أو المركز",
+    // station
+    [normalizeHeaderKey("المحطة اللي جاي منها")]: "المحطة اللي جاي منها",
+    [normalizeHeaderKey("المحطة")]: "المحطة اللي جاي منها",
+    [normalizeHeaderKey("station")]: "المحطة اللي جاي منها",
+    // department
+    [normalizeHeaderKey("القسم")]: "القسم",
+    [normalizeHeaderKey("قسم")]: "القسم",
+    [normalizeHeaderKey("department")]: "القسم",
+    // occupation
+    [normalizeHeaderKey("المهنة")]: "المهنة",
+    [normalizeHeaderKey("مهنة")]: "المهنة",
+    [normalizeHeaderKey("occupation")]: "المهنة",
+    // address
+    [normalizeHeaderKey("العنوان تفصيلي")]: "العنوان تفصيلي",
+    [normalizeHeaderKey("العنوان التفصيلي")]: "العنوان تفصيلي",
+    [normalizeHeaderKey("address")]: "العنوان تفصيلي",
+    // status
+    [normalizeHeaderKey("الحالة")]: "الحالة",
+    [normalizeHeaderKey("status")]: "الحالة",
+    // diagnosis/doctor
+    [normalizeHeaderKey("التشخيص")]: "التشخيص",
+    [normalizeHeaderKey("diagnosis")]: "التشخيص",
+    [normalizeHeaderKey("الطبيب")]: "الطبيب",
+    [normalizeHeaderKey("doctor")]: "الطبيب",
+    // dates
+    [normalizeHeaderKey("تاريخ الحجز")]: "تاريخ الحجز",
+    [normalizeHeaderKey("تاريخ الدخول")]: "تاريخ الحجز",
+    [normalizeHeaderKey("admission date")]: "تاريخ الحجز",
+    [normalizeHeaderKey("تاريخ الإنشاء")]: "تاريخ الإنشاء",
+    [normalizeHeaderKey("تاريخ الانشاء")]: "تاريخ الإنشاء",
+    [normalizeHeaderKey("created at")]: "تاريخ الإنشاء",
+  };
+
   const rows: Record<string, unknown>[] = [];
   for (let i = 1; i < aoa.length; i++) {
     const r = aoa[i] ?? [];
     const obj: Record<string, unknown> = {};
     headers.forEach((h, idx) => {
       obj[h] = r[idx] ?? "";
+
+      const normalized = normalizeHeaderKey(h);
+      const canonical = headerAliasMap[normalized];
+      if (canonical && !(canonical in obj)) {
+        obj[canonical] = r[idx] ?? "";
+      }
     });
 
     // Skip fully empty rows

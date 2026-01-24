@@ -27,8 +27,8 @@ interface SearchableSelectProps {
   onAddNew?: () => void;
   onManage?: () => void;
   addNewLabel?: string;
-  /** Callback when new item is created via dialog */
-  onItemCreated?: (item: { id: string; name: string }) => void;
+  /** Show clear (X) button to فقط مسح الاختيار بدون حذف العنصر */
+  allowClear?: boolean;
 }
 
 const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
@@ -41,6 +41,7 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
     onAddNew,
     onManage,
     addNewLabel = "إضافة جديد",
+    allowClear = true,
   },
   ref
 ) {
@@ -95,6 +96,21 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
             <span className="flex-1 text-right truncate">
               {selectedOption ? selectedOption.name : placeholder}
             </span>
+
+            {allowClear && value && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onValueChange("");
+                }}
+                className="ml-2 h-6 w-6 rounded-sm border border-border hover:bg-accent flex items-center justify-center"
+                aria-label="مسح الاختيار"
+                title="مسح الاختيار"
+              >
+                <span className="text-xs text-muted-foreground">×</span>
+              </button>
+            )}
             {(onAddNew || onManage) && (
               <TooltipProvider>
                 <Tooltip>
