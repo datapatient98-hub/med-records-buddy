@@ -43,6 +43,7 @@ import ExcelImportDialog from "@/components/ExcelImportDialog";
 import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
 import { downloadImportSummaryPdf } from "@/lib/pdf/exportImportPdf";
 import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
+import { markUnifiedNumberDuplicates, validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
 import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
 
@@ -559,7 +560,19 @@ export default function Admission() {
           <CardContent>
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
+                onSubmit={form.handleSubmit(
+                  (data) => mutation.mutate(data),
+                  (errors) => {
+                    const first = Object.values(errors)[0];
+                    const msg = (first as any)?.message as string | undefined;
+                    setNotice({
+                      title: "بيانات غير مكتملة",
+                      description: msg || "يرجى استكمال الحقول الإلزامية.",
+                      variant: "error",
+                      durationMs: 7000,
+                    });
+                  }
+                )}
                 className="space-y-6"
               >
                 <div className="grid gap-4 md:grid-cols-3">
@@ -1045,9 +1058,23 @@ export default function Admission() {
           open={importOpen}
           onOpenChange={setImportOpen}
           title="استيراد الحجوزات من Excel"
+          validateRow={(row, idx) => {
+            // 1) validate content similarly to import logic
+            const reason = validateAdmissionExcelRow(row);
+            if (reason) return reason;
+            // 2) also block duplicates within the same file by unified number (Excel row index is handled inside import)
+            // NOTE: ExcelImportDialog validates rows one-by-one; unified dedupe is applied below in a second pass.
+            return null;
+          }}
           onConfirm={async (preview) => {
             try {
-              const result = await importAdmissionsFromExcel(preview.toImport);
+              // Apply unified-number dedupe to what the user is about to import, so the backend doesn't receive repeated numbers.
+              const { unique, errors } = markUnifiedNumberDuplicates(preview.toImport);
+              if (errors.length > 0) {
+                // Throw with a clear message; dialog will show it.
+                throw new Error(`يوجد ${errors.length} صف مكرر بالرقم الموحد داخل ملف الإكسل. راجع تبويب الأخطاء ثم أعد المحاولة.`);
+              }
+              const result = await importAdmissionsFromExcel(unique);
 
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),

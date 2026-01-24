@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,17 +31,19 @@ interface SearchableSelectProps {
   onItemCreated?: (item: { id: string; name: string }) => void;
 }
 
-export default function SearchableSelect({
-  value,
-  onValueChange,
-  options,
-  placeholder = "اختر...",
-  emptyText = "لا توجد نتائج",
-  onAddNew,
-  onManage,
-  addNewLabel = "إضافة جديد",
-  onItemCreated,
-}: SearchableSelectProps) {
+const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
+  {
+    value,
+    onValueChange,
+    options,
+    placeholder = "اختر...",
+    emptyText = "لا توجد نتائج",
+    onAddNew,
+    onManage,
+    addNewLabel = "إضافة جديد",
+  },
+  ref
+) {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -59,6 +62,18 @@ export default function SearchableSelect({
     }
   }, [open]);
 
+  // Keep the field snappy: clear search when closed or when value changes from outside.
+  useEffect(() => {
+    if (!open) setSearchQuery("");
+  }, [open]);
+
+  useEffect(() => {
+    // When parent sets a new value (e.g. after quick-add), close & reset.
+    setOpen(false);
+    setSearchQuery("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const filteredOptions = useMemo(() => {
     if (!searchQuery) return options;
     return options.filter((opt) =>
@@ -71,6 +86,7 @@ export default function SearchableSelect({
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            ref={ref}
             variant="outline"
             role="combobox"
             aria-expanded={open}
@@ -89,6 +105,8 @@ export default function SearchableSelect({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setOpen(false);
+                            setSearchQuery("");
                             onManage();
                           }}
                           className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-accent flex items-center justify-center transition-colors border border-border"
@@ -104,6 +122,8 @@ export default function SearchableSelect({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setOpen(false);
+                            setSearchQuery("");
                             onAddNew();
                           }}
                           className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-primary/10 flex items-center justify-center transition-colors border border-primary/20"
@@ -140,7 +160,7 @@ export default function SearchableSelect({
                     key={option.id}
                     value={option.name}
                     onSelect={() => {
-                      onValueChange(option.id === value ? "" : option.id);
+                      onValueChange(option.id);
                       setOpen(false);
                       setSearchQuery("");
                     }}
@@ -162,4 +182,7 @@ export default function SearchableSelect({
       </Popover>
     </div>
   );
-}
+});
+
+export default SearchableSelect;
+
