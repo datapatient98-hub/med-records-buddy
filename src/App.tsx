@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Admission from "./pages/Admission";
 import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
+import PatientSearch from "./pages/PatientSearch";
 import Loans from "./pages/Loans";
 import Records from "./pages/Records";
 import UnifiedDatabase from "./pages/UnifiedDatabase";
@@ -87,6 +88,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Reports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/patient-search"
+            element={
+              <ProtectedRoute>
+                <PatientSearch />
               </ProtectedRoute>
             }
           />
