@@ -19,10 +19,39 @@ export type ExcelImportPreview = {
 };
 
 function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, unknown>[] }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+
+  const syncBottom = () => {
+    const s = scrollRef.current;
+    const b = bottomRef.current;
+    if (!s || !b) return;
+    b.scrollLeft = s.scrollLeft;
+  };
+
+  const syncTop = () => {
+    const s = scrollRef.current;
+    const b = bottomRef.current;
+    if (!s || !b) return;
+    s.scrollLeft = b.scrollLeft;
+  };
+
+  // Update scroll width whenever content changes (headers/rows).
+  // Also helps show a clear bottom horizontal scrollbar for wide sheets.
+  useMemo(() => {
+    window.setTimeout(() => {
+      const w = scrollRef.current?.scrollWidth ?? 0;
+      setScrollWidth(w);
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [headers.join("\u241F"), rows.length]);
+
   return (
     <div className="rounded-md border">
-      <div className="h-[55vh] w-full overflow-auto">
-        <div className="min-w-max">
+      {/* Use LTR for predictable horizontal scrollbar behavior, keep cells right-aligned */}
+      <div ref={scrollRef} className="h-[55vh] w-full overflow-auto" dir="ltr" onScroll={syncBottom}>
+        <div className="min-w-max" dir="ltr">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
@@ -51,6 +80,14 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
           </Table>
         </div>
       </div>
+
+      {/* Bottom horizontal scrollbar (synced) */}
+      <div className="border-t bg-muted/30 px-3 py-2" dir="ltr">
+        <div ref={bottomRef} className="h-3 overflow-x-auto overflow-y-hidden" onScroll={syncTop}>
+          <div style={{ width: Math.max(scrollWidth, 1) }} className="h-1" />
+        </div>
+      </div>
+
       <div className="px-3 py-2 text-xs text-muted-foreground" dir="rtl">
         عرض أول {Math.min(200, rows.length)} صف (من {rows.length})
       </div>
