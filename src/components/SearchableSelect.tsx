@@ -97,19 +97,28 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
               {selectedOption ? selectedOption.name : placeholder}
             </span>
 
+            {/* IMPORTANT: avoid nesting <button> inside <button> (invalid HTML) */}
             {allowClear && value && (
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   onValueChange("");
                 }}
-                className="ml-2 h-6 w-6 rounded-sm border border-border hover:bg-accent flex items-center justify-center"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onValueChange("");
+                  }
+                }}
+                className="ml-2 h-6 w-6 rounded-sm border border-border hover:bg-accent flex items-center justify-center cursor-pointer select-none"
                 aria-label="مسح الاختيار"
                 title="مسح الاختيار"
               >
                 <span className="text-xs text-muted-foreground">×</span>
-              </button>
+              </span>
             )}
             {(onAddNew || onManage) && (
               <TooltipProvider>
@@ -117,37 +126,57 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
                   <TooltipTrigger asChild>
                     <div className="ml-2 mr-2 flex items-center gap-1">
                       {onManage && (
-                        <button
-                          type="button"
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpen(false);
                             setSearchQuery("");
                             onManage();
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpen(false);
+                              setSearchQuery("");
+                              onManage();
+                            }
+                          }}
                           className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-accent flex items-center justify-center transition-colors border border-border"
                           aria-label="تعديل القائمة"
                           title="تعديل القائمة"
                         >
                           <Pencil className="h-3.5 w-3.5 text-foreground" />
-                        </button>
+                        </span>
                       )}
 
                       {onAddNew && (
-                        <button
-                          type="button"
+                        <span
+                          role="button"
+                          tabIndex={0}
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpen(false);
                             setSearchQuery("");
                             onAddNew();
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpen(false);
+                              setSearchQuery("");
+                              onAddNew();
+                            }
+                          }}
                           className="flex-shrink-0 h-6 w-6 rounded-sm hover:bg-primary/10 flex items-center justify-center transition-colors border border-primary/20"
                           aria-label={addNewLabel}
                           title={addNewLabel}
                         >
                           <Plus className="h-3.5 w-3.5 text-primary" />
-                        </button>
+                        </span>
                       )}
                     </div>
                   </TooltipTrigger>
