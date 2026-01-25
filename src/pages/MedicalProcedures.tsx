@@ -622,6 +622,7 @@
                                 <SelectItem value="هروب">هروب</SelectItem>
                                 <SelectItem value="تحويل">تحويل</SelectItem>
                                 <SelectItem value="حسب الطلب">حسب الطلب</SelectItem>
+                                <SelectItem value="وفاة">وفاة</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
