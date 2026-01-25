@@ -28,7 +28,6 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id: string | null
           id: string
-          internal_number: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id: string | null
@@ -51,7 +50,6 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
-          internal_number?: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id?: string | null
@@ -74,7 +72,6 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
-          internal_number?: number
           marital_status?: Database["public"]["Enums"]["marital_status"]
           national_id?: string
           occupation_id?: string | null
@@ -313,6 +310,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id: string | null
           id: string
+          internal_number: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id: string | null
@@ -334,6 +332,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id?: string | null
@@ -355,6 +354,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status?: Database["public"]["Enums"]["marital_status"]
           national_id?: string
           occupation_id?: string | null
@@ -436,6 +436,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id: string | null
           id: string
+          internal_number: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id: string | null
@@ -457,6 +458,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id?: string | null
@@ -478,6 +480,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status?: Database["public"]["Enums"]["marital_status"]
           national_id?: string
           occupation_id?: string | null
@@ -696,6 +699,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id: string | null
           id: string
+          internal_number: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id: string | null
@@ -719,6 +723,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status: Database["public"]["Enums"]["marital_status"]
           national_id: string
           occupation_id?: string | null
@@ -742,6 +747,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
           id?: string
+          internal_number?: number
           marital_status?: Database["public"]["Enums"]["marital_status"]
           national_id?: string
           occupation_id?: string | null

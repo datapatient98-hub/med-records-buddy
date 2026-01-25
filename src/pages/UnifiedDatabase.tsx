@@ -34,7 +34,6 @@ type UnifiedRow = {
   // latest admission snapshot
   latest_admission_date: string | null;
   latest_admission_status: string | null;
-  latest_internal_number: number | null;
 
   // latest discharge (full)
   latest_discharge_date: string | null;
@@ -106,14 +105,14 @@ export default function UnifiedDatabase() {
       let admissionsQuery = supabase
         .from("admissions")
         .select(
-          "id, unified_number, patient_name, national_id, phone, admission_date, admission_status, internal_number"
+          "id, unified_number, patient_name, national_id, phone, admission_date, admission_status"
         )
         .order("admission_date", { ascending: false })
         .limit(500);
 
       if (searchTerm.trim()) {
         admissionsQuery = admissionsQuery.or(
-          `patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%,internal_number.eq.${searchTerm}`
+          `patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%`
         );
       }
 
@@ -224,7 +223,6 @@ export default function UnifiedDatabase() {
           phone: latestAdmission?.phone ?? null,
           last_activity: lastActivity,
 
-          latest_internal_number: latestAdmission?.internal_number ?? null,
           latest_admission_date: latestAdmission?.admission_date ?? null,
           latest_admission_status: latestAdmission?.admission_status ?? null,
 
@@ -283,7 +281,7 @@ export default function UnifiedDatabase() {
       await Promise.all([
         supabase
           .from("admissions")
-          .select("id, unified_number, internal_number, patient_name, national_id, phone, admission_status, admission_date")
+          .select("id, unified_number, patient_name, national_id, phone, admission_status, admission_date")
           .eq("unified_number", unifiedNumber)
           .order("admission_date", { ascending: false }),
         supabase
