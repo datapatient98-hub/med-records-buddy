@@ -186,15 +186,27 @@ type AdmissionData = Database["public"]["Tables"]["admissions"]["Row"];
      const targetDeptName = departmentMap[activeTab];
      const targetDept = departments?.find(d => d.name === targetDeptName);
  
-    // Only set department fields based on tab, keep rest of form empty
-    form.setValue("department_id", targetDept?.id || data.department_id);
-    form.setValue("discharge_department_id", targetDept?.id || data.department_id);
-    form.setValue("procedure_date", new Date().toISOString().slice(0, 16));
-
-    toast({
-      title: "تم العثور على المريض",
-      description: `تم تحميل بيانات ${data.patient_name}`,
+    // Fill form with admission data (like discharge page)
+    form.reset({
+      unified_number: data.unified_number,
+      patient_name: data.patient_name,
+      national_id: data.national_id,
+      gender: data.gender as any,
+      occupation_id: data.occupation_id || undefined,
+      marital_status: data.marital_status as any,
+      phone: data.phone,
+      age: data.age,
+      governorate_id: data.governorate_id || undefined,
+      district_id: data.district_id || undefined,
+      address_details: data.address_details || undefined,
+      station_id: data.station_id || undefined,
+      department_id: targetDept?.id || data.department_id,
+      discharge_department_id: targetDept?.id || data.department_id,
+      diagnosis_id: data.diagnosis_id || undefined,
+      doctor_id: data.doctor_id || undefined,
+      procedure_date: new Date().toISOString().slice(0, 16),
     });
+
    };
  
    const mutation = useMutation({
