@@ -60,6 +60,17 @@ export default function Discharge() {
 
   const editAdmissionForm = useForm({
     defaultValues: {
+      patient_name: "",
+      national_id: "",
+      phone: "",
+      gender: "",
+      marital_status: "",
+      age: 0,
+      governorate_id: "",
+      district_id: "",
+      station_id: "",
+      occupation_id: "",
+      address_details: "",
       department_id: "",
       diagnosis_id: "",
       doctor_id: "",
@@ -184,6 +195,17 @@ export default function Discharge() {
       const { error } = await supabase
         .from("admissions")
         .update({
+          patient_name: values.patient_name,
+          national_id: values.national_id,
+          phone: values.phone,
+          gender: values.gender as any,
+          marital_status: values.marital_status as any,
+          age: parseInt(values.age),
+          governorate_id: values.governorate_id || null,
+          district_id: values.district_id || null,
+          station_id: values.station_id || null,
+          occupation_id: values.occupation_id || null,
+          address_details: values.address_details || null,
           department_id: values.department_id,
           diagnosis_id: values.diagnosis_id || null,
           doctor_id: values.doctor_id || null,
@@ -288,6 +310,17 @@ export default function Discharge() {
     if (!selectedAdmission) return;
     
     editAdmissionForm.reset({
+      patient_name: selectedAdmission.patient_name,
+      national_id: selectedAdmission.national_id,
+      phone: selectedAdmission.phone,
+      gender: selectedAdmission.gender,
+      marital_status: selectedAdmission.marital_status,
+      age: selectedAdmission.age,
+      governorate_id: selectedAdmission.governorate_id || "",
+      district_id: selectedAdmission.district_id || "",
+      station_id: selectedAdmission.station_id || "",
+      occupation_id: selectedAdmission.occupation_id || "",
+      address_details: selectedAdmission.address_details || "",
       department_id: selectedAdmission.department_id,
       diagnosis_id: selectedAdmission.diagnosis_id || "",
       doctor_id: selectedAdmission.doctor_id || "",
@@ -702,12 +735,142 @@ export default function Discharge() {
 
       {/* Edit Admission Dialog */}
       <Dialog open={showEditAdmissionDialog} onOpenChange={setShowEditAdmissionDialog}>
-        <DialogContent className="sm:max-w-lg" dir="rtl">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" dir="rtl">
           <DialogHeader>
             <DialogTitle>تعديل بيانات الدخول</DialogTitle>
           </DialogHeader>
-          <form onSubmit={editAdmissionForm.handleSubmit((data) => editAdmissionMutation.mutate(data))} className="space-y-4">
-            <div className="space-y-3">
+          <form onSubmit={editAdmissionForm.handleSubmit((data) => editAdmissionMutation.mutate(data))} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-1 space-y-4">
+              {/* معلومات المريض الأساسية */}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium">اسم المريض (رباعي) *</label>
+                  <Input
+                    value={editAdmissionForm.watch("patient_name")}
+                    onChange={(e) => editAdmissionForm.setValue("patient_name", e.target.value)}
+                    placeholder="الاسم الرباعي"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">الرقم القومي (14 رقم) *</label>
+                  <Input
+                    value={editAdmissionForm.watch("national_id")}
+                    onChange={(e) => editAdmissionForm.setValue("national_id", e.target.value)}
+                    placeholder="14 رقم"
+                    maxLength={14}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">رقم الهاتف (11 رقم) *</label>
+                  <Input
+                    value={editAdmissionForm.watch("phone")}
+                    onChange={(e) => editAdmissionForm.setValue("phone", e.target.value)}
+                    placeholder="01xxxxxxxxx"
+                    maxLength={11}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">النوع *</label>
+                  <Select 
+                    value={editAdmissionForm.watch("gender")}
+                    onValueChange={(value) => editAdmissionForm.setValue("gender", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر النوع" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ذكر">ذكر</SelectItem>
+                      <SelectItem value="أنثى">أنثى</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">الحالة الاجتماعية *</label>
+                  <Select 
+                    value={editAdmissionForm.watch("marital_status")}
+                    onValueChange={(value) => editAdmissionForm.setValue("marital_status", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر الحالة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="أعزب">أعزب</SelectItem>
+                      <SelectItem value="متزوج">متزوج</SelectItem>
+                      <SelectItem value="مطلق">مطلق</SelectItem>
+                      <SelectItem value="أرمل">أرمل</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">السن *</label>
+                  <Input
+                    type="number"
+                    value={editAdmissionForm.watch("age")}
+                    onChange={(e) => editAdmissionForm.setValue("age", parseInt(e.target.value) || 0)}
+                    placeholder="السن"
+                  />
+                </div>
+              </div>
+
+              {/* العنوان */}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-sm font-medium">المحافظة</label>
+                  <SearchableSelect
+                    value={editAdmissionForm.watch("governorate_id")}
+                    onValueChange={(value) => editAdmissionForm.setValue("governorate_id", value)}
+                    options={governorates?.map((g) => ({ id: g.id, name: g.name })) || []}
+                    placeholder="اختر المحافظة"
+                    emptyText="لا توجد محافظات"
+                    onAddNew={() => {}}
+                    onManage={() => {}}
+                    addNewLabel="إضافة محافظة"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">المركز/الحي</label>
+                  <Input
+                    value={editAdmissionForm.watch("district_id")}
+                    onChange={(e) => editAdmissionForm.setValue("district_id", e.target.value)}
+                    placeholder="المركز أو الحي"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">المحطة</label>
+                  <Input
+                    value={editAdmissionForm.watch("station_id")}
+                    onChange={(e) => editAdmissionForm.setValue("station_id", e.target.value)}
+                    placeholder="المحطة"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">المهنة</label>
+                  <Input
+                    value={editAdmissionForm.watch("occupation_id")}
+                    onChange={(e) => editAdmissionForm.setValue("occupation_id", e.target.value)}
+                    placeholder="المهنة"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">العنوان التفصيلي</label>
+                <Input
+                  value={editAdmissionForm.watch("address_details")}
+                  onChange={(e) => editAdmissionForm.setValue("address_details", e.target.value)}
+                  placeholder="العنوان بالتفصيل"
+                />
+              </div>
+
+              {/* بيانات الحجز */}
               <div>
                 <label className="text-sm font-medium">قسم الحجز *</label>
                 <SearchableSelect
@@ -760,7 +923,7 @@ export default function Discharge() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
               <Button
                 type="button"
                 variant="outline"
