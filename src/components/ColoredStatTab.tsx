@@ -7,10 +7,11 @@ interface ColoredStatTabProps {
   value: number;
   subtitle?: string;
   icon: LucideIcon;
-  color: "cyan" | "pink" | "green" | "purple" | "orange";
+  color: "cyan" | "pink" | "green" | "purple" | "orange" | "blue";
   sparklineData?: number[];
   onClick?: () => void;
   active?: boolean;
+  details?: string;
 }
 
 const colorClasses = {
@@ -19,6 +20,7 @@ const colorClasses = {
   green: "bg-gradient-to-br from-green-500 to-green-600 text-white",
   purple: "bg-gradient-to-br from-purple-500 to-purple-600 text-white",
   orange: "bg-gradient-to-br from-orange-500 to-orange-600 text-white",
+  blue: "bg-gradient-to-br from-blue-500 to-blue-600 text-white",
 };
 
 export default function ColoredStatTab({
@@ -30,11 +32,12 @@ export default function ColoredStatTab({
   sparklineData,
   onClick,
   active,
+  details,
 }: ColoredStatTabProps) {
   return (
     <Card
       className={`cursor-pointer transition-all hover:scale-105 ${colorClasses[color]} ${
-        active ? "ring-2 ring-white ring-offset-2" : ""
+        active ? "ring-4 ring-white ring-offset-2 shadow-2xl" : "shadow-lg"
       }`}
       onClick={onClick}
     >
@@ -47,7 +50,16 @@ export default function ColoredStatTab({
         </div>
         
         <div className="space-y-2">
-          <p className="text-4xl font-bold">{value.toLocaleString("ar-EG")}</p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-4xl font-bold">{value.toLocaleString("ar-EG")}</p>
+            {active && <span className="text-xs opacity-75">إجمالي</span>}
+          </div>
+          
+          {details && active && (
+            <div className="text-[10px] leading-relaxed opacity-90 border-t border-white/20 pt-2 mt-2">
+              <p className="font-medium">{details}</p>
+            </div>
+          )}
           
           {subtitle && (
             <p className="text-xs opacity-80">{subtitle}</p>

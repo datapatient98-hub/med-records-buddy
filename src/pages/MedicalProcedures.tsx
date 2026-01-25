@@ -202,6 +202,33 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        return Object.fromEntries(counts.map(c => [c.type, c.count]));
      },
    });
+
+  // Get detailed status counts for each procedure type
+  const { data: statusCounts } = useQuery({
+    queryKey: ["procedures-status-counts", timeRange, activeTab],
+    queryFn: async () => {
+      const typeMap: Record<ProcedureType, string> = {
+        procedure: "بذل",
+        reception: "استقبال",
+        kidney: "كلي"
+      };
+      
+      const statuses = ["تحسن", "تحويل", "وفاة", "هروب", "حسب الطلب"];
+      const counts = await Promise.all(statuses.map(async (status) => {
+        const { count, error } = await supabase
+          .from("procedures")
+          .select("id", { count: "exact", head: true })
+          .eq("procedure_type", typeMap[activeTab] as Database["public"]["Enums"]["procedure_type"])
+          .eq("procedure_status", status)
+          .gte("procedure_date", start.toISOString())
+          .lte("procedure_date", end.toISOString());
+        if (error) throw error;
+        return { status, count: count ?? 0 };
+      }));
+      
+      return Object.fromEntries(counts.map(c => [c.status, c.count]));
+    },
+  });
  
    const handleSearch = async () => {
      if (!searchNumber.trim()) {
@@ -209,6 +236,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          title: "خطأ",
          description: "الرجاء إدخال الرقم الموحد",
          variant: "destructive",
+        duration: 10000,
        });
        return;
      }
@@ -224,6 +252,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          title: "لم يتم العثور على المريض",
          description: "تأكد من الرقم الموحد",
          variant: "destructive",
+        duration: 10000,
        });
        setSelectedAdmission(null);
        return;
@@ -236,6 +265,12 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     form.setValue("discharge_department_id", "");
     form.setValue("procedure_status", "");
     form.setValue("hospital_id", "");
+    
+    toast({
+      title: "✓ تم تحميل بيانات المريض بنجاح",
+      description: `${data.patient_name} - ${data.unified_number}`,
+      duration: 5000,
+    });
    };
  
    const editAdmissionMutation = useMutation({
@@ -292,6 +327,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          title: "خطأ في التحديث",
          description: error.message,
          variant: "destructive",
+        duration: 10000,
        });
      },
    });
@@ -351,11 +387,25 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
      onSuccess: (data) => {
        queryClient.invalidateQueries({ queryKey: ["procedures"] });
        queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["procedures-status-counts"] });
        const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
        toast({
-         title: "تم الحفظ بنجاح",
-        description: `تم تسجيل ${typeLabel} للمريض ${data.patient_name} - الرقم الداخلي: ${data.internal_number}`,
+        title: "✓ تم الحفظ بنجاح",
+        description: `تم تسجيل ${typeLabel} للمريض: ${data.patient_name}`,
+        duration: 10000,
+        className: "bg-green-600 text-white border-green-700 shadow-2xl",
        });
+      
+      // Show internal number in a separate toast
+      setTimeout(() => {
+        toast({
+          title: "📋 الرقم الداخلي",
+          description: `${data.internal_number}`,
+          duration: 10000,
+          className: "bg-blue-600 text-white border-blue-700 shadow-2xl font-bold text-lg",
+        });
+      }, 500);
+      
       // Reset form and clear selection
       setSelectedAdmission(null);
       setSearchNumber("");
@@ -371,6 +421,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          title: "خطأ في الحفظ",
          description: error.message,
          variant: "destructive",
+        duration: 10000,
        });
      },
    });
@@ -416,18 +467,26 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                value={procedureCounts?.procedure ?? 0}
                subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
                icon={Syringe}
-               color="green"
+              color="blue"
                onClick={() => handleTabChange("procedure")}
                active={activeTab === "procedure"}
+              details={activeTab === "procedure" && statusCounts ? 
+                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+                undefined
+              }
              />
              <ColoredStatTab
                title="الاستقبال"
                value={procedureCounts?.reception ?? 0}
                subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
                icon={UserCheck}
-               color="cyan"
+              color="green"
                onClick={() => handleTabChange("reception")}
                active={activeTab === "reception"}
+              details={activeTab === "reception" && statusCounts ? 
+                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+                undefined
+              }
              />
              <ColoredStatTab
                title="الكلي"
@@ -437,6 +496,10 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                color="orange"
                onClick={() => handleTabChange("kidney")}
                active={activeTab === "kidney"}
+              details={activeTab === "kidney" && statusCounts ? 
+                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+                undefined
+              }
              />
            </div>
          </div>
@@ -469,88 +532,121 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
          {/* Patient Data Display Card */}
          {selectedAdmission && (
-           <Card className="shadow-lg border-primary/20 bg-gradient-to-br from-card to-card/95">
+          <Card className="shadow-2xl border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 animate-fade-in">
              <CardHeader className="pb-3">
-               <CardTitle className="text-primary">بيانات المريض</CardTitle>
+              <CardTitle className="text-primary flex items-center gap-2">
+                <span className="text-2xl">👤</span>
+                بيانات المريض
+              </CardTitle>
                <CardDescription>معلومات الدخول للرقم الموحد: {selectedAdmission.unified_number}</CardDescription>
              </CardHeader>
              <CardContent>
-               <div className="grid gap-4 md:grid-cols-3 text-sm">
+              <div className="grid gap-3 md:grid-cols-3 text-sm">
                  <div>
-                   <span className="font-semibold text-muted-foreground">الاسم: </span>
-                   <span className="text-foreground">{selectedAdmission.patient_name}</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">الاسم</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.patient_name}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">الرقم القومي: </span>
-                   <span className="text-foreground">{selectedAdmission.national_id}</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">الرقم القومي</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.national_id}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">الهاتف: </span>
-                   <span className="text-foreground">{selectedAdmission.phone}</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">الهاتف</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.phone}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">النوع: </span>
-                   <span className="text-foreground">{selectedAdmission.gender}</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">النوع</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.gender}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">السن: </span>
-                   <span className="text-foreground">{selectedAdmission.age} سنة</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">السن</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.age} سنة</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">الحالة الاجتماعية: </span>
-                   <span className="text-foreground">{selectedAdmission.marital_status}</span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">الحالة الاجتماعية</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.marital_status}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">المهنة: </span>
-                   <span className="text-foreground">
-                     {occupations?.find((o) => o.id === selectedAdmission.occupation_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">المهنة</span>
+                    <span className="text-foreground font-medium">
+                      {occupations?.find((o) => o.id === selectedAdmission.occupation_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">المحافظة: </span>
-                   <span className="text-foreground">
-                     {governorates?.find((g) => g.id === selectedAdmission.governorate_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">المحافظة</span>
+                    <span className="text-foreground font-medium">
+                      {governorates?.find((g) => g.id === selectedAdmission.governorate_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">المركز: </span>
-                   <span className="text-foreground">
-                     {districts?.find((d) => d.id === selectedAdmission.district_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">المركز</span>
+                    <span className="text-foreground font-medium">
+                      {districts?.find((d) => d.id === selectedAdmission.district_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">المحطة: </span>
-                   <span className="text-foreground">
-                     {stations?.find((s) => s.id === selectedAdmission.station_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">المحطة</span>
+                    <span className="text-foreground font-medium">
+                      {stations?.find((s) => s.id === selectedAdmission.station_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
-                 <div className="md:col-span-3">
-                   <span className="font-semibold text-muted-foreground">العنوان التفصيلي: </span>
-                   <span className="text-foreground">{selectedAdmission.address_details || "-"}</span>
-                 </div>
-                 <div>
-                   <span className="font-semibold text-muted-foreground">القسم: </span>
-                   <span className="text-foreground">
-                     {departments?.find((d) => d.id === selectedAdmission.department_id)?.name || "-"}
-                   </span>
+                <div className="md:col-span-2">
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">العنوان التفصيلي</span>
+                    <span className="text-foreground font-medium">{selectedAdmission.address_details || "-"}</span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">التشخيص: </span>
-                   <span className="text-foreground">
-                     {diagnoses?.find((d) => d.id === selectedAdmission.diagnosis_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors border border-primary/20">
+                    <span className="text-xs font-semibold text-primary block mb-1">القسم</span>
+                    <span className="text-foreground font-bold">
+                      {departments?.find((d) => d.id === selectedAdmission.department_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">الطبيب: </span>
-                   <span className="text-foreground">
-                     {doctors?.find((d) => d.id === selectedAdmission.doctor_id)?.name || "-"}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">التشخيص</span>
+                    <span className="text-foreground font-medium">
+                      {diagnoses?.find((d) => d.id === selectedAdmission.diagnosis_id)?.name || "-"}
+                    </span>
+                  </div>
                  </div>
                  <div>
-                   <span className="font-semibold text-muted-foreground">تاريخ الدخول: </span>
-                   <span className="text-foreground">
-                     {new Date(selectedAdmission.admission_date).toLocaleString("ar-EG")}
-                   </span>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">الطبيب</span>
+                    <span className="text-foreground font-medium">
+                      {doctors?.find((d) => d.id === selectedAdmission.doctor_id)?.name || "-"}
+                    </span>
+                  </div>
+                 </div>
+                 <div>
+                  <div className="p-2 rounded-md bg-secondary/30 hover:bg-secondary/50 transition-colors">
+                    <span className="text-xs font-semibold text-muted-foreground block mb-1">تاريخ الدخول</span>
+                    <span className="text-foreground font-medium">
+                      {new Date(selectedAdmission.admission_date).toLocaleString("ar-EG")}
+                    </span>
+                  </div>
                  </div>
                </div>
                <div className="flex gap-2 mt-4 pt-4 border-t border-border">
