@@ -706,6 +706,7 @@ export type Database = {
           patient_name: string
           phone: string
           procedure_date: string
+          procedure_status: string | null
           procedure_type: Database["public"]["Enums"]["procedure_type"] | null
           station_id: string | null
           unified_number: string
@@ -730,6 +731,7 @@ export type Database = {
           patient_name: string
           phone: string
           procedure_date: string
+          procedure_status?: string | null
           procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
           unified_number: string
@@ -754,6 +756,7 @@ export type Database = {
           patient_name?: string
           phone?: string
           procedure_date?: string
+          procedure_status?: string | null
           procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
           unified_number?: string

@@ -24,6 +24,8 @@
  
  const procedureSchema = z.object({
    procedure_date: z.string().min(1, "تاريخ الإجراء مطلوب"),
+  discharge_department_id: z.string().optional(),
+  procedure_status: z.string().min(1, "الحالة مطلوبة"),
    diagnosis_id: z.string().optional(),
    doctor_id: z.string().optional(),
  });
@@ -60,6 +62,8 @@
      resolver: zodResolver(procedureSchema),
      defaultValues: {
        procedure_date: new Date().toISOString().slice(0, 16),
+      discharge_department_id: "",
+      procedure_status: "",
      },
    });
  
@@ -198,6 +202,16 @@
      form.setValue("diagnosis_id", data.diagnosis_id || "");
      form.setValue("doctor_id", data.doctor_id || "");
      form.setValue("procedure_date", new Date().toISOString().slice(0, 16));
+      
+      // Set default discharge department based on active tab
+      const departmentMap: Record<ProcedureType, string> = {
+        procedure: "بذل",
+        reception: "استقبال",
+        kidney: "كلي"
+      };
+      const targetDeptName = departmentMap[activeTab];
+      const targetDept = departments?.find(d => d.name === targetDeptName);
+      form.setValue("discharge_department_id", targetDept?.id || "");
    };
  
    const editAdmissionMutation = useMutation({
@@ -287,9 +301,10 @@
          phone: selectedAdmission.phone,
          age: selectedAdmission.age,
          department_id: targetDept?.id || selectedAdmission.department_id,
-         discharge_department_id: targetDept?.id || selectedAdmission.department_id,
+          discharge_department_id: values.discharge_department_id || targetDept?.id || selectedAdmission.department_id,
          procedure_date: values.procedure_date,
          procedure_type: typeMap[activeTab],
+          procedure_status: values.procedure_status,
          occupation_id: selectedAdmission.occupation_id || null,
          governorate_id: selectedAdmission.governorate_id || null,
          district_id: selectedAdmission.district_id || null,
@@ -316,7 +331,11 @@
          title: "تم الحفظ بنجاح",
          description: `تم تسجيل ${typeLabel} للمريض ${data.patient_name}`,
        });
-       form.reset({ procedure_date: new Date().toISOString().slice(0, 16) });
+        form.reset({ 
+          procedure_date: new Date().toISOString().slice(0, 16),
+          discharge_department_id: "",
+          procedure_status: "",
+        });
        setSearchNumber("");
        setSelectedAdmission(null);
      },
@@ -335,6 +354,18 @@
  
    const handleTabChange = (newTab: ProcedureType) => {
      setActiveTab(newTab);
+      
+      // Update discharge department when tab changes if patient is loaded
+      if (selectedAdmission) {
+        const departmentMap: Record<ProcedureType, string> = {
+          procedure: "بذل",
+          reception: "استقبال",
+          kidney: "كلي"
+        };
+        const targetDeptName = departmentMap[newTab];
+        const targetDept = departments?.find(d => d.name === targetDeptName);
+        form.setValue("discharge_department_id", targetDept?.id || "");
+      }
    };
  
    const getTabInfo = () => {
@@ -553,6 +584,51 @@
                <Form {...form}>
                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="discharge_department_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>قسم الخروج</FormLabel>
+                            <FormControl>
+                              <SearchableSelect
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                options={departments || []}
+                                placeholder="اختر قسم الخروج"
+                                onAddNew={() => setShowDepartmentDialog(true)}
+                                onManage={() => setShowDepartmentManage(true)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="procedure_status"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>الحالة</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="اختر الحالة" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="تحسن">تحسن</SelectItem>
+                                <SelectItem value="هروب">هروب</SelectItem>
+                                <SelectItem value="تحويل">تحويل</SelectItem>
+                                <SelectItem value="حسب الطلب">حسب الطلب</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
                      <FormField
                        control={form.control}
                        name="diagnosis_id"
