@@ -49,6 +49,14 @@ export default function Discharge() {
   const [showDoctorDialog, setShowDoctorDialog] = useState(false);
   const [showDoctorManage, setShowDoctorManage] = useState(false);
   const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
+  const [showGovernorateDialog, setShowGovernorateDialog] = useState(false);
+  const [showGovernorateManage, setShowGovernorateManage] = useState(false);
+  const [showDistrictDialog, setShowDistrictDialog] = useState(false);
+  const [showDistrictManage, setShowDistrictManage] = useState(false);
+  const [showStationDialog, setShowStationDialog] = useState(false);
+  const [showStationManage, setShowStationManage] = useState(false);
+  const [showOccupationDialog, setShowOccupationDialog] = useState(false);
+  const [showOccupationManage, setShowOccupationManage] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -117,6 +125,30 @@ export default function Discharge() {
     queryKey: ["hospitals"],
     queryFn: async () => {
       const { data } = await supabase.from("hospitals").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: districts } = useQuery({
+    queryKey: ["districts"],
+    queryFn: async () => {
+      const { data } = await supabase.from("districts").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: stations } = useQuery({
+    queryKey: ["stations"],
+    queryFn: async () => {
+      const { data } = await supabase.from("stations").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: occupations } = useQuery({
+    queryKey: ["occupations"],
+    queryFn: async () => {
+      const { data } = await supabase.from("occupations").select("*").order("name");
       return data || [];
     },
   });
@@ -827,36 +859,51 @@ export default function Discharge() {
                     options={governorates?.map((g) => ({ id: g.id, name: g.name })) || []}
                     placeholder="اختر المحافظة"
                     emptyText="لا توجد محافظات"
-                    onAddNew={() => {}}
-                    onManage={() => {}}
+                    onAddNew={() => setShowGovernorateDialog(true)}
+                    onManage={() => setShowGovernorateManage(true)}
                     addNewLabel="إضافة محافظة"
                   />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">المركز/الحي</label>
-                  <Input
+                  <SearchableSelect
                     value={editAdmissionForm.watch("district_id")}
-                    onChange={(e) => editAdmissionForm.setValue("district_id", e.target.value)}
-                    placeholder="المركز أو الحي"
+                    onValueChange={(value) => editAdmissionForm.setValue("district_id", value)}
+                    options={districts?.map((d) => ({ id: d.id, name: d.name })) || []}
+                    placeholder="اختر المركز/الحي"
+                    emptyText="لا توجد مراكز"
+                    onAddNew={() => setShowDistrictDialog(true)}
+                    onManage={() => setShowDistrictManage(true)}
+                    addNewLabel="إضافة مركز/حي"
                   />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">المحطة</label>
-                  <Input
+                  <SearchableSelect
                     value={editAdmissionForm.watch("station_id")}
-                    onChange={(e) => editAdmissionForm.setValue("station_id", e.target.value)}
-                    placeholder="المحطة"
+                    onValueChange={(value) => editAdmissionForm.setValue("station_id", value)}
+                    options={stations?.map((s) => ({ id: s.id, name: s.name })) || []}
+                    placeholder="اختر المحطة"
+                    emptyText="لا توجد محطات"
+                    onAddNew={() => setShowStationDialog(true)}
+                    onManage={() => setShowStationManage(true)}
+                    addNewLabel="إضافة محطة"
                   />
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">المهنة</label>
-                  <Input
+                  <SearchableSelect
                     value={editAdmissionForm.watch("occupation_id")}
-                    onChange={(e) => editAdmissionForm.setValue("occupation_id", e.target.value)}
-                    placeholder="المهنة"
+                    onValueChange={(value) => editAdmissionForm.setValue("occupation_id", value)}
+                    options={occupations?.map((o) => ({ id: o.id, name: o.name })) || []}
+                    placeholder="اختر المهنة"
+                    emptyText="لا توجد مهن"
+                    onAddNew={() => setShowOccupationDialog(true)}
+                    onManage={() => setShowOccupationManage(true)}
+                    addNewLabel="إضافة مهنة"
                   />
                 </div>
               </div>
@@ -939,6 +986,75 @@ export default function Discharge() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Governorate Dialogs */}
+      <LookupCreateDialog
+        open={showGovernorateDialog}
+        type="governorate"
+        onOpenChange={setShowGovernorateDialog}
+        onCreated={(item) => {
+          editAdmissionForm.setValue("governorate_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showGovernorateManage}
+        type="governorate"
+        onOpenChange={setShowGovernorateManage}
+        items={governorates?.map((g) => ({ id: g.id, name: g.name })) || []}
+      />
+
+      {/* District Dialogs */}
+      <LookupCreateDialog
+        open={showDistrictDialog}
+        type="district"
+        onOpenChange={setShowDistrictDialog}
+        context={{ governorate_id: editAdmissionForm.watch("governorate_id") }}
+        onCreated={(item) => {
+          editAdmissionForm.setValue("district_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showDistrictManage}
+        type="district"
+        onOpenChange={setShowDistrictManage}
+        items={districts?.map((d) => ({ id: d.id, name: d.name })) || []}
+      />
+
+      {/* Station Dialogs */}
+      <LookupCreateDialog
+        open={showStationDialog}
+        type="station"
+        onOpenChange={setShowStationDialog}
+        onCreated={(item) => {
+          editAdmissionForm.setValue("station_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showStationManage}
+        type="station"
+        onOpenChange={setShowStationManage}
+        items={stations?.map((s) => ({ id: s.id, name: s.name })) || []}
+      />
+
+      {/* Occupation Dialogs */}
+      <LookupCreateDialog
+        open={showOccupationDialog}
+        type="occupation"
+        onOpenChange={setShowOccupationDialog}
+        onCreated={(item) => {
+          editAdmissionForm.setValue("occupation_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showOccupationManage}
+        type="occupation"
+        onOpenChange={setShowOccupationManage}
+        items={occupations?.map((o) => ({ id: o.id, name: o.name })) || []}
+      />
       </div>
     </Layout>
   );
