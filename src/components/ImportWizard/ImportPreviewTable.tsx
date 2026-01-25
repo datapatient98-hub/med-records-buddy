@@ -57,7 +57,8 @@
  
    const scrollToEnd = () => {
      if (!scrollRef.current || !bottomRef.current) return;
-     const end = Math.max((scrollRef.current.scrollWidth ?? 0) - (scrollRef.current.clientWidth ?? 0), 0);
+    const tableElement = scrollRef.current.querySelector('table');
+    const end = Math.max((tableElement?.scrollWidth ?? scrollRef.current.scrollWidth ?? 0) - (scrollRef.current.clientWidth ?? 0), 0);
      scrollRef.current.scrollLeft = end;
      bottomRef.current.scrollLeft = end;
    };
@@ -66,12 +67,16 @@
      if (!scrollRef.current) return;
      const idx = headers.indexOf(col);
      if (idx < 0) return;
-     const cellWidth = 150;
+    const cellWidth = 200;
      scrollRef.current.scrollLeft = idx * cellWidth;
+    if (bottomRef.current) bottomRef.current.scrollLeft = idx * cellWidth;
    };
  
    useEffect(() => {
-     const update = () => setScrollWidth(scrollRef.current?.scrollWidth ?? 0);
+    const update = () => {
+      const tableElement = scrollRef.current?.querySelector('table');
+      setScrollWidth(tableElement?.scrollWidth ?? scrollRef.current?.scrollWidth ?? 0);
+    };
      const t = window.setTimeout(() => window.requestAnimationFrame(update), 0);
      window.addEventListener("resize", update);
      return () => {
@@ -119,50 +124,49 @@
        <div className="rounded-md border">
          <div
            ref={scrollRef}
-           className="h-[50vh] w-full overflow-auto"
+            className="h-[50vh] w-full overflow-x-auto overflow-y-auto"
            dir="ltr"
            onScroll={handleScroll}
          >
-           <div className="min-w-max" dir="ltr">
-             <Table>
-               <TableHeader className="sticky top-0 z-10 bg-background">
+            <Table className="w-max">
+              <TableHeader className="sticky top-0 z-10 bg-background">
                  <TableRow>
-                   <TableHead className="whitespace-nowrap text-right">#</TableHead>
+                    <TableHead className="w-[60px] whitespace-nowrap text-right">#</TableHead>
                    {headers.map((h) => (
-                     <TableHead key={h} className="whitespace-nowrap text-right">
+                      <TableHead key={h} className="min-w-[200px] whitespace-nowrap text-right">
                        {h}
                      </TableHead>
                    ))}
                  </TableRow>
-               </TableHeader>
-               <TableBody>
+              </TableHeader>
+              <TableBody>
                  {filteredRows.map((r, idx) => (
                    <TableRow key={idx}>
-                     <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground">
+                      <TableCell className="w-[60px] whitespace-nowrap text-right text-xs text-muted-foreground">
                        {rowNumberMode === "source" ? Number(r.__sourceIndex ?? idx) + 2 : idx + 1}
                      </TableCell>
                      {headers.map((h) => (
-                       <TableCell key={h} className="whitespace-nowrap text-right text-sm">
+                        <TableCell key={h} className="min-w-[200px] whitespace-nowrap text-right text-sm">
                          {normalizeCellValue(r[h])}
                        </TableCell>
                      ))}
                    </TableRow>
                  ))}
-               </TableBody>
-             </Table>
-           </div>
+              </TableBody>
+            </Table>
          </div>
  
          <div className="border-t bg-muted/30 px-3 py-2" dir="ltr">
            <div className="flex items-center gap-2">
-             <Button type="button" variant="ghost" size="sm" onClick={scrollToStart}>
-               <ChevronsRight className="h-4 w-4" />
+              <Button type="button" variant="ghost" size="sm" onClick={scrollToStart} title="البداية">
+                <ChevronsRight className="h-4 w-4" />
              </Button>
              <Button type="button" variant="ghost" size="sm" onClick={() => {
                if (!scrollRef.current) return;
                scrollRef.current.scrollLeft -= 300;
-             }}>
-               <ChevronRight className="h-4 w-4" />
+                if (bottomRef.current) bottomRef.current.scrollLeft -= 300;
+              }} title="يسار">
+                <ChevronRight className="h-4 w-4" />
              </Button>
              <div
                ref={bottomRef}
@@ -170,16 +174,17 @@
                onScroll={syncTop}
                aria-label="شريط تمرير أفقي"
              >
-               <div style={{ width: Math.max(scrollWidth, 1) }} className="h-4" />
+                <div style={{ width: `${Math.max(scrollWidth, 1)}px` }} className="h-4" />
              </div>
              <Button type="button" variant="ghost" size="sm" onClick={() => {
                if (!scrollRef.current) return;
                scrollRef.current.scrollLeft += 300;
-             }}>
-               <ChevronLeft className="h-4 w-4" />
+                if (bottomRef.current) bottomRef.current.scrollLeft += 300;
+              }} title="يمين">
+                <ChevronLeft className="h-4 w-4" />
              </Button>
-             <Button type="button" variant="ghost" size="sm" onClick={scrollToEnd}>
-               <ChevronsLeft className="h-4 w-4" />
+              <Button type="button" variant="ghost" size="sm" onClick={scrollToEnd} title="النهاية">
+                <ChevronsLeft className="h-4 w-4" />
              </Button>
            </div>
          </div>
