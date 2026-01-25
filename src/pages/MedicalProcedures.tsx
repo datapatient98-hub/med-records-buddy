@@ -217,7 +217,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       const allCounts: Record<string, any> = {};
       
       for (const type of types) {
-        const statuses = ["تحسن", "تحويل", "وفاة"];
+        const statuses = ["تحسن", "تحويل", "وفاة", "هروب", "حسب الطلب"];
         const counts = await Promise.all(statuses.map(async (status) => {
           const { count, error } = await supabase
             .from("procedures")
@@ -478,7 +478,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                onClick={() => handleTabChange("procedure")}
                active={activeTab === "procedure"}
               details={statusCounts?.procedure ? 
-                `تحسن ${statusCounts.procedure["تحسن"] || 0} • تحويل ${statusCounts.procedure["تحويل"] || 0} • وفاة ${statusCounts.procedure["وفاة"] || 0}` : 
+                `تحسن ${statusCounts.procedure["تحسن"] || 0} • تحويل ${statusCounts.procedure["تحويل"] || 0} • وفاة ${statusCounts.procedure["وفاة"] || 0} • هروب ${statusCounts.procedure["هروب"] || 0} • حسب الطلب ${statusCounts.procedure["حسب الطلب"] || 0}` : 
                 undefined
               }
              />
@@ -491,7 +491,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                onClick={() => handleTabChange("reception")}
                active={activeTab === "reception"}
               details={statusCounts?.reception ? 
-                `تحسن ${statusCounts.reception["تحسن"] || 0} • تحويل ${statusCounts.reception["تحويل"] || 0} • وفاة ${statusCounts.reception["وفاة"] || 0}` : 
+                `تحسن ${statusCounts.reception["تحسن"] || 0} • تحويل ${statusCounts.reception["تحويل"] || 0} • وفاة ${statusCounts.reception["وفاة"] || 0} • هروب ${statusCounts.reception["هروب"] || 0} • حسب الطلب ${statusCounts.reception["حسب الطلب"] || 0}` : 
                 undefined
               }
              />
@@ -504,7 +504,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                onClick={() => handleTabChange("kidney")}
                active={activeTab === "kidney"}
               details={statusCounts?.kidney ? 
-                `تحسن ${statusCounts.kidney["تحسن"] || 0} • تحويل ${statusCounts.kidney["تحويل"] || 0} • وفاة ${statusCounts.kidney["وفاة"] || 0}` : 
+                `تحسن ${statusCounts.kidney["تحسن"] || 0} • تحويل ${statusCounts.kidney["تحويل"] || 0} • وفاة ${statusCounts.kidney["وفاة"] || 0} • هروب ${statusCounts.kidney["هروب"] || 0} • حسب الطلب ${statusCounts.kidney["حسب الطلب"] || 0}` : 
                 undefined
               }
              />
