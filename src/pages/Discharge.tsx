@@ -41,6 +41,12 @@ export default function Discharge() {
   const [selectedTab, setSelectedTab] = useState<"تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج">("تحسن");
   const [showHospitalDialog, setShowHospitalDialog] = useState(false);
   const [showHospitalManage, setShowHospitalManage] = useState(false);
+  const [showDepartmentDialog, setShowDepartmentDialog] = useState(false);
+  const [showDepartmentManage, setShowDepartmentManage] = useState(false);
+  const [showDiagnosisDialog, setShowDiagnosisDialog] = useState(false);
+  const [showDiagnosisManage, setShowDiagnosisManage] = useState(false);
+  const [showDoctorDialog, setShowDoctorDialog] = useState(false);
+  const [showDoctorManage, setShowDoctorManage] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -156,6 +162,27 @@ export default function Discharge() {
     setShowDischargeForm(false);
     // Set default discharge department to admission department
     form.setValue("discharge_department_id", data.department_id);
+    form.setValue("discharge_diagnosis_id", data.diagnosis_id || "");
+    form.setValue("discharge_doctor_id", data.doctor_id || "");
+    
+    // Display all admission data except created_at
+    toast({
+      title: "تم العثور على بيانات المريض",
+      description: `
+الاسم: ${data.patient_name}
+الرقم القومي: ${data.national_id}
+الهاتف: ${data.phone}
+النوع: ${data.gender}
+السن: ${data.age} سنة
+الحالة الاجتماعية: ${data.marital_status}
+المحافظة: ${data.governorates?.name || "-"}
+العنوان التفصيلي: ${data.address_details || "-"}
+القسم: ${data.departments?.name || "-"}
+التشخيص: ${data.diagnoses?.name || "-"}
+الطبيب: ${data.doctors?.name || "-"}
+تاريخ الدخول: ${new Date(data.admission_date).toLocaleString("ar-EG")}
+      `.trim(),
+    });
   };
 
   const mutation = useMutation({
@@ -424,20 +451,18 @@ export default function Discharge() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>قسم الخروج</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر القسم" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {departments?.map((dept) => (
-                              <SelectItem key={dept.id} value={dept.id}>
-                                {dept.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
+                            placeholder="اختر أو ابحث عن قسم"
+                            emptyText="لا توجد أقسام"
+                            onAddNew={() => setShowDepartmentDialog(true)}
+                            onManage={() => setShowDepartmentManage(true)}
+                            addNewLabel="إضافة قسم"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -449,20 +474,18 @@ export default function Discharge() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>تشخيص الخروج</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر التشخيص" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {diagnoses?.map((diag) => (
-                              <SelectItem key={diag.id} value={diag.id}>
-                                {diag.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
+                            placeholder="اختر أو ابحث عن تشخيص"
+                            emptyText="لا توجد تشخيصات"
+                            onAddNew={() => setShowDiagnosisDialog(true)}
+                            onManage={() => setShowDiagnosisManage(true)}
+                            addNewLabel="إضافة تشخيص"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -474,20 +497,18 @@ export default function Discharge() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>طبيب الخروج</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر الطبيب" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {doctors?.map((doc) => (
-                              <SelectItem key={doc.id} value={doc.id}>
-                                {doc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value || ""}
+                            onValueChange={field.onChange}
+                            options={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
+                            placeholder="اختر أو ابحث عن طبيب"
+                            emptyText="لا يوجد أطباء"
+                            onAddNew={() => setShowDoctorDialog(true)}
+                            onManage={() => setShowDoctorManage(true)}
+                            addNewLabel="إضافة طبيب"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -567,6 +588,54 @@ export default function Discharge() {
         type="hospital"
         onOpenChange={setShowHospitalManage}
         items={hospitals?.map((h) => ({ id: h.id, name: h.name })) || []}
+      />
+
+      <LookupCreateDialog
+        open={showDepartmentDialog}
+        type="department"
+        onOpenChange={setShowDepartmentDialog}
+        onCreated={(item) => {
+          form.setValue("discharge_department_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showDepartmentManage}
+        type="department"
+        onOpenChange={setShowDepartmentManage}
+        items={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
+      />
+
+      <LookupCreateDialog
+        open={showDiagnosisDialog}
+        type="diagnosis"
+        onOpenChange={setShowDiagnosisDialog}
+        onCreated={(item) => {
+          form.setValue("discharge_diagnosis_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showDiagnosisManage}
+        type="diagnosis"
+        onOpenChange={setShowDiagnosisManage}
+        items={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
+      />
+
+      <LookupCreateDialog
+        open={showDoctorDialog}
+        type="doctor"
+        onOpenChange={setShowDoctorDialog}
+        onCreated={(item) => {
+          form.setValue("discharge_doctor_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showDoctorManage}
+        type="doctor"
+        onOpenChange={setShowDoctorManage}
+        items={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
       />
       </div>
     </Layout>
