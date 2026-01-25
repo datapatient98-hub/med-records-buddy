@@ -164,25 +164,6 @@ export default function Discharge() {
     form.setValue("discharge_department_id", data.department_id);
     form.setValue("discharge_diagnosis_id", data.diagnosis_id || "");
     form.setValue("discharge_doctor_id", data.doctor_id || "");
-    
-    // Display all admission data except created_at
-    toast({
-      title: "تم العثور على بيانات المريض",
-      description: `
-الاسم: ${data.patient_name}
-الرقم القومي: ${data.national_id}
-الهاتف: ${data.phone}
-النوع: ${data.gender}
-السن: ${data.age} سنة
-الحالة الاجتماعية: ${data.marital_status}
-المحافظة: ${data.governorates?.name || "-"}
-العنوان التفصيلي: ${data.address_details || "-"}
-القسم: ${data.departments?.name || "-"}
-التشخيص: ${data.diagnoses?.name || "-"}
-الطبيب: ${data.doctors?.name || "-"}
-تاريخ الدخول: ${new Date(data.admission_date).toLocaleString("ar-EG")}
-      `.trim(),
-    });
   };
 
   const mutation = useMutation({
@@ -221,7 +202,7 @@ export default function Discharge() {
       queryClient.invalidateQueries({ queryKey: ["discharges"] });
       toast({
         title: "تم الحفظ بنجاح",
-        description: `تم تسجيل خروج المريض ${data.patient_name} برقم داخلي ${data.internal_number}`,
+        description: `تم تسجيل خروج المريض ${data.patient_name}`,
       });
       // Reset form
       setSelectedAdmission(null);
@@ -321,10 +302,6 @@ export default function Discharge() {
                 <p className="font-semibold">{selectedAdmission.unified_number}</p>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
-                <p className="text-xs text-muted-foreground">الرقم الداخلي</p>
-                <p className="font-semibold">{selectedAdmission.internal_number}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-secondary/50">
                 <p className="text-xs text-muted-foreground">اسم المريض</p>
                 <p className="font-semibold">{selectedAdmission.patient_name}</p>
               </div>
@@ -333,12 +310,28 @@ export default function Discharge() {
                 <p className="font-semibold">{selectedAdmission.national_id}</p>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الهاتف</p>
+                <p className="font-semibold">{selectedAdmission.phone}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
                 <p className="text-xs text-muted-foreground">النوع</p>
                 <p className="font-semibold">{selectedAdmission.gender}</p>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
                 <p className="text-xs text-muted-foreground">السن</p>
                 <p className="font-semibold">{selectedAdmission.age}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الحالة الاجتماعية</p>
+                <p className="font-semibold">{selectedAdmission.marital_status}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">المحافظة</p>
+                <p className="font-semibold">{selectedAdmission.governorates?.name || "-"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">العنوان التفصيلي</p>
+                <p className="font-semibold text-xs">{selectedAdmission.address_details || "-"}</p>
               </div>
               <div className="p-3 rounded-lg bg-secondary/50">
                 <p className="text-xs text-muted-foreground">القسم</p>
@@ -353,6 +346,10 @@ export default function Discharge() {
               <div className="p-3 rounded-lg bg-secondary/50">
                 <p className="text-xs text-muted-foreground">التشخيص</p>
                 <p className="font-semibold">{selectedAdmission.diagnoses?.name || "-"}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-secondary/50">
+                <p className="text-xs text-muted-foreground">الطبيب</p>
+                <p className="font-semibold">{selectedAdmission.doctors?.name || "-"}</p>
               </div>
             </div>
 
