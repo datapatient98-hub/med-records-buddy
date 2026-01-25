@@ -423,14 +423,21 @@ export default function Discharge() {
                     name="discharge_department_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>قسم الخروج (قسم الحجز)</FormLabel>
+                        <FormLabel>قسم الخروج</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <Input 
-                              value={selectedAdmission?.departments?.name || "-"} 
-                              disabled 
-                              className="bg-secondary/50"
-                            />
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر القسم" />
+                            </SelectTrigger>
                           </FormControl>
+                          <SelectContent>
+                            {departments?.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.id}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
