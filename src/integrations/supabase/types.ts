@@ -183,6 +183,7 @@ export type Database = {
           discharge_doctor_id: string | null
           discharge_status: Database["public"]["Enums"]["discharge_status"]
           finance_source: Database["public"]["Enums"]["finance_source"] | null
+          hospital_id: string | null
           id: string
           internal_number: number
         }
@@ -196,6 +197,7 @@ export type Database = {
           discharge_doctor_id?: string | null
           discharge_status: Database["public"]["Enums"]["discharge_status"]
           finance_source?: Database["public"]["Enums"]["finance_source"] | null
+          hospital_id?: string | null
           id?: string
           internal_number?: number
         }
@@ -209,6 +211,7 @@ export type Database = {
           discharge_doctor_id?: string | null
           discharge_status?: Database["public"]["Enums"]["discharge_status"]
           finance_source?: Database["public"]["Enums"]["finance_source"] | null
+          hospital_id?: string | null
           id?: string
           internal_number?: number
         }
@@ -239,6 +242,13 @@ export type Database = {
             columns: ["discharge_doctor_id"]
             isOneToOne: false
             referencedRelation: "doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discharges_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
         ]
@@ -584,6 +594,24 @@ export type Database = {
         ]
       }
       governorates: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      hospitals: {
         Row: {
           created_at: string | null
           id: string

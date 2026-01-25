@@ -21,6 +21,7 @@ const typeMeta: Record<LookupCreateType, { table: string; title: string; queryKe
   occupation: { table: "occupations", title: "تعديل المهن", queryKey: "occupations" },
   station: { table: "stations", title: "تعديل المحطات", queryKey: "stations" },
   district: { table: "districts", title: "تعديل المراكز/الأحياء", queryKey: "districts" },
+  hospital: { table: "hospitals", title: "تعديل المستشفيات", queryKey: "hospitals" },
 };
 
 export default function LookupManageDialog({
