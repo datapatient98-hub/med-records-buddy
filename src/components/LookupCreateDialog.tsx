@@ -113,6 +113,11 @@ export default function LookupCreateDialog({
 
     setSaving(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("يجب تسجيل الدخول أولاً قبل الإضافة/الحذف.");
+      }
+
       const payload: Record<string, any> = { name: clean };
       if (type === "district" && context?.governorate_id) {
         payload.governorate_id = context.governorate_id;

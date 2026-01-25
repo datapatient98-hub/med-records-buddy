@@ -50,6 +50,11 @@ export default function LookupManageDialog({
   const handleDelete = async (id: string, name: string) => {
     setBusyId(id);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error("يجب تسجيل الدخول أولاً قبل الإضافة/الحذف.");
+      }
+
       // IMPORTANT: With RLS, a DELETE can succeed with 0 affected rows (no error) if the user
       // doesn't have permission. We select to verify the affected row.
       const { data, error } = await supabase
