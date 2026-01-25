@@ -18,6 +18,9 @@ export type Database = {
         Row: {
           address_details: string | null
           admission_date: string
+          admission_source:
+            | Database["public"]["Enums"]["admission_source"]
+            | null
           admission_status: Database["public"]["Enums"]["admission_status"]
           age: number
           created_at: string | null
@@ -40,6 +43,9 @@ export type Database = {
         Insert: {
           address_details?: string | null
           admission_date: string
+          admission_source?:
+            | Database["public"]["Enums"]["admission_source"]
+            | null
           admission_status: Database["public"]["Enums"]["admission_status"]
           age: number
           created_at?: string | null
@@ -62,6 +68,9 @@ export type Database = {
         Update: {
           address_details?: string | null
           admission_date?: string
+          admission_source?:
+            | Database["public"]["Enums"]["admission_source"]
+            | null
           admission_status?: Database["public"]["Enums"]["admission_status"]
           age?: number
           created_at?: string | null
@@ -710,6 +719,7 @@ export type Database = {
           procedure_status: string | null
           procedure_type: Database["public"]["Enums"]["procedure_type"] | null
           station_id: string | null
+          transferred_from_department_id: string | null
           unified_number: string
         }
         Insert: {
@@ -736,6 +746,7 @@ export type Database = {
           procedure_status?: string | null
           procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
+          transferred_from_department_id?: string | null
           unified_number: string
         }
         Update: {
@@ -762,6 +773,7 @@ export type Database = {
           procedure_status?: string | null
           procedure_type?: Database["public"]["Enums"]["procedure_type"] | null
           station_id?: string | null
+          transferred_from_department_id?: string | null
           unified_number?: string
         }
         Relationships: [
@@ -833,6 +845,13 @@ export type Database = {
             columns: ["station_id"]
             isOneToOne: false
             referencedRelation: "stations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedures_transferred_from_department_id_fkey"
+            columns: ["transferred_from_department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
         ]
@@ -924,6 +943,7 @@ export type Database = {
       }
     }
     Enums: {
+      admission_source: "طوارئ" | "داخلي"
       admission_status: "محجوز" | "خروج" | "متوفى" | "تحويل"
       app_role: "admin" | "doctor" | "nurse" | "records_clerk"
       discharge_status: "تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج"
@@ -1058,6 +1078,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admission_source: ["طوارئ", "داخلي"],
       admission_status: ["محجوز", "خروج", "متوفى", "تحويل"],
       app_role: ["admin", "doctor", "nurse", "records_clerk"],
       discharge_status: ["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"],

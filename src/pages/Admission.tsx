@@ -75,6 +75,7 @@ const admissionSchema = z.object({
   station_id: z.string().optional(),
   department_id: z.string().min(1, "قسم الحجز مطلوب"),
   admission_status: z.enum(["محجوز", "خروج", "متوفى", "تحويل"]),
+  admission_source: z.enum(["طوارئ", "داخلي"]),
   diagnosis_id: z.string().optional(),
   doctor_id: z.string().optional(),
   admission_date: z.string().min(1, "تاريخ الحجز مطلوب"),
@@ -140,6 +141,7 @@ export default function Admission() {
       station_id: "",
       department_id: "",
       admission_status: "محجوز",
+      admission_source: "داخلي",
       diagnosis_id: "",
       doctor_id: "",
       admission_date: new Date().toISOString().slice(0, 16),
@@ -391,6 +393,7 @@ export default function Admission() {
             station_id: values.station_id || null,
             department_id: values.department_id,
             admission_status: values.admission_status as any,
+            admission_source: values.admission_source as any,
             diagnosis_id: values.diagnosis_id || null,
             doctor_id: values.doctor_id || null,
             admission_date: values.admission_date,
@@ -943,6 +946,30 @@ export default function Admission() {
                             <SelectItem value="خروج">خروج</SelectItem>
                             <SelectItem value="متوفى">متوفى</SelectItem>
                             <SelectItem value="تحويل">تحويل</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="admission_source"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          <RequiredLabel>نوع الدخول</RequiredLabel>
+                        </FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="اختر نوع الدخول" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="طوارئ">طوارئ</SelectItem>
+                            <SelectItem value="داخلي">داخلي</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
