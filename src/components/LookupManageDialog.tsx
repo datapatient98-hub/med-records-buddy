@@ -50,8 +50,20 @@ export default function LookupManageDialog({
   const handleDelete = async (id: string, name: string) => {
     setBusyId(id);
     try {
-      const { error } = await supabase.from(meta.table as any).delete().eq("id", id);
+      // IMPORTANT: With RLS, a DELETE can succeed with 0 affected rows (no error) if the user
+      // doesn't have permission. We select to verify the affected row.
+      const { data, error } = await supabase
+        .from(meta.table as any)
+        .delete()
+        .eq("id", id)
+        .select("id")
+        .maybeSingle();
+
       if (error) throw error;
+      const deletedId = (data as any)?.id as string | undefined;
+      if (!deletedId) {
+        throw new Error("لم يتم الحذف. غالباً لا توجد صلاحية أو أن العنصر غير موجود.");
+      }
       await queryClient.invalidateQueries({ queryKey: [meta.queryKey] });
       toast({ title: "تم الحذف", description: `تم حذف: ${name}` });
     } catch (e: any) {
