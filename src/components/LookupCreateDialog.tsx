@@ -19,7 +19,8 @@ export type LookupCreateType =
   | "governorate"
   | "occupation"
   | "station"
-  | "district";
+  | "district"
+  | "hospital";
 
 const typeMeta: Record<
   LookupCreateType,
@@ -66,6 +67,12 @@ const typeMeta: Record<
     title: "إضافة مركز/حي",
     placeholder: "اسم المركز/الحي",
     queryKey: "districts",
+  },
+  hospital: {
+    table: "hospitals",
+    title: "إضافة مستشفى",
+    placeholder: "اسم المستشفى",
+    queryKey: "hospitals",
   },
 };
 

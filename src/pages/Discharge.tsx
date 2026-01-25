@@ -13,7 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
-import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban } from "lucide-react";
+import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit } from "lucide-react";
+import SearchableSelect from "@/components/SearchableSelect";
+import LookupCreateDialog from "@/components/LookupCreateDialog";
+import LookupManageDialog from "@/components/LookupManageDialog";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().min(1, "تاريخ الخروج مطلوب"),
@@ -21,6 +24,7 @@ const dischargeSchema = z.object({
   discharge_diagnosis_id: z.string().optional(),
   discharge_doctor_id: z.string().optional(),
   discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]),
+  hospital_id: z.string().optional(),
   finance_source: z.enum(["تأمين صحي", "علاج على نفقة الدولة", "خاص"]).optional(),
   child_national_id: z.string().optional(),
 });
@@ -35,6 +39,8 @@ export default function Discharge() {
   const [showDischargeForm, setShowDischargeForm] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [selectedTab, setSelectedTab] = useState<"تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج">("تحسن");
+  const [showHospitalDialog, setShowHospitalDialog] = useState(false);
+  const [showHospitalManage, setShowHospitalManage] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -43,6 +49,8 @@ export default function Discharge() {
       discharge_status: "تحسن",
     },
   });
+
+  const dischargeStatus = form.watch("discharge_status");
 
   // Fetch lookup data
   const { data: departments } = useQuery({
@@ -77,6 +85,14 @@ export default function Discharge() {
     },
   });
 
+  const { data: hospitals } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: async () => {
+      const { data } = await supabase.from("hospitals").select("*").order("name");
+      return data || [];
+    },
+  });
+
   // Top stats (discharge status) with time filter
   const { start, end } = getTimeRangeDates(timeRange);
   
@@ -86,7 +102,7 @@ export default function Discharge() {
       { key: "تحويل" as const, label: "تحويل", icon: Shuffle, color: "cyan" as const },
       { key: "وفاة" as const, label: "وفاة", icon: Skull, color: "pink" as const },
       { key: "هروب" as const, label: "هروب", icon: UserMinus, color: "purple" as const },
-      { key: "رفض العلاج" as const, label: "حسب الطلب", icon: Ban, color: "orange" as const },
+      { key: "رفض العلاج" as const, label: "رفض العلاج حسب الطلب", icon: Ban, color: "orange" as const },
     ],
     []
   );
@@ -138,6 +154,8 @@ export default function Discharge() {
 
     setSelectedAdmission(data);
     setShowDischargeForm(false);
+    // Set default discharge department to admission department
+    form.setValue("discharge_department_id", data.department_id);
   };
 
   const mutation = useMutation({
@@ -154,6 +172,7 @@ export default function Discharge() {
           discharge_diagnosis_id: values.discharge_diagnosis_id || null,
           discharge_doctor_id: values.discharge_doctor_id || null,
           discharge_status: values.discharge_status as any,
+          hospital_id: values.hospital_id || null,
           finance_source: values.finance_source as any || null,
           child_national_id: values.child_national_id || null,
         }]);
@@ -194,6 +213,14 @@ export default function Discharge() {
 
   const onSubmit = (data: DischargeFormValues) => {
     mutation.mutate(data);
+  };
+
+  const handleEditAdmission = () => {
+    // TODO: Implement edit functionality - for now just show a message
+    toast({
+      title: "تعديل بيانات الدخول",
+      description: "يمكنك الآن تعديل بيانات الدخول من صفحة الحجز",
+    });
   };
 
   return (
@@ -302,10 +329,16 @@ export default function Discharge() {
               </div>
             </div>
 
-            <Button onClick={() => setShowDischargeForm(true)} className="w-full">
-              <ArrowRight className="ml-2 h-4 w-4" />
-              المتابعة لتسجيل بيانات الخروج
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleEditAdmission} variant="outline" className="flex-1">
+                <Edit className="ml-2 h-4 w-4" />
+                تعديل بيانات الدخول
+              </Button>
+              <Button onClick={() => setShowDischargeForm(true)} className="flex-1">
+                <ArrowRight className="ml-2 h-4 w-4" />
+                المتابعة لتسجيل الخروج
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -352,7 +385,7 @@ export default function Discharge() {
                             <SelectItem value="تحويل">تحويل</SelectItem>
                             <SelectItem value="وفاة">وفاة</SelectItem>
                             <SelectItem value="هروب">هروب</SelectItem>
-                            <SelectItem value="رفض العلاج">رفض العلاج</SelectItem>
+                            <SelectItem value="رفض العلاج">رفض العلاج حسب الطلب</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -360,26 +393,44 @@ export default function Discharge() {
                     )}
                   />
 
+                  {dischargeStatus === "تحويل" && (
+                    <FormField
+                      control={form.control}
+                      name="hospital_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>اسم المستشفى (للتحويل) *</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              options={hospitals?.map((h) => ({ id: h.id, name: h.name })) || []}
+                              placeholder="اختر المستشفى"
+                              emptyText="لا توجد مستشفيات"
+                              onAddNew={() => setShowHospitalDialog(true)}
+                              onManage={() => setShowHospitalManage(true)}
+                              addNewLabel="إضافة مستشفى"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
                   <FormField
                     control={form.control}
                     name="discharge_department_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>قسم الخروج</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel>قسم الخروج (قسم الحجز)</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر القسم" />
-                            </SelectTrigger>
+                            <Input 
+                              value={selectedAdmission?.departments?.name || "-"} 
+                              disabled 
+                              className="bg-secondary/50"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            {departments?.map((dept) => (
-                              <SelectItem key={dept.id} value={dept.id}>
-                                {dept.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -494,6 +545,22 @@ export default function Discharge() {
           </CardContent>
         </Card>
       )}
+
+      <LookupCreateDialog
+        open={showHospitalDialog}
+        type="hospital"
+        onOpenChange={setShowHospitalDialog}
+        onCreated={(item) => {
+          form.setValue("hospital_id", item.id);
+        }}
+      />
+
+      <LookupManageDialog
+        open={showHospitalManage}
+        type="hospital"
+        onOpenChange={setShowHospitalManage}
+        items={hospitals?.map((h) => ({ id: h.id, name: h.name })) || []}
+      />
       </div>
     </Layout>
   );
