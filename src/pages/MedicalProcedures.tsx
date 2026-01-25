@@ -205,28 +205,35 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
 
   // Get detailed status counts for each procedure type
   const { data: statusCounts } = useQuery({
-    queryKey: ["procedures-status-counts", timeRange, activeTab],
+    queryKey: ["procedures-status-counts", timeRange],
     queryFn: async () => {
+      const types: ProcedureType[] = ["procedure", "reception", "kidney"];
       const typeMap: Record<ProcedureType, string> = {
         procedure: "بذل",
         reception: "استقبال",
         kidney: "كلي"
       };
       
-      const statuses = ["تحسن", "تحويل", "وفاة", "هروب", "حسب الطلب"];
-      const counts = await Promise.all(statuses.map(async (status) => {
-        const { count, error } = await supabase
-          .from("procedures")
-          .select("id", { count: "exact", head: true })
-          .eq("procedure_type", typeMap[activeTab] as Database["public"]["Enums"]["procedure_type"])
-          .eq("procedure_status", status)
-          .gte("procedure_date", start.toISOString())
-          .lte("procedure_date", end.toISOString());
-        if (error) throw error;
-        return { status, count: count ?? 0 };
-      }));
+      const allCounts: Record<string, any> = {};
       
-      return Object.fromEntries(counts.map(c => [c.status, c.count]));
+      for (const type of types) {
+        const statuses = ["تحسن", "تحويل", "وفاة"];
+        const counts = await Promise.all(statuses.map(async (status) => {
+          const { count, error } = await supabase
+            .from("procedures")
+            .select("id", { count: "exact", head: true })
+            .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
+            .eq("procedure_status", status)
+            .gte("procedure_date", start.toISOString())
+            .lte("procedure_date", end.toISOString());
+          if (error) throw error;
+          return { status, count: count ?? 0 };
+        }));
+        
+        allCounts[type] = Object.fromEntries(counts.map(c => [c.status, c.count]));
+      }
+      
+      return allCounts;
     },
   });
  
@@ -470,8 +477,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               color="blue"
                onClick={() => handleTabChange("procedure")}
                active={activeTab === "procedure"}
-              details={activeTab === "procedure" && statusCounts ? 
-                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+              details={statusCounts?.procedure ? 
+                `تحسن ${statusCounts.procedure["تحسن"] || 0} • تحويل ${statusCounts.procedure["تحويل"] || 0} • وفاة ${statusCounts.procedure["وفاة"] || 0}` : 
                 undefined
               }
              />
@@ -483,8 +490,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               color="green"
                onClick={() => handleTabChange("reception")}
                active={activeTab === "reception"}
-              details={activeTab === "reception" && statusCounts ? 
-                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+              details={statusCounts?.reception ? 
+                `تحسن ${statusCounts.reception["تحسن"] || 0} • تحويل ${statusCounts.reception["تحويل"] || 0} • وفاة ${statusCounts.reception["وفاة"] || 0}` : 
                 undefined
               }
              />
@@ -496,8 +503,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                color="orange"
                onClick={() => handleTabChange("kidney")}
                active={activeTab === "kidney"}
-              details={activeTab === "kidney" && statusCounts ? 
-                `تحسن: ${statusCounts["تحسن"] || 0} • تحويل: ${statusCounts["تحويل"] || 0} • وفاة: ${statusCounts["وفاة"] || 0}` : 
+              details={statusCounts?.kidney ? 
+                `تحسن ${statusCounts.kidney["تحسن"] || 0} • تحويل ${statusCounts.kidney["تحويل"] || 0} • وفاة ${statusCounts.kidney["وفاة"] || 0}` : 
                 undefined
               }
              />

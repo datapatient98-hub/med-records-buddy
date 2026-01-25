@@ -52,17 +52,17 @@ export default function ColoredStatTab({
         <div className="space-y-2">
           <div className="flex items-baseline gap-2">
             <p className="text-4xl font-bold">{value.toLocaleString("ar-EG")}</p>
-            {active && <span className="text-xs opacity-75">إجمالي</span>}
+            <span className="text-xs opacity-80 font-medium">إجمالي</span>
           </div>
           
-          {details && active && (
-            <div className="text-[10px] leading-relaxed opacity-90 border-t border-white/20 pt-2 mt-2">
-              <p className="font-medium">{details}</p>
+          {details && (
+            <div className="text-sm leading-relaxed opacity-100 border-t-2 border-white/40 pt-2.5 mt-2.5 bg-white/10 rounded-md p-2">
+              <p className="font-bold tracking-wide">{details}</p>
             </div>
           )}
           
           {subtitle && (
-            <p className="text-xs opacity-80">{subtitle}</p>
+            <p className="text-xs opacity-90 font-semibold">{subtitle}</p>
           )}
           
           {sparklineData && sparklineData.length > 0 && (
