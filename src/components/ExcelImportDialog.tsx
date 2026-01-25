@@ -30,6 +30,23 @@ const PreviewTable = React.forwardRef<
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [scrollWidth, setScrollWidth] = useState(0);
 
+  const scrollToStart = () => {
+    const s = scrollRef.current;
+    const b = bottomRef.current;
+    if (!s || !b) return;
+    s.scrollLeft = 0;
+    b.scrollLeft = 0;
+  };
+
+  const scrollToEnd = () => {
+    const s = scrollRef.current;
+    const b = bottomRef.current;
+    if (!s || !b) return;
+    const end = Math.max((s.scrollWidth ?? 0) - (s.clientWidth ?? 0), 0);
+    s.scrollLeft = end;
+    b.scrollLeft = end;
+  };
+
   const syncBottom = () => {
     const s = scrollRef.current;
     const b = bottomRef.current;
@@ -91,8 +108,21 @@ const PreviewTable = React.forwardRef<
 
       {/* Bottom horizontal scrollbar (synced) */}
       <div className="border-t bg-muted/30 px-3 py-2" dir="ltr">
-        <div ref={bottomRef} className="h-3 overflow-x-auto overflow-y-hidden" onScroll={syncTop}>
-          <div style={{ width: Math.max(scrollWidth, 1) }} className="h-1" />
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={scrollToStart}>
+            للبداية
+          </Button>
+          <div
+            ref={bottomRef}
+            className="h-3 flex-1 overflow-x-auto overflow-y-hidden"
+            onScroll={syncTop}
+            aria-label="شريط تمرير أفقي"
+          >
+            <div style={{ width: Math.max(scrollWidth, 1) }} className="h-1" />
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={scrollToEnd}>
+            للنهاية
+          </Button>
         </div>
       </div>
 

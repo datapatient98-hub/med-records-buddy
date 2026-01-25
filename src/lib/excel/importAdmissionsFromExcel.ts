@@ -97,7 +97,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
   const failed: { index: number; reason: string }[] = [];
   const payloads: any[] = [];
-  const seenUnifiedNumbers = new Set<string>();
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -133,12 +132,8 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    // Dedupe داخل نفس ملف الإكسل (نفس الرقم الموحد مكرر أكثر من مرة)
-    if (seenUnifiedNumbers.has(String(unified_number))) {
-      failed.push({ index: i, reason: "الرقم الموحد مكرر داخل ملف الإكسل (تم تجاهل الصف)" });
-      continue;
-    }
-    seenUnifiedNumbers.add(String(unified_number));
+    // ملاحظة: لا نمنع تكرار "الرقم الموحد" داخل ملف الإكسل هنا.
+    // المطلوب هو تجاهل المكرر الحرفي فقط. أي تعارض على "الرقم الموحد" سيظهر كنتيجة فشل أثناء الإدخال.
     if (!national_id || national_id.length !== 14) {
       failed.push({ index: i, reason: "الرقم القومي غير صالح (يجب 14 رقم)" });
       continue;

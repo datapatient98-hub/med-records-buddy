@@ -43,7 +43,7 @@ import ExcelImportDialog from "@/components/ExcelImportDialog";
 import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
 import { downloadImportSummaryPdf } from "@/lib/pdf/exportImportPdf";
 import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
-import { markUnifiedNumberDuplicates, validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
+import { validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
 import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
 
@@ -1068,13 +1068,9 @@ export default function Admission() {
           }}
           onConfirm={async (preview) => {
             try {
-              // Apply unified-number dedupe to what the user is about to import, so the backend doesn't receive repeated numbers.
-              const { unique, errors } = markUnifiedNumberDuplicates(preview.toImport);
-              if (errors.length > 0) {
-                // Throw with a clear message; dialog will show it.
-                throw new Error(`يوجد ${errors.length} صف مكرر بالرقم الموحد داخل ملف الإكسل. راجع تبويب الأخطاء ثم أعد المحاولة.`);
-              }
-              const result = await importAdmissionsFromExcel(unique);
+              // القاعدة المطلوبة: استيراد كل الصفوف ماعدا المكرر حرفياً (ExcelImportDialog يتكفّل بالمكرر الحرفي).
+              // أي تكرار آخر (مثل الرقم الموحد) سيتم التعامل معه أثناء الإدخال في قاعدة البيانات ويظهر في تقرير الفشل.
+              const result = await importAdmissionsFromExcel(preview.toImport);
 
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),
