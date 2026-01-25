@@ -17,6 +17,7 @@ import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, E
 import SearchableSelect from "@/components/SearchableSelect";
 import LookupCreateDialog from "@/components/LookupCreateDialog";
 import LookupManageDialog from "@/components/LookupManageDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().min(1, "تاريخ الخروج مطلوب"),
@@ -47,12 +48,22 @@ export default function Discharge() {
   const [showDiagnosisManage, setShowDiagnosisManage] = useState(false);
   const [showDoctorDialog, setShowDoctorDialog] = useState(false);
   const [showDoctorManage, setShowDoctorManage] = useState(false);
+  const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
     defaultValues: {
       discharge_date: new Date().toISOString().slice(0, 16),
       discharge_status: "تحسن",
+    },
+  });
+
+  const editAdmissionForm = useForm({
+    defaultValues: {
+      department_id: "",
+      diagnosis_id: "",
+      doctor_id: "",
+      admission_date: "",
     },
   });
 
@@ -166,6 +177,56 @@ export default function Discharge() {
     form.setValue("discharge_doctor_id", data.doctor_id || "");
   };
 
+  const editAdmissionMutation = useMutation({
+    mutationFn: async (values: any) => {
+      if (!selectedAdmission) return;
+
+      const { error } = await supabase
+        .from("admissions")
+        .update({
+          department_id: values.department_id,
+          diagnosis_id: values.diagnosis_id || null,
+          doctor_id: values.doctor_id || null,
+          admission_date: values.admission_date,
+        })
+        .eq("id", selectedAdmission.id);
+
+      if (error) throw error;
+      return selectedAdmission.unified_number;
+    },
+    onSuccess: async (unifiedNumber) => {
+      queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      toast({
+        title: "تم التحديث بنجاح",
+        description: "تم تحديث بيانات الدخول",
+      });
+      
+      // Reload admission data
+      const { data } = await supabase
+        .from("admissions")
+        .select("*, departments(name), doctors(name), diagnoses(name), governorates(name)")
+        .eq("unified_number", unifiedNumber)
+        .eq("admission_status", "محجوز")
+        .single();
+
+      if (data) {
+        setSelectedAdmission(data);
+        form.setValue("discharge_department_id", data.department_id);
+        form.setValue("discharge_diagnosis_id", data.diagnosis_id || "");
+        form.setValue("discharge_doctor_id", data.doctor_id || "");
+      }
+
+      setShowEditAdmissionDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ في التحديث",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const mutation = useMutation({
     mutationFn: async (values: DischargeFormValues) => {
       if (!selectedAdmission) return;
@@ -224,11 +285,15 @@ export default function Discharge() {
   };
 
   const handleEditAdmission = () => {
-    // TODO: Implement edit functionality - for now just show a message
-    toast({
-      title: "تعديل بيانات الدخول",
-      description: "يمكنك الآن تعديل بيانات الدخول من صفحة الحجز",
+    if (!selectedAdmission) return;
+    
+    editAdmissionForm.reset({
+      department_id: selectedAdmission.department_id,
+      diagnosis_id: selectedAdmission.diagnosis_id || "",
+      doctor_id: selectedAdmission.doctor_id || "",
+      admission_date: new Date(selectedAdmission.admission_date).toISOString().slice(0, 16),
     });
+    setShowEditAdmissionDialog(true);
   };
 
   return (
@@ -634,6 +699,83 @@ export default function Discharge() {
         onOpenChange={setShowDoctorManage}
         items={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
       />
+
+      {/* Edit Admission Dialog */}
+      <Dialog open={showEditAdmissionDialog} onOpenChange={setShowEditAdmissionDialog}>
+        <DialogContent className="sm:max-w-lg" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تعديل بيانات الدخول</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={editAdmissionForm.handleSubmit((data) => editAdmissionMutation.mutate(data))} className="space-y-4">
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium">قسم الحجز *</label>
+                <SearchableSelect
+                  value={editAdmissionForm.watch("department_id")}
+                  onValueChange={(value) => editAdmissionForm.setValue("department_id", value)}
+                  options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
+                  placeholder="اختر أو ابحث عن قسم"
+                  emptyText="لا توجد أقسام"
+                  onAddNew={() => setShowDepartmentDialog(true)}
+                  onManage={() => setShowDepartmentManage(true)}
+                  addNewLabel="إضافة قسم"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">التشخيص</label>
+                <SearchableSelect
+                  value={editAdmissionForm.watch("diagnosis_id")}
+                  onValueChange={(value) => editAdmissionForm.setValue("diagnosis_id", value)}
+                  options={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
+                  placeholder="اختر أو ابحث عن تشخيص"
+                  emptyText="لا توجد تشخيصات"
+                  onAddNew={() => setShowDiagnosisDialog(true)}
+                  onManage={() => setShowDiagnosisManage(true)}
+                  addNewLabel="إضافة تشخيص"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">الطبيب</label>
+                <SearchableSelect
+                  value={editAdmissionForm.watch("doctor_id")}
+                  onValueChange={(value) => editAdmissionForm.setValue("doctor_id", value)}
+                  options={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
+                  placeholder="اختر أو ابحث عن طبيب"
+                  emptyText="لا يوجد أطباء"
+                  onAddNew={() => setShowDoctorDialog(true)}
+                  onManage={() => setShowDoctorManage(true)}
+                  addNewLabel="إضافة طبيب"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">تاريخ وساعة الدخول *</label>
+                <Input
+                  type="datetime-local"
+                  value={editAdmissionForm.watch("admission_date")}
+                  onChange={(e) => editAdmissionForm.setValue("admission_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowEditAdmissionDialog(false)}
+                disabled={editAdmissionMutation.isPending}
+              >
+                إلغاء
+              </Button>
+              <Button type="submit" disabled={editAdmissionMutation.isPending}>
+                {editAdmissionMutation.isPending ? "جاري الحفظ..." : "حفظ التعديلات"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       </div>
     </Layout>
   );
