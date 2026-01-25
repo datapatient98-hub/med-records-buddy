@@ -101,7 +101,7 @@
          props.onOpenChange(open);
        }}
      >
-       <DialogContent className="max-w-7xl" dir="rtl">
+      <DialogContent className="max-w-7xl max-h-[90vh] flex flex-col overflow-hidden" dir="rtl">
          <DialogHeader>
            <DialogTitle className="text-2xl">{props.title ?? "استيراد من Excel"}</DialogTitle>
          </DialogHeader>
@@ -114,8 +114,9 @@
  
          <Separator />
  
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
          {errorMessage && (
-           <Alert>
+            <Alert className="mx-1 mb-4">
              <AlertTitle>فشل الاستيراد</AlertTitle>
              <AlertDescription>{errorMessage}</AlertDescription>
            </Alert>
@@ -133,7 +134,7 @@
          />
  
          {currentStep === 1 && (
-           <div className="space-y-4">
+            <div className="space-y-4 px-1">
              <div className="rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/20 p-12 text-center">
                <FileUp className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
                <h3 className="mb-2 text-lg font-semibold">اختر ملف Excel للاستيراد</h3>
@@ -149,7 +150,7 @@
          )}
  
          {currentStep === 2 && preview && counts && (
-           <div className="space-y-4">
+            <div className="space-y-4 px-1 pb-4">
              <div className="rounded-lg border bg-card p-4">
                <div className="mb-3 flex items-center justify-between">
                  <div>
@@ -199,7 +200,7 @@
                  <h3 className="text-lg font-semibold text-pink">
                    صفوف بها أخطاء (سيتم استبعادها) ({preview.errors.length})
                  </h3>
-                 <div className="rounded-lg border bg-muted/30 p-4 max-h-[300px] overflow-y-auto">
+                  <div className="rounded-lg border bg-muted/30 p-4 max-h-[200px] overflow-y-auto">
                    {preview.errors.slice(0, 50).map((e, idx) => (
                      <div key={idx} className="mb-2 text-sm">
                        <span className="font-medium text-destructive">الصف #{e.index + 2}:</span> {e.reason}
@@ -217,7 +218,7 @@
          )}
  
          {currentStep === 3 && preview && (
-           <div className="space-y-4 py-8 text-center">
+            <div className="space-y-4 py-8 px-1 text-center">
              <CheckCircle className="mx-auto h-20 w-20 text-green" />
              <h3 className="text-2xl font-bold text-green">جاهز للاستيراد!</h3>
              <p className="text-lg text-muted-foreground">
@@ -225,8 +226,11 @@
              </p>
            </div>
          )}
+        </div>
  
-         <DialogFooter className="gap-2 sm:gap-2">
+        <Separator />
+        
+        <DialogFooter className="gap-2 sm:gap-2 pt-4">
            <Button
              type="button"
              variant="outline"
@@ -239,7 +243,7 @@
              {currentStep === 1 ? "إلغاء" : "رجوع"}
            </Button>
            {currentStep === 2 && (
-             <Button type="button" onClick={() => setCurrentStep(3)}>
+            <Button type="button" onClick={() => setCurrentStep(3)} disabled={!counts || counts.importRows === 0}>
                <ArrowRight className="ml-2 h-4 w-4" />
                التالي
              </Button>
@@ -261,6 +265,7 @@
                      (typeof e?.message === "string" && e.message) ||
                      "حدث خطأ أثناء الاستيراد. راجع البيانات وحاول مرة أخرى.";
                    setErrorMessage(msg);
+                  setCurrentStep(2);
                  } finally {
                    setLoading(false);
                  }

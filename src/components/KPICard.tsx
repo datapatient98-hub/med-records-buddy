@@ -47,16 +47,16 @@ export default function KPICard({
   return (
     <Card
       className={cn(
-        "shadow-lg bg-gradient-to-br border-2",
+        "shadow-md bg-gradient-to-br border-2",
         colorClasses[colorScheme]
       )}
     >
-      <CardContent className="p-6">
+      <CardContent className="p-4">
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
 
           <div className="flex items-baseline justify-between">
-            <p className={cn("text-4xl font-bold", textColorClasses[colorScheme])}>
+            <p className={cn("text-3xl font-bold", textColorClasses[colorScheme])}>
               {format === "percentage" ? `${value.toFixed(1)}%` : value.toLocaleString()}
             </p>
 

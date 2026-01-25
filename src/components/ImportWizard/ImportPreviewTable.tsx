@@ -124,7 +124,7 @@
        <div className="rounded-md border">
          <div
            ref={scrollRef}
-            className="h-[40vh] w-full overflow-x-auto overflow-y-auto"
+            className="h-[35vh] w-full overflow-x-auto overflow-y-auto"
            dir="ltr"
            onScroll={handleScroll}
          >
@@ -133,7 +133,7 @@
                  <TableRow>
                     <TableHead className="w-[60px] whitespace-nowrap text-right">#</TableHead>
                    {headers.map((h) => (
-                      <TableHead key={h} className="min-w-[200px] whitespace-nowrap text-right">
+                    <TableHead key={h} className="min-w-[180px] max-w-[250px] whitespace-nowrap text-right">
                        {h}
                      </TableHead>
                    ))}
@@ -146,7 +146,7 @@
                        {rowNumberMode === "source" ? Number(r.__sourceIndex ?? idx) + 2 : idx + 1}
                      </TableCell>
                      {headers.map((h) => (
-                        <TableCell key={h} className="min-w-[200px] whitespace-nowrap text-right text-sm">
+                      <TableCell key={h} className="min-w-[180px] max-w-[250px] truncate text-right text-sm" title={String(normalizeCellValue(r[h]) ?? "")}>
                          {normalizeCellValue(r[h])}
                        </TableCell>
                      ))}
@@ -156,39 +156,39 @@
             </Table>
          </div>
  
-          <div className="border-t bg-muted/30 px-4 py-3" dir="rtl">
+          <div className="border-t bg-muted/30 px-3 py-2.5" dir="rtl">
             <div className="flex items-center justify-center gap-3">
-              <Button type="button" variant="outline" size="default" onClick={scrollToEnd} className="gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={scrollToEnd} className="gap-1.5 text-xs">
                 <ChevronsLeft className="h-5 w-5" />
                 <span className="font-medium">البداية</span>
               </Button>
-              <Button type="button" variant="outline" size="default" onClick={() => {
+              <Button type="button" variant="outline" size="sm" onClick={() => {
                 if (!scrollRef.current) return;
                 scrollRef.current.scrollLeft += 300;
                 if (bottomRef.current) bottomRef.current.scrollLeft += 300;
-              }} className="gap-2">
+              }} className="gap-1.5 text-xs">
                 <ChevronLeft className="h-5 w-5" />
                 <span className="font-medium">يمين</span>
               </Button>
-              <div className="flex-1 max-w-md">
+              <div className="flex-1 max-w-sm">
                 <div
                   ref={bottomRef}
-                  className="h-8 w-full overflow-x-scroll overflow-y-hidden rounded border bg-background"
+                  className="h-7 w-full overflow-x-scroll overflow-y-hidden rounded border bg-background"
                   onScroll={syncTop}
                   aria-label="شريط تمرير أفقي"
                 >
                   <div style={{ width: `${Math.max(scrollWidth, 1)}px` }} className="h-6" />
                 </div>
               </div>
-              <Button type="button" variant="outline" size="default" onClick={() => {
+              <Button type="button" variant="outline" size="sm" onClick={() => {
                 if (!scrollRef.current) return;
                 scrollRef.current.scrollLeft -= 300;
                 if (bottomRef.current) bottomRef.current.scrollLeft -= 300;
-              }} className="gap-2">
+              }} className="gap-1.5 text-xs">
                 <span className="font-medium">يسار</span>
                 <ChevronRight className="h-5 w-5" />
               </Button>
-              <Button type="button" variant="outline" size="default" onClick={scrollToStart} className="gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={scrollToStart} className="gap-1.5 text-xs">
                 <span className="font-medium">النهاية</span>
                 <ChevronsRight className="h-4 w-4" />
              </Button>
