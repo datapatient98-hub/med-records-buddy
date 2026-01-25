@@ -124,7 +124,7 @@
        <div className="rounded-md border">
          <div
            ref={scrollRef}
-            className="h-[50vh] w-full overflow-x-auto overflow-y-auto"
+            className="h-[40vh] w-full overflow-x-auto overflow-y-auto"
            dir="ltr"
            onScroll={handleScroll}
          >
@@ -156,35 +156,41 @@
             </Table>
          </div>
  
-         <div className="border-t bg-muted/30 px-3 py-2" dir="ltr">
-           <div className="flex items-center gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={scrollToStart} title="البداية">
-                <ChevronsRight className="h-4 w-4" />
-             </Button>
-             <Button type="button" variant="ghost" size="sm" onClick={() => {
-               if (!scrollRef.current) return;
-               scrollRef.current.scrollLeft -= 300;
-                if (bottomRef.current) bottomRef.current.scrollLeft -= 300;
-              }} title="يسار">
-                <ChevronRight className="h-4 w-4" />
-             </Button>
-             <div
-               ref={bottomRef}
-               className="h-6 flex-1 overflow-x-scroll overflow-y-hidden"
-               onScroll={syncTop}
-               aria-label="شريط تمرير أفقي"
-             >
-                <div style={{ width: `${Math.max(scrollWidth, 1)}px` }} className="h-4" />
-             </div>
-             <Button type="button" variant="ghost" size="sm" onClick={() => {
-               if (!scrollRef.current) return;
-               scrollRef.current.scrollLeft += 300;
+          <div className="border-t bg-muted/30 px-4 py-3" dir="rtl">
+            <div className="flex items-center justify-center gap-3">
+              <Button type="button" variant="outline" size="default" onClick={scrollToEnd} className="gap-2">
+                <ChevronsLeft className="h-5 w-5" />
+                <span className="font-medium">البداية</span>
+              </Button>
+              <Button type="button" variant="outline" size="default" onClick={() => {
+                if (!scrollRef.current) return;
+                scrollRef.current.scrollLeft += 300;
                 if (bottomRef.current) bottomRef.current.scrollLeft += 300;
-              }} title="يمين">
-                <ChevronLeft className="h-4 w-4" />
-             </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={scrollToEnd} title="النهاية">
-                <ChevronsLeft className="h-4 w-4" />
+              }} className="gap-2">
+                <ChevronLeft className="h-5 w-5" />
+                <span className="font-medium">يمين</span>
+              </Button>
+              <div className="flex-1 max-w-md">
+                <div
+                  ref={bottomRef}
+                  className="h-8 w-full overflow-x-scroll overflow-y-hidden rounded border bg-background"
+                  onScroll={syncTop}
+                  aria-label="شريط تمرير أفقي"
+                >
+                  <div style={{ width: `${Math.max(scrollWidth, 1)}px` }} className="h-6" />
+                </div>
+              </div>
+              <Button type="button" variant="outline" size="default" onClick={() => {
+                if (!scrollRef.current) return;
+                scrollRef.current.scrollLeft -= 300;
+                if (bottomRef.current) bottomRef.current.scrollLeft -= 300;
+              }} className="gap-2">
+                <span className="font-medium">يسار</span>
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+              <Button type="button" variant="outline" size="default" onClick={scrollToStart} className="gap-2">
+                <span className="font-medium">النهاية</span>
+                <ChevronsRight className="h-4 w-4" />
              </Button>
            </div>
          </div>

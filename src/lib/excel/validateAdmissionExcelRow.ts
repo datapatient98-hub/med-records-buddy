@@ -34,22 +34,29 @@ export function validateAdmissionExcelRow(row: AdmissionExcelRow): string | null
   const unified = normalizeCellValue(row["الرقم الموحد"]).replace(/\D/g, "");
   const patient = normalizeCellValue(row["اسم المريض"]);
   const national = normalizeCellValue(row["الرقم القومي"]).replace(/\D/g, "");
+
+  // الحقول الإلزامية الأساسية فقط
+  if (!unified) return "الرقم الموحد مفقود";
+  if (!patient) return "اسم المريض مفقود";
+  if (!national || national.length !== 14) return "الرقم القومي غير صالح (يجب 14 رقم)";
+  
+  // التحقق من الحقول الاختيارية فقط إذا كانت موجودة
+  const gender = row["النوع"];
+  if (gender && !isKnownGender(gender)) return "النوع غير معروف";
+  
+  const marital = row["الحالة الاجتماعية"];
+  if (marital && !isKnownMarital(marital)) return "الحالة الاجتماعية غير معروفة";
+  
   const phone = normalizeCellValue(row["رقم الهاتف"]).replace(/\D/g, "");
+  if (phone && phone.length !== 11) return "رقم الهاتف غير صالح (يجب 11 رقم)";
+  
   const ageStr = normalizeCellValue(row["السن"]);
   const age = ageStr ? Number(ageStr) : NaN;
-
-  const departmentName = normalizeCellValue(row["القسم"]);
-  const governorateName = normalizeCellValue(row["المحافظة"]);
-
-  if (!unified || !patient) return "بيانات ناقصة: الرقم الموحد/اسم المريض";
-  if (!national || national.length !== 14) return "الرقم القومي غير صالح (يجب 14 رقم)";
-  if (!isKnownGender(row["النوع"])) return "النوع غير معروف";
-  if (!isKnownMarital(row["الحالة الاجتماعية"])) return "الحالة الاجتماعية غير معروفة";
-  if (!phone || phone.length !== 11) return "رقم الهاتف غير صالح (يجب 11 رقم)";
-  if (!Number.isFinite(age)) return "السن غير صالح";
-  if (!departmentName) return "القسم (Department) مفقود";
-  if (!governorateName) return "المحافظة مفقودة";
-  if (!isKnownStatus(row["الحالة"])) return "الحالة (Status) غير معروفة";
+  if (ageStr && !Number.isFinite(age)) return "السن غير صالح";
+  
+  const status = row["الحالة"];
+  if (status && !isKnownStatus(status)) return "الحالة (Status) غير معروفة";
+  
   if (!toIsoLike(row["تاريخ الحجز"])) return "تاريخ الحجز غير صالح أو مفقود";
 
   return null;
