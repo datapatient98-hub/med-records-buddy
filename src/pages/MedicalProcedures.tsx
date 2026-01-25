@@ -19,7 +19,7 @@
  import LookupManageDialog from "@/components/LookupManageDialog";
  import { Database } from "@/integrations/supabase/types";
  
- type ProcedureType = "endoscopy" | "procedure" | "reception" | "kidney";
+type ProcedureType = "procedure" | "reception" | "kidney";
  
  const procedureSchema = z.object({
    unified_number: z.string().min(1, "الرقم الموحد مطلوب"),
@@ -42,13 +42,16 @@
  });
  
  type ProcedureFormValues = z.infer<typeof procedureSchema>;
+
+type AdmissionData = Database["public"]["Tables"]["admissions"]["Row"];
  
  export default function MedicalProcedures() {
    const { toast } = useToast();
    const queryClient = useQueryClient();
-   const [activeTab, setActiveTab] = useState<ProcedureType>("endoscopy");
+  const [activeTab, setActiveTab] = useState<ProcedureType>("procedure");
    const [searchNumber, setSearchNumber] = useState("");
    const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [selectedAdmission, setSelectedAdmission] = useState<AdmissionData | null>(null);
  const [manageLookupType, setManageLookupType] = useState<LookupCreateType | null>(null);
  const [createLookupType, setCreateLookupType] = useState<LookupCreateType | null>(null);
  
@@ -122,9 +125,8 @@
    const { data: procedureCounts } = useQuery({
      queryKey: ["procedures-counts", timeRange],
      queryFn: async () => {
-     const types = ["endoscopy", "procedure", "reception", "kidney"] as const;
+    const types = ["procedure", "reception", "kidney"] as const;
      const typeMap = {
-         endoscopy: "مناظير",
          procedure: "بذل",
          reception: "استقبال",
          kidney: "كلي"
@@ -167,12 +169,15 @@
          description: "تأكد من الرقم الموحد",
          variant: "destructive",
        });
+      setSelectedAdmission(null);
        return;
      }
  
+    // Store admission data for display
+    setSelectedAdmission(data);
+
      // Auto-set admission and discharge department based on selected tab
      const departmentMap: Record<ProcedureType, string> = {
-       endoscopy: "مناظير",
        procedure: "بذل",
        reception: "استقبال",
        kidney: "كلي"
@@ -181,31 +186,20 @@
      const targetDeptName = departmentMap[activeTab];
      const targetDept = departments?.find(d => d.name === targetDeptName);
  
-     form.reset({
-       unified_number: data.unified_number,
-       patient_name: data.patient_name,
-       national_id: data.national_id,
-       gender: data.gender as any,
-       occupation_id: data.occupation_id || undefined,
-       marital_status: data.marital_status as any,
-       phone: data.phone,
-       age: data.age,
-       governorate_id: data.governorate_id || undefined,
-       district_id: data.district_id || undefined,
-       address_details: data.address_details || undefined,
-       station_id: data.station_id || undefined,
-       department_id: targetDept?.id || data.department_id,
-       discharge_department_id: targetDept?.id || data.department_id,
-       diagnosis_id: data.diagnosis_id || undefined,
-       doctor_id: data.doctor_id || undefined,
-       procedure_date: new Date().toISOString().slice(0, 16),
-     });
+    // Only set department fields based on tab, keep rest of form empty
+    form.setValue("department_id", targetDept?.id || data.department_id);
+    form.setValue("discharge_department_id", targetDept?.id || data.department_id);
+    form.setValue("procedure_date", new Date().toISOString().slice(0, 16));
+
+    toast({
+      title: "تم العثور على المريض",
+      description: `تم تحميل بيانات ${data.patient_name}`,
+    });
    };
  
    const mutation = useMutation({
      mutationFn: async (values: ProcedureFormValues) => {
        const typeMap: Record<ProcedureType, string> = {
-         endoscopy: "مناظير",
          procedure: "بذل",
          reception: "استقبال",
          kidney: "كلي"
@@ -244,7 +238,7 @@
      onSuccess: (data) => {
        queryClient.invalidateQueries({ queryKey: ["procedures"] });
        queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
-       const typeLabel = activeTab === "endoscopy" ? "منظار" : activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
+      const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
        toast({
          title: "تم الحفظ بنجاح",
          description: `تم تسجيل ${typeLabel} للمريض ${data.patient_name}`,
@@ -269,8 +263,6 @@
  
    const getTabInfo = () => {
      switch (activeTab) {
-       case "endoscopy":
-         return { icon: Microscope, title: "تسجيل مناظير", color: "text-purple" };
        case "procedure":
          return { icon: Syringe, title: "تسجيل بذل", color: "text-green" };
        case "reception":
@@ -289,23 +281,14 @@
          <div className="flex items-center justify-between">
            <div>
              <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
-             <p className="text-muted-foreground">المناظير - البذل - الاستقبال - الكلي</p>
+            <p className="text-muted-foreground">البذل - الاستقبال - الغسيل الكلوي</p>
            </div>
            <TimeFilter value={timeRange} onChange={setTimeRange} />
          </div>
  
          {/* Colored Tabs */}
          <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
-           <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
-             <ColoredStatTab
-               title="المناظير"
-               value={procedureCounts?.endoscopy ?? 0}
-               subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
-               icon={Microscope}
-               color="purple"
-               onClick={() => setActiveTab("endoscopy")}
-               active={activeTab === "endoscopy"}
-             />
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
              <ColoredStatTab
                title="البذل"
                value={procedureCounts?.procedure ?? 0}
@@ -336,6 +319,96 @@
            </div>
          </div>
  
+        {/* Patient Data Display Card */}
+        {selectedAdmission && (
+          <Card className="shadow-lg border-primary/20 bg-gradient-to-br from-card to-card/95">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-primary">بيانات المريض</CardTitle>
+              <CardDescription>معلومات الدخول للرقم الموحد: {selectedAdmission.unified_number}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3 text-sm">
+                <div>
+                  <span className="font-semibold text-muted-foreground">الاسم: </span>
+                  <span className="text-foreground">{selectedAdmission.patient_name}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">الرقم القومي: </span>
+                  <span className="text-foreground">{selectedAdmission.national_id}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">الهاتف: </span>
+                  <span className="text-foreground">{selectedAdmission.phone}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">النوع: </span>
+                  <span className="text-foreground">{selectedAdmission.gender}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">السن: </span>
+                  <span className="text-foreground">{selectedAdmission.age} سنة</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">الحالة الاجتماعية: </span>
+                  <span className="text-foreground">{selectedAdmission.marital_status}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">المهنة: </span>
+                  <span className="text-foreground">
+                    {occupations?.find((o) => o.id === selectedAdmission.occupation_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">المحافظة: </span>
+                  <span className="text-foreground">
+                    {governorates?.find((g) => g.id === selectedAdmission.governorate_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">المركز: </span>
+                  <span className="text-foreground">
+                    {districts?.find((d) => d.id === selectedAdmission.district_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">المحطة: </span>
+                  <span className="text-foreground">
+                    {stations?.find((s) => s.id === selectedAdmission.station_id)?.name || "-"}
+                  </span>
+                </div>
+                <div className="md:col-span-3">
+                  <span className="font-semibold text-muted-foreground">العنوان التفصيلي: </span>
+                  <span className="text-foreground">{selectedAdmission.address_details || "-"}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">القسم: </span>
+                  <span className="text-foreground">
+                    {departments?.find((d) => d.id === selectedAdmission.department_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">التشخيص: </span>
+                  <span className="text-foreground">
+                    {diagnoses?.find((d) => d.id === selectedAdmission.diagnosis_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">الطبيب: </span>
+                  <span className="text-foreground">
+                    {doctors?.find((d) => d.id === selectedAdmission.doctor_id)?.name || "-"}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">تاريخ الدخول: </span>
+                  <span className="text-foreground">
+                    {new Date(selectedAdmission.admission_date).toLocaleString("ar-EG")}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
          <Card className="shadow-lg border-border">
            <CardHeader>
              <CardTitle className="flex items-center gap-2">
@@ -352,6 +425,7 @@
                  placeholder="الرقم الموحد"
                  value={searchNumber}
                  onChange={(e) => setSearchNumber(e.target.value)}
+                onBlur={handleSearch}
                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                />
                <Button onClick={handleSearch}>
@@ -577,6 +651,104 @@
                        </FormItem>
                      )}
                    />
+
+                  <FormField
+                    control={form.control}
+                    name="occupation_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>المهنة</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={occupations || []}
+                            placeholder="اختر المهنة"
+                            onAddNew={() => setCreateLookupType("occupation")}
+                            onManage={() => setManageLookupType("occupation")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="governorate_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>المحافظة</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={governorates || []}
+                            placeholder="اختر المحافظة"
+                            onAddNew={() => setCreateLookupType("governorate")}
+                            onManage={() => setManageLookupType("governorate")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="district_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>المركز</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={districts || []}
+                            placeholder="اختر المركز"
+                            onAddNew={() => setCreateLookupType("district")}
+                            onManage={() => setManageLookupType("district")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="station_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>المحطة</FormLabel>
+                        <FormControl>
+                          <SearchableSelect
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={stations || []}
+                            placeholder="اختر المحطة"
+                            onAddNew={() => setCreateLookupType("station")}
+                            onManage={() => setManageLookupType("station")}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="address_details"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-3">
+                        <FormLabel>العنوان التفصيلي</FormLabel>
+                        <FormControl>
+                          <Input placeholder="أدخل العنوان التفصيلي" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                  </div>
  
                  <div className="flex justify-end gap-2">
@@ -606,6 +778,14 @@
                  form.setValue("diagnosis_id", item.id);
              } else if (createLookupType === "doctor") {
                  form.setValue("doctor_id", item.id);
+              } else if (createLookupType === "occupation") {
+                form.setValue("occupation_id", item.id);
+              } else if (createLookupType === "governorate") {
+                form.setValue("governorate_id", item.id);
+              } else if (createLookupType === "district") {
+                form.setValue("district_id", item.id);
+              } else if (createLookupType === "station") {
+                form.setValue("station_id", item.id);
                }
                setCreateLookupType(null);
              }}
@@ -624,6 +804,14 @@
                  ? diagnoses || []
                  : manageLookupType === "doctor"
                  ? doctors || []
+                : manageLookupType === "occupation"
+                ? occupations || []
+                : manageLookupType === "governorate"
+                ? governorates || []
+                : manageLookupType === "district"
+                ? districts || []
+                : manageLookupType === "station"
+                ? stations || []
                  : []
              }
            />
