@@ -1077,22 +1077,30 @@ export default function Admission() {
                 queryClient.invalidateQueries({ queryKey: ["admissions-count"], exact: false }),
               ]);
 
-              downloadImportSummaryPdf({
-                title: "تقرير استيراد الحجوزات",
-                fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
-                stats: {
-                  "اسم الملف": preview.fileName,
-                  "عدد الأعمدة": preview.headers.length,
-                  "صفوف تم استيرادها": result.inserted,
-                  "صفوف متطابقة تم تجاهلها": preview.duplicates.length,
-                  "صفوف بها أخطاء": result.failed.length,
-                },
-                previewColumns: preview.headers,
-                previewRows: preview.toImport.slice(0, 40).map((r) => {
+              const failedSet = new Set(result.failed.map((f) => f.index));
+
+              // الصفوف التي نجحت (من نفس ترتيب preview.toImport)
+              const importedRows = preview.toImport
+                .filter((_, i) => !failedSet.has(i))
+                .map((r) => {
                   const obj: Record<string, string> = {};
                   preview.headers.forEach((h) => (obj[h] = normalizeCellValue(r[h])));
                   return obj;
-                }),
+                });
+
+              // الصفوف التي تم تجاهلها بسبب التكرار الحرفي
+              const duplicatesRows = preview.duplicates.map((d) => {
+                const obj: Record<string, string> = {};
+                preview.headers.forEach((h) => (obj[h] = normalizeCellValue((d.row as any)[h])));
+                return obj;
+              });
+
+              downloadImportSummaryPdf({
+                title: "تقرير استيراد الحجوزات",
+                fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
+                columns: preview.headers,
+                importedRows,
+                duplicatesRows,
               });
 
               if (result.failed.length > 0) {

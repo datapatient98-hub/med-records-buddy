@@ -64,7 +64,7 @@ const PreviewTable = React.forwardRef<
   // Update scroll width whenever content changes (headers/rows) or container resizes.
   useEffect(() => {
     const update = () => setScrollWidth(scrollRef.current?.scrollWidth ?? 0);
-    const t = window.setTimeout(update, 0);
+    const t = window.setTimeout(() => window.requestAnimationFrame(update), 0);
     window.addEventListener("resize", update);
     return () => {
       window.clearTimeout(t);
@@ -114,11 +114,12 @@ const PreviewTable = React.forwardRef<
           </Button>
           <div
             ref={bottomRef}
-            className="h-3 flex-1 overflow-x-auto overflow-y-hidden"
+            className="h-6 flex-1 overflow-x-scroll overflow-y-hidden"
             onScroll={syncTop}
             aria-label="شريط تمرير أفقي"
           >
-            <div style={{ width: Math.max(scrollWidth, 1) }} className="h-1" />
+            {/* Give the element enough height so the native scrollbar is visible/clickable */}
+            <div style={{ width: Math.max(scrollWidth, 1) }} className="h-4" />
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={scrollToEnd}>
             للنهاية
