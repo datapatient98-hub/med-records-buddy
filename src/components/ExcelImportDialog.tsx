@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent } from "@/components/ui/card";
 import { FileUp } from "lucide-react";
 import { parseFirstSheet } from "@/lib/excel/parseWorkbook";
 import { dedupeExactRows } from "@/lib/excel/exactDedupe";
@@ -18,7 +20,12 @@ export type ExcelImportPreview = {
   fileName: string;
 };
 
-function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<string, unknown>[] }) {
+type PreviewRow = Record<string, unknown> & { __sourceIndex?: number };
+
+const PreviewTable = React.forwardRef<
+  HTMLDivElement,
+  { headers: string[]; rows: PreviewRow[]; rowNumberMode?: "preview" | "source" }
+>(function PreviewTable({ headers, rows, rowNumberMode = "preview" }, ref) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [scrollWidth, setScrollWidth] = useState(0);
@@ -49,7 +56,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
   }, [headers, rows.length]);
 
   return (
-    <div className="rounded-md border">
+    <div ref={ref} className="rounded-md border">
       {/* Use LTR for predictable horizontal scrollbar behavior, keep cells right-aligned */}
       <div ref={scrollRef} className="h-[55vh] w-full overflow-auto" dir="ltr" onScroll={syncBottom}>
         <div className="min-w-max" dir="ltr">
@@ -68,7 +75,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
               {rows.slice(0, 200).map((r, idx) => (
                 <TableRow key={idx}>
                   <TableCell className="whitespace-nowrap text-right text-xs text-muted-foreground">
-                    {idx + 1}
+                    {rowNumberMode === "source" ? Number(r.__sourceIndex ?? idx) + 2 : idx + 1}
                   </TableCell>
                   {headers.map((h) => (
                     <TableCell key={h} className="whitespace-nowrap text-right text-sm">
@@ -94,7 +101,7 @@ function PreviewTable({ headers, rows }: { headers: string[]; rows: Record<strin
       </div>
     </div>
   );
-}
+});
 
 export default function ExcelImportDialog(props: {
   open: boolean;
@@ -133,13 +140,19 @@ export default function ExcelImportDialog(props: {
     setErrorMessage(null);
     try {
       const parsed = await parseFirstSheet(file);
-      const { unique, duplicates } = dedupeExactRows(parsed.headers, parsed.rows);
+
+      // Tag each row with its original index in the sheet so errors/preview numbers match Excel.
+      const taggedRows: PreviewRow[] = parsed.rows.map((r, i) => ({ ...(r as any), __sourceIndex: i }));
+
+      // Rule #1: remove exact (literal) duplicate rows and keep only one copy.
+      const { unique, duplicates } = dedupeExactRows(parsed.headers, taggedRows);
 
       const errors: ExcelImportPreview["errors"] = [];
-      const toImport = unique.filter((row, idx) => {
+      const toImport = (unique as PreviewRow[]).filter((row, idx) => {
         const reason = props.validateRow?.(row, idx) ?? null;
         if (reason) {
-          errors.push({ index: idx, reason, row });
+          // Use original row index from the sheet (0-based), display will add +2 (header row).
+          errors.push({ index: Number(row.__sourceIndex ?? idx), reason, row });
           return false;
         }
         return true;
@@ -198,36 +211,64 @@ export default function ExcelImportDialog(props: {
         />
 
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm text-muted-foreground">
-              {preview ? (
-                <div className="flex flex-wrap gap-3">
-                  <span>الملف: <span className="font-medium text-foreground">{preview.fileName}</span></span>
-                  {counts && (
-                    <>
-                      <span>عدد الأعمدة: <span className="font-medium text-foreground">{counts.columns}</span></span>
-                      <span>صفوف للاستيراد: <span className="font-medium text-foreground">{counts.importRows}</span></span>
-                      <span>مكرر (متطابق): <span className="font-medium text-foreground">{counts.duplicateRows}</span></span>
-                      <span>أخطاء: <span className="font-medium text-foreground">{counts.errorRows}</span></span>
-                    </>
+          <div className="flex flex-col gap-3 rounded-lg border bg-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">
+                  {preview ? (
+                    <span>
+                      الملف: <span className="font-medium text-foreground">{preview.fileName}</span>
+                    </span>
+                  ) : (
+                    "اختر ملف Excel للمعاينة قبل التأكيد"
                   )}
                 </div>
-              ) : (
-                "اختر ملف Excel للمعاينة قبل التأكيد"
-              )}
+                <div className="text-xs text-muted-foreground">
+                  القاعدة: سيتم استيراد كل الصفوف، مع تجاهل الصفوف المتطابقة حرفياً (سيتم الاحتفاظ بنسخة واحدة فقط).
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={handlePick} disabled={loading}>
+                  <FileUp className="ml-2 h-4 w-4" />
+                  {loading ? "جاري القراءة..." : "اختيار ملف"}
+                </Button>
+                {preview && (
+                  <Button type="button" variant="ghost" onClick={reset} disabled={loading}>
+                    تغيير الملف
+                  </Button>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={handlePick} disabled={loading}>
-                <FileUp className="ml-2 h-4 w-4" />
-                {loading ? "جاري القراءة..." : "اختيار ملف"}
-              </Button>
-              {preview && (
-                <Button type="button" variant="ghost" onClick={reset} disabled={loading}>
-                  تغيير الملف
-                </Button>
-              )}
-            </div>
+            {counts && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">الأعمدة</div>
+                    <div className="text-lg font-semibold text-foreground">{counts.columns}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">سيتم استيرادها</div>
+                    <div className="text-lg font-semibold text-foreground">{counts.importRows}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">مكرر حرفياً</div>
+                    <div className="text-lg font-semibold text-foreground">{counts.duplicateRows}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-3">
+                    <div className="text-xs text-muted-foreground">أخطاء</div>
+                    <div className="text-lg font-semibold text-foreground">{counts.errorRows}</div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
 
           {preview && (
@@ -239,11 +280,15 @@ export default function ExcelImportDialog(props: {
               </TabsList>
 
               <TabsContent value="import" className="mt-4">
-                <PreviewTable headers={preview.headers} rows={preview.toImport} />
+                <PreviewTable headers={preview.headers} rows={preview.toImport as any} rowNumberMode="source" />
               </TabsContent>
 
               <TabsContent value="duplicates" className="mt-4">
-                <PreviewTable headers={preview.headers} rows={preview.duplicates.map((d) => d.row)} />
+                <PreviewTable
+                  headers={preview.headers}
+                  rows={preview.duplicates.map((d) => ({ ...(d.row as any), __sourceIndex: d.duplicateIndex })) as any}
+                  rowNumberMode="source"
+                />
               </TabsContent>
 
               <TabsContent value="errors" className="mt-4">
