@@ -29,6 +29,7 @@ import { useMemo, useState } from "react";
   discharge_department_id: z.string().optional(),
   procedure_status: z.string().optional(),
   hospital_id: z.string().optional(),
+  transferred_from_department_id: z.string().optional(),
  });
  
  type ProcedureFormValues = z.infer<typeof procedureSchema>;
@@ -69,6 +70,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       discharge_department_id: "",
       procedure_status: "",
       hospital_id: "",
+      transferred_from_department_id: "",
      },
    });
  
@@ -272,6 +274,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     form.setValue("discharge_department_id", "");
     form.setValue("procedure_status", "");
     form.setValue("hospital_id", "");
+    form.setValue("transferred_from_department_id", "");
     
     toast({
       title: "✓ تم تحميل بيانات المريض بنجاح",
@@ -380,6 +383,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
         discharge_department_id: values.discharge_department_id || null,
         procedure_status: values.procedure_status || null,
         hospital_id: values.hospital_id || null,
+        transferred_from_department_id: values.transferred_from_department_id || null,
        };
  
        const { data, error } = await supabase
@@ -421,6 +425,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
         discharge_department_id: "",
         procedure_status: "",
         hospital_id: "",
+        transferred_from_department_id: "",
       });
      },
      onError: (error: any) => {
@@ -544,6 +549,12 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               <CardTitle className="text-primary flex items-center gap-2">
                 <span className="text-2xl">👤</span>
                 بيانات المريض
+                {selectedAdmission.admission_source === "طوارئ" && (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-500/90 text-white text-sm font-bold shadow-lg animate-pulse">
+                    <span className="text-lg">🚨</span>
+                    طوارئ
+                  </span>
+                )}
               </CardTitle>
                <CardDescription>معلومات الدخول للرقم الموحد: {selectedAdmission.unified_number}</CardDescription>
              </CardHeader>
@@ -822,6 +833,36 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                           )}
                         />
                       )}
+
+                      {selectedAdmission?.admission_source === "طوارئ" && (
+                        <FormField
+                          control={form.control}
+                          name="transferred_from_department_id"
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel className="flex items-center gap-2">
+                                <span>تحويل داخل المستشفى</span>
+                                <span className="text-xs bg-amber-500/20 text-amber-700 px-2 py-0.5 rounded-full">
+                                  للمرضى القادمين من الطوارئ
+                                </span>
+                              </FormLabel>
+                              <FormControl>
+                                <SearchableSelect
+                                  value={field.value || ""}
+                                  onValueChange={field.onChange}
+                                  options={departments || []}
+                                  placeholder="اختر القسم المحول إليه"
+                                  emptyText="لا توجد أقسام"
+                                  onAddNew={() => setShowDepartmentDialog(true)}
+                                  onManage={() => setShowDepartmentManage(true)}
+                                  addNewLabel="إضافة قسم"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                    </div>
  
                    <div className="flex justify-end gap-2">
@@ -836,6 +877,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                             discharge_department_id: "",
                             procedure_status: "",
                             hospital_id: "",
+                             transferred_from_department_id: "",
                           });
                        }}
                      >
