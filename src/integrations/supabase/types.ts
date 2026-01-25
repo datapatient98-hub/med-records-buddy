@@ -698,6 +698,7 @@ export type Database = {
           doctor_id: string | null
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id: string | null
+          hospital_id: string | null
           id: string
           internal_number: number
           marital_status: Database["public"]["Enums"]["marital_status"]
@@ -723,6 +724,7 @@ export type Database = {
           doctor_id?: string | null
           gender: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
+          hospital_id?: string | null
           id?: string
           internal_number?: number
           marital_status: Database["public"]["Enums"]["marital_status"]
@@ -748,6 +750,7 @@ export type Database = {
           doctor_id?: string | null
           gender?: Database["public"]["Enums"]["patient_gender"]
           governorate_id?: string | null
+          hospital_id?: string | null
           id?: string
           internal_number?: number
           marital_status?: Database["public"]["Enums"]["marital_status"]
@@ -809,6 +812,13 @@ export type Database = {
             columns: ["governorate_id"]
             isOneToOne: false
             referencedRelation: "governorates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedures_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {
