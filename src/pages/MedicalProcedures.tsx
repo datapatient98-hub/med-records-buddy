@@ -24,14 +24,20 @@
  
  const procedureSchema = z.object({
    procedure_date: z.string().min(1, "تاريخ الإجراء مطلوب"),
-  discharge_department_id: z.string().optional(),
-  procedure_status: z.string().min(1, "الحالة مطلوبة"),
    diagnosis_id: z.string().optional(),
    doctor_id: z.string().optional(),
  });
  
+const dischargeSchema = z.object({
+  discharge_department_id: z.string().optional(),
+  procedure_status: z.string().min(1, "الحالة مطلوبة"),
+  hospital_id: z.string().optional(),
+});
+
  type ProcedureFormValues = z.infer<typeof procedureSchema>;
+type DischargeFormValues = z.infer<typeof dischargeSchema>;
  type AdmissionData = Database["public"]["Tables"]["admissions"]["Row"];
+type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
  export default function MedicalProcedures() {
    const { toast } = useToast();
@@ -41,6 +47,8 @@
    const [timeRange, setTimeRange] = useState<TimeRange>("month");
    const [selectedAdmission, setSelectedAdmission] = useState<AdmissionData | null>(null);
    const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
+  const [savedProcedure, setSavedProcedure] = useState<ProcedureData | null>(null);
+  const [showDischargeDialog, setShowDischargeDialog] = useState(false);
    
    // Lookup dialog states
    const [showDiagnosisDialog, setShowDiagnosisDialog] = useState(false);
@@ -57,16 +65,25 @@
    const [showOccupationManage, setShowOccupationManage] = useState(false);
    const [showDepartmentDialog, setShowDepartmentDialog] = useState(false);
    const [showDepartmentManage, setShowDepartmentManage] = useState(false);
+  const [showHospitalDialog, setShowHospitalDialog] = useState(false);
+  const [showHospitalManage, setShowHospitalManage] = useState(false);
  
    const form = useForm<ProcedureFormValues>({
      resolver: zodResolver(procedureSchema),
      defaultValues: {
        procedure_date: new Date().toISOString().slice(0, 16),
-      discharge_department_id: "",
-      procedure_status: "",
      },
    });
  
+  const dischargeForm = useForm<DischargeFormValues>({
+    resolver: zodResolver(dischargeSchema),
+    defaultValues: {
+      discharge_department_id: "",
+      procedure_status: "",
+      hospital_id: "",
+    },
+  });
+
    const editAdmissionForm = useForm({
      defaultValues: {
        patient_name: "",
@@ -88,6 +105,14 @@
    });
  
    // Fetch lookup data
+  const { data: hospitals } = useQuery({
+    queryKey: ["hospitals"],
+    queryFn: async () => {
+      const { data } = await supabase.from("hospitals").select("*").order("name");
+      return data || [];
+    },
+  });
+
    const { data: departments } = useQuery({
      queryKey: ["departments"],
      queryFn: async () => {
@@ -202,16 +227,7 @@
      form.setValue("diagnosis_id", data.diagnosis_id || "");
      form.setValue("doctor_id", data.doctor_id || "");
      form.setValue("procedure_date", new Date().toISOString().slice(0, 16));
-      
-      // Set default discharge department based on active tab
-      const departmentMap: Record<ProcedureType, string> = {
-        procedure: "بذل",
-        reception: "استقبال",
-        kidney: "كلي"
-      };
-      const targetDeptName = departmentMap[activeTab];
-      const targetDept = departments?.find(d => d.name === targetDeptName);
-      form.setValue("discharge_department_id", targetDept?.id || "");
+      setSavedProcedure(null);
    };
  
    const editAdmissionMutation = useMutation({
@@ -272,6 +288,41 @@
      },
    });
  
+  const updateDischargeMutation = useMutation({
+    mutationFn: async (values: DischargeFormValues) => {
+      if (!savedProcedure) throw new Error("لا يوجد إجراء محفوظ");
+
+      const { error } = await supabase
+        .from("procedures")
+        .update({
+          discharge_department_id: values.discharge_department_id || null,
+          procedure_status: values.procedure_status,
+          hospital_id: values.hospital_id || null,
+        })
+        .eq("id", savedProcedure.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procedures"] });
+      toast({
+        title: "تم التحديث بنجاح",
+        description: "تم حفظ بيانات الخروج",
+      });
+      setShowDischargeDialog(false);
+      setSavedProcedure(null);
+      setSelectedAdmission(null);
+      setSearchNumber("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ في التحديث",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
    const mutation = useMutation({
      mutationFn: async (values: ProcedureFormValues) => {
        if (!selectedAdmission) throw new Error("لم يتم اختيار مريض");
@@ -301,10 +352,8 @@
          phone: selectedAdmission.phone,
          age: selectedAdmission.age,
          department_id: targetDept?.id || selectedAdmission.department_id,
-          discharge_department_id: values.discharge_department_id || targetDept?.id || selectedAdmission.department_id,
          procedure_date: values.procedure_date,
          procedure_type: typeMap[activeTab],
-          procedure_status: values.procedure_status,
          occupation_id: selectedAdmission.occupation_id || null,
          governorate_id: selectedAdmission.governorate_id || null,
          district_id: selectedAdmission.district_id || null,
@@ -331,13 +380,23 @@
          title: "تم الحفظ بنجاح",
          description: `تم تسجيل ${typeLabel} للمريض ${data.patient_name}`,
        });
-        form.reset({ 
-          procedure_date: new Date().toISOString().slice(0, 16),
-          discharge_department_id: "",
+        
+        // Show discharge dialog after saving
+        setSavedProcedure(data);
+        const departmentMap: Record<ProcedureType, string> = {
+          procedure: "بذل",
+          reception: "استقبال",
+          kidney: "كلي"
+        };
+        const targetDeptName = departmentMap[activeTab];
+        const targetDept = departments?.find(d => d.name === targetDeptName);
+        dischargeForm.reset({
+          discharge_department_id: targetDept?.id || "",
           procedure_status: "",
+          hospital_id: "",
         });
-       setSearchNumber("");
-       setSelectedAdmission(null);
+        setShowDischargeDialog(true);
+        form.reset({ procedure_date: new Date().toISOString().slice(0, 16) });
      },
      onError: (error: any) => {
        toast({
@@ -354,18 +413,6 @@
  
    const handleTabChange = (newTab: ProcedureType) => {
      setActiveTab(newTab);
-      
-      // Update discharge department when tab changes if patient is loaded
-      if (selectedAdmission) {
-        const departmentMap: Record<ProcedureType, string> = {
-          procedure: "بذل",
-          reception: "استقبال",
-          kidney: "كلي"
-        };
-        const targetDeptName = departmentMap[newTab];
-        const targetDept = departments?.find(d => d.name === targetDeptName);
-        form.setValue("discharge_department_id", targetDept?.id || "");
-      }
    };
  
    const getTabInfo = () => {
@@ -584,52 +631,6 @@
                <Form {...form}>
                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                    <div className="grid gap-4 md:grid-cols-2">
-                      <FormField
-                        control={form.control}
-                        name="discharge_department_id"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>قسم الخروج</FormLabel>
-                            <FormControl>
-                              <SearchableSelect
-                                value={field.value}
-                                onValueChange={field.onChange}
-                                options={departments || []}
-                                placeholder="اختر قسم الخروج"
-                                onAddNew={() => setShowDepartmentDialog(true)}
-                                onManage={() => setShowDepartmentManage(true)}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="procedure_status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>الحالة</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="اختر الحالة" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="تحسن">تحسن</SelectItem>
-                                <SelectItem value="هروب">هروب</SelectItem>
-                                <SelectItem value="تحويل">تحويل</SelectItem>
-                                <SelectItem value="حسب الطلب">حسب الطلب</SelectItem>
-                                <SelectItem value="وفاة">وفاة</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
                      <FormField
                        control={form.control}
                        name="diagnosis_id"
@@ -1166,6 +1167,144 @@
              items={departments || []}
            />
          )}
+
+          {showHospitalDialog && (
+            <LookupCreateDialog
+              type="hospital"
+              open={showHospitalDialog}
+              onOpenChange={setShowHospitalDialog}
+              onCreated={(item) => {
+                dischargeForm.setValue("hospital_id", item.id);
+                setShowHospitalDialog(false);
+              }}
+            />
+          )}
+
+          {showHospitalManage && (
+            <LookupManageDialog
+              type="hospital"
+              open={showHospitalManage}
+              onOpenChange={setShowHospitalManage}
+              items={hospitals || []}
+            />
+          )}
+
+          {/* Discharge Dialog - shown after saving procedure */}
+          <Dialog open={showDischargeDialog} onOpenChange={setShowDischargeDialog}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>إضافة بيانات الخروج</DialogTitle>
+              </DialogHeader>
+              {savedProcedure && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-muted-foreground">الرقم الداخلي:</span>
+                      <span className="text-lg font-bold text-primary">{savedProcedure.internal_number}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-muted-foreground">اسم المريض: </span>
+                      <span className="text-foreground">{savedProcedure.patient_name}</span>
+                    </div>
+                  </div>
+
+                  <Form {...dischargeForm}>
+                    <form onSubmit={dischargeForm.handleSubmit((data) => updateDischargeMutation.mutate(data))} className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <FormField
+                          control={dischargeForm.control}
+                          name="discharge_department_id"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>قسم الخروج</FormLabel>
+                              <FormControl>
+                                <SearchableSelect
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  options={departments || []}
+                                  placeholder="اختر قسم الخروج"
+                                  onAddNew={() => setShowDepartmentDialog(true)}
+                                  onManage={() => setShowDepartmentManage(true)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={dischargeForm.control}
+                          name="procedure_status"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>الحالة *</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="اختر الحالة" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent className="bg-popover z-50">
+                                  <SelectItem value="تحسن">تحسن</SelectItem>
+                                  <SelectItem value="هروب">هروب</SelectItem>
+                                  <SelectItem value="تحويل">تحويل</SelectItem>
+                                  <SelectItem value="حسب الطلب">حسب الطلب</SelectItem>
+                                  <SelectItem value="وفاة">وفاة</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {dischargeForm.watch("procedure_status") === "تحويل" && (
+                          <FormField
+                            control={dischargeForm.control}
+                            name="hospital_id"
+                            render={({ field }) => (
+                              <FormItem className="md:col-span-2">
+                                <FormLabel>المستشفى المحول إليها</FormLabel>
+                                <FormControl>
+                                  <SearchableSelect
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                    options={hospitals || []}
+                                    placeholder="اختر المستشفى"
+                                    onAddNew={() => setShowHospitalDialog(true)}
+                                    onManage={() => setShowHospitalManage(true)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setShowDischargeDialog(false);
+                            setSavedProcedure(null);
+                            setSelectedAdmission(null);
+                            setSearchNumber("");
+                          }}
+                        >
+                          تخطي
+                        </Button>
+                        <Button type="submit" disabled={updateDischargeMutation.isPending}>
+                          <Save className="mr-2 h-4 w-4" />
+                          {updateDischargeMutation.isPending ? "جاري الحفظ..." : "حفظ الخروج"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
        </div>
      </Layout>
    );
