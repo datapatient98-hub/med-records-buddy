@@ -125,12 +125,18 @@ export default function LookupCreateDialog({
         .single();
       if (error) throw error;
 
+      // With strict RLS, some failures can manifest as "no row returned".
+      // Ensure we really got the created row back.
+      if (!(data as any)?.id) {
+        throw new Error("تعذر الإضافة. تأكد من وجود صلاحية لإدارة القوائم.");
+      }
+
       await queryClient.invalidateQueries({ queryKey: [meta.queryKey] });
       toast({ title: "تمت الإضافة", description: `تم إضافة: ${clean}` });
       
       // Call onCreated callback with the new item
-      if (data && onCreated && 'id' in data && 'name' in data) {
-        onCreated({ id: data.id as string, name: data.name as string });
+      if (data && onCreated && "id" in (data as any) && "name" in (data as any)) {
+        onCreated({ id: (data as any).id as string, name: (data as any).name as string });
       }
       
       handleClose();
