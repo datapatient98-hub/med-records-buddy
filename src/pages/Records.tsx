@@ -386,10 +386,18 @@ export default function Records() {
               onValueChange={(v) => setStatusFilter(v.length ? v : ["reserved", "exited"])}
               className="flex-wrap"
             >
-              <ToggleGroupItem value="reserved" aria-label="محجوز">
+              <ToggleGroupItem
+                value="reserved"
+                aria-label="محجوز"
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-extrabold text-foreground hover:bg-muted hover:text-foreground data-[state=on]:border-transparent data-[state=on]:bg-status-active data-[state=on]:text-primary-foreground"
+              >
                 محجوز
               </ToggleGroupItem>
-              <ToggleGroupItem value="exited" aria-label="خرج">
+              <ToggleGroupItem
+                value="exited"
+                aria-label="خرج"
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-extrabold text-foreground hover:bg-muted hover:text-foreground data-[state=on]:border-transparent data-[state=on]:bg-status-discharged data-[state=on]:text-primary-foreground"
+              >
                 خرج
               </ToggleGroupItem>
             </ToggleGroup>
