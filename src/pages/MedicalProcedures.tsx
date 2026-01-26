@@ -10,7 +10,8 @@ import { useMemo, useState } from "react";
  import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
  import { Input } from "@/components/ui/input";
  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
- import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "@/components/ui/sonner";
+import { useNavigate } from "react-router-dom";
  import ColoredStatTab from "@/components/ColoredStatTab";
  import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
  import { Save, Search, Syringe, UserCheck, Activity, Edit } from "lucide-react";
@@ -37,7 +38,7 @@ import { useMemo, useState } from "react";
 type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
  export default function MedicalProcedures() {
-   const { toast } = useToast();
+  const navigate = useNavigate();
    const queryClient = useQueryClient();
    const [activeTab, setActiveTab] = useState<ProcedureType>("procedure");
    const [searchNumber, setSearchNumber] = useState("");
@@ -241,12 +242,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
    const handleSearch = async () => {
      if (!searchNumber.trim()) {
-       toast({
-         title: "خطأ",
-         description: "الرجاء إدخال الرقم الموحد",
-         variant: "destructive",
-        duration: 10000,
-       });
+      sonnerToast.error("الرجاء إدخال الرقم الموحد", {
+        description: "يجب إدخال الرقم الموحد للبحث عن المريض",
+      });
        return;
      }
  
@@ -257,12 +255,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        .maybeSingle();
  
      if (error || !data) {
-       toast({
-         title: "لم يتم العثور على المريض",
-         description: "تأكد من الرقم الموحد",
-         variant: "destructive",
-        duration: 10000,
-       });
+      sonnerToast.error("لم يتم العثور على المريض", {
+        description: "تأكد من الرقم الموحد",
+      });
        setSelectedAdmission(null);
        return;
      }
@@ -276,8 +271,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     form.setValue("hospital_id", "");
     form.setValue("transferred_from_department_id", "");
     
-    toast({
-      title: "✓ تم تحميل بيانات المريض بنجاح",
+    sonnerToast.success("✓ تم تحميل بيانات المريض بنجاح", {
       description: `${data.patient_name} - ${data.unified_number}`,
       duration: 5000,
     });
@@ -313,10 +307,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
      },
      onSuccess: async (unifiedNumber) => {
        queryClient.invalidateQueries({ queryKey: ["admissions"] });
-       toast({
-         title: "تم التحديث بنجاح",
-         description: "تم تحديث بيانات الدخول",
-       });
+      sonnerToast.success("تم التحديث بنجاح", {
+        description: "تم تحديث بيانات الدخول",
+      });
        
        const { data } = await supabase
          .from("admissions")
@@ -333,15 +326,36 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        setShowEditAdmissionDialog(false);
      },
      onError: (error: any) => {
-       toast({
-         title: "خطأ في التحديث",
-         description: error.message,
-         variant: "destructive",
-        duration: 10000,
-       });
+      sonnerToast.error("خطأ في التحديث", {
+        description: error.message || "حدث خطأ أثناء تحديث بيانات الدخول",
+        duration: 8000,
+      });
      },
    });
  
+  // Success sound effect (simple beep)
+  const playSuccessSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // High-pitched beep
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+      console.log('Audio not supported');
+    }
+  };
+
    const mutation = useMutation({
      mutationFn: async (values: ProcedureFormValues) => {
        if (!selectedAdmission) throw new Error("لم يتم اختيار مريض");
@@ -400,22 +414,43 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
       queryClient.invalidateQueries({ queryKey: ["procedures-status-counts"] });
        const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
-       toast({
-        title: "✓ تم الحفظ بنجاح",
-        description: `تم تسجيل ${typeLabel} للمريض: ${data.patient_name}`,
-        duration: 10000,
-        className: "bg-green-600 text-white border-green-700 shadow-2xl",
-       });
-      
-      // Show internal number in a separate toast
-      setTimeout(() => {
-        toast({
-          title: "📋 الرقم الداخلي",
-          description: `${data.internal_number}`,
+
+      // Play success sound
+      playSuccessSound();
+
+      // Professional top-left notification
+      sonnerToast.success(
+        <div dir="rtl" className="space-y-3 text-right">
+          <div>
+            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+            <div className="text-sm opacity-90 mt-1">تم تسجيل {typeLabel} بنجاح</div>
+          </div>
+          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
+              <span className="font-extrabold text-base truncate max-w-[200px]">{data.patient_name}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
+              <span className="font-bold text-base tabular-nums" dir="ltr">{data.unified_number}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
+              <span className="text-xl font-black tabular-nums" dir="ltr">🔢 {data.internal_number}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/records')}
+            className="w-full mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            📂 فتح صفحة السجلات
+          </button>
+        </div>,
+        {
           duration: 10000,
-          className: "bg-blue-600 text-white border-blue-700 shadow-2xl font-bold text-lg",
-        });
-      }, 500);
+          className: "w-[420px]",
+        }
+      );
       
       // Reset form and clear selection
       setSelectedAdmission(null);
@@ -429,12 +464,10 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       });
      },
      onError: (error: any) => {
-       toast({
-         title: "خطأ في الحفظ",
-         description: error.message,
-         variant: "destructive",
-        duration: 10000,
-       });
+      sonnerToast.error("خطأ في الحفظ", {
+        description: error.message || "حدث خطأ أثناء محاولة حفظ الإجراء",
+        duration: 8000,
+      });
      },
    });
  
