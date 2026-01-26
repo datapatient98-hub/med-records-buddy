@@ -10,8 +10,34 @@ import { Search } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import ExitHistoryDialog, { type ExitHistoryPayload } from "@/components/ExitHistoryDialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { APPROVED_DEPARTMENT_NAMES } from "@/lib/departments/approvedDepartments";
+import * as XLSX from "xlsx";
 
 type ProcedureType = "بذل" | "استقبال" | "كلي" | "مناظير";
+type DeptFilterType = "entry" | "procedure";
+
+function normalizeForExcel(v: any) {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
 
 export default function Records() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -24,6 +50,11 @@ export default function Records() {
       | "paracentesis"
       | "loans",
   );
+
+  // Header filters
+  const [statusFilter, setStatusFilter] = useState<string[]>(["reserved", "exited"]);
+  const [deptFilterType, setDeptFilterType] = useState<DeptFilterType>("entry");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
@@ -164,6 +195,35 @@ export default function Records() {
     };
   }, [procedures]);
 
+  const loansList = useMemo(() => (loans as any[]) ?? [], [loans]);
+  const endoscopiesList = useMemo(() => (endoscopies as any[]) ?? [], [endoscopies]);
+
+  const isDeptSelected = (name: string) => selectedDepartments.includes(name);
+  const toggleDept = (name: string, checked: boolean) => {
+    setSelectedDepartments((prev) => {
+      const s = new Set(prev);
+      if (checked) s.add(name);
+      else s.delete(name);
+      return Array.from(s);
+    });
+  };
+
+  const deptPredicate = useMemo(() => {
+    if (selectedDepartments.length === 0) return (_row: any) => true;
+    const set = new Set(selectedDepartments);
+
+    return (row: any) => {
+      if (deptFilterType === "entry") {
+        const deptName = row?.department?.name ?? row?.department_name ?? "";
+        return set.has(deptName);
+      }
+      // procedure-type filter
+      const deptName = row?.department?.name ?? row?.department_name ?? "";
+      const loanDept = row?.borrowed_to_department ?? "";
+      return set.has(deptName) || set.has(loanDept);
+    };
+  }, [deptFilterType, selectedDepartments]);
+
   const tabCounts = useMemo(() => {
     return {
       admissions_internal: admissionsInternal.length,
@@ -195,6 +255,81 @@ export default function Records() {
     }
     return map;
   }, [admissionsInternal, discharges, endoscopies, procedures]);
+
+  const admissionsInternalFiltered = useMemo(() => {
+    const showReserved = statusFilter.includes("reserved");
+    const showExited = statusFilter.includes("exited");
+
+    return admissionsInternal
+      .filter((a: any) => deptPredicate(a))
+      .filter((a: any) => {
+        const exited = unifiedExitFlag.get(a.unified_number) === true;
+        if (exited && showExited) return true;
+        if (!exited && showReserved) return true;
+        return false;
+      });
+  }, [admissionsInternal, deptPredicate, statusFilter, unifiedExitFlag]);
+
+  const endoscopiesFiltered = useMemo(() => endoscopiesList.filter(deptPredicate), [deptPredicate, endoscopiesList]);
+  const receptionFiltered = useMemo(
+    () => proceduresOfType.reception.filter(deptPredicate),
+    [deptPredicate, proceduresOfType.reception],
+  );
+  const dialysisFiltered = useMemo(
+    () => proceduresOfType.dialysis.filter(deptPredicate),
+    [deptPredicate, proceduresOfType.dialysis],
+  );
+  const paracentesisFiltered = useMemo(
+    () => proceduresOfType.paracentesis.filter(deptPredicate),
+    [deptPredicate, proceduresOfType.paracentesis],
+  );
+  const loansFiltered = useMemo(() => loansList.filter(deptPredicate), [deptPredicate, loansList]);
+
+  const exportCurrentTabToExcel = () => {
+    let rows: any[] = [];
+    let sheetName = "records";
+    switch (activeTab) {
+      case "admissions_internal":
+        rows = admissionsInternalFiltered;
+        sheetName = "الحجز_الداخلي";
+        break;
+      case "endoscopies":
+        rows = endoscopiesFiltered;
+        sheetName = "المناظير";
+        break;
+      case "reception":
+        rows = receptionFiltered;
+        sheetName = "الاستقبال";
+        break;
+      case "dialysis":
+        rows = dialysisFiltered;
+        sheetName = "الغسيل_الكلوي";
+        break;
+      case "paracentesis":
+        rows = paracentesisFiltered;
+        sheetName = "البذل";
+        break;
+      case "loans":
+        rows = loansFiltered;
+        sheetName = "الاستعارات";
+        break;
+      default:
+        rows = [];
+    }
+
+    const safeRows = rows.map((r) => {
+      const out: Record<string, any> = {};
+      for (const k of Object.keys(r ?? {})) out[k] = normalizeForExcel(r[k]);
+      return out;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(safeRows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    const fileName = `سجل_المرضى_${sheetName}_${format(new Date(), "yyyy-MM-dd_HH-mm")}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const openExitHistory = async (unifiedNumber: string) => {
     const { data: admissionsForUn, error: admErr } = await supabase
@@ -242,7 +377,67 @@ export default function Records() {
     <Layout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">سجل المرضى</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-bold">سجل المرضى</h1>
+
+            <ToggleGroup
+              type="multiple"
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v.length ? v : ["reserved", "exited"])}
+              className="flex-wrap"
+            >
+              <ToggleGroupItem value="reserved" aria-label="محجوز">
+                محجوز
+              </ToggleGroupItem>
+              <ToggleGroupItem value="exited" aria-label="خرج">
+                خرج
+              </ToggleGroupItem>
+            </ToggleGroup>
+
+            <Select value={deptFilterType} onValueChange={(v) => setDeptFilterType(v as DeptFilterType)}>
+              <SelectTrigger className="h-10 w-[180px]">
+                <SelectValue placeholder="نوع القسم" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="entry">قسم الدخول</SelectItem>
+                <SelectItem value="procedure">قسم الإجراء</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline">
+                  الأقسام ({selectedDepartments.length || "الكل"})
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-72">
+                <DropdownMenuLabel>اختيار الأقسام</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={selectedDepartments.length === 0}
+                  onCheckedChange={(v) => {
+                    if (v) setSelectedDepartments([]);
+                  }}
+                >
+                  كل الأقسام
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                {APPROVED_DEPARTMENT_NAMES.map((name) => (
+                  <DropdownMenuCheckboxItem
+                    key={name}
+                    checked={isDeptSelected(name)}
+                    onCheckedChange={(v) => toggleDept(name, Boolean(v))}
+                  >
+                    {name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button type="button" variant="outline" onClick={exportCurrentTabToExcel}>
+              تصدير Excel
+            </Button>
+          </div>
           <Button asChild variant="outline">
             <Link to="/unified-database">قاعدة البيانات الموحدة</Link>
           </Button>
@@ -300,8 +495,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={13} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : admissionsInternal.length > 0 ? (
-                      admissionsInternal.map((admission: any) => (
+                    ) : admissionsInternalFiltered.length > 0 ? (
+                      admissionsInternalFiltered.map((admission: any) => (
                         <TableRow key={admission.id}>
                           <TableCell>{admission.unified_number}</TableCell>
                           <TableCell>{admission.internal_number}</TableCell>
@@ -383,8 +578,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : endoscopies && endoscopies.length > 0 ? (
-                      endoscopies.map((endoscopy: any) => (
+                    ) : endoscopiesFiltered.length > 0 ? (
+                      endoscopiesFiltered.map((endoscopy: any) => (
                         <TableRow key={endoscopy.id}>
                           <TableCell>{endoscopy.unified_number}</TableCell>
                           <TableCell>{endoscopy.patient_name}</TableCell>
@@ -430,8 +625,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : proceduresOfType.reception.length > 0 ? (
-                      proceduresOfType.reception.map((procedure: any) => (
+                    ) : receptionFiltered.length > 0 ? (
+                      receptionFiltered.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -477,8 +672,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : proceduresOfType.dialysis.length > 0 ? (
-                      proceduresOfType.dialysis.map((procedure: any) => (
+                    ) : dialysisFiltered.length > 0 ? (
+                      dialysisFiltered.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -524,8 +719,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : proceduresOfType.paracentesis.length > 0 ? (
-                      proceduresOfType.paracentesis.map((procedure: any) => (
+                    ) : paracentesisFiltered.length > 0 ? (
+                      paracentesisFiltered.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -570,8 +765,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : loans && loans.length > 0 ? (
-                      loans.map((loan: any) => (
+                    ) : loansFiltered.length > 0 ? (
+                      loansFiltered.map((loan: any) => (
                         <TableRow key={loan.id}>
                           <TableCell>{loan.unified_number}</TableCell>
                           <TableCell>{loan.internal_number}</TableCell>
