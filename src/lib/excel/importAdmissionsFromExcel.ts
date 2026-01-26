@@ -164,12 +164,15 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    // التحقق من صحة البيانات بدون قيم افتراضية
-    if (national_id && national_id.length !== 14) {
-      national_id = ""; // إعادة تعيين إذا كان غير صالح
+    // التحقق من صحة البيانات - إذا كانت غير صحيحة نتركها null
+    if (!national_id || national_id.length !== 14) {
+      national_id = "";
+    }
+    if (!phone || phone.length !== 11) {
+      phone = "";
     }
     if (!Number.isFinite(age) || age < 0) {
-      age = 0; // قيمة محايدة للعمر غير الصالح
+      age = NaN;
     }
 
     // محاولة الحصول على القسم، إذا لم يتم العثور عليه نستخدم القسم الافتراضي
@@ -205,7 +208,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       gender: gender || null,
       marital_status: marital_status || null,
       phone: phone || null,
-      age: age > 0 ? Number(age) : null,
+      age: Number.isFinite(age) && age > 0 ? Number(age) : null,
       governorate_id,
       district_id,
       station_id,
