@@ -65,6 +65,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
    const [showDepartmentManage, setShowDepartmentManage] = useState(false);
   const [showHospitalDialog, setShowHospitalDialog] = useState(false);
   const [showHospitalManage, setShowHospitalManage] = useState(false);
+   const [showExitStatusDialog, setShowExitStatusDialog] = useState(false);
+   const [showExitStatusManage, setShowExitStatusManage] = useState(false);
  
    const form = useForm<ProcedureFormValues>({
      resolver: zodResolver(procedureSchema),
@@ -161,6 +163,14 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        return data || [];
      },
    });
+
+  const { data: exitStatuses } = useQuery({
+    queryKey: ["exit_statuses"],
+    queryFn: async () => {
+      const { data } = await supabase.from("exit_statuses").select("*").order("name");
+      return data || [];
+    },
+  });
  
   const getDepartmentsByName = (names: string[]) => {
     const list = departments ?? [];
@@ -170,6 +180,11 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
   const findDepartmentIdByName = (names: string[]) => {
     const match = (departments ?? []).find((d) => names.includes(d.name));
     return match?.id;
+  };
+
+  const findStationIdByName = (names: string[]) => {
+    const match = (stations ?? []).find((s: any) => names.includes(s.name));
+    return match?.id as string | undefined;
   };
 
   const dischargeDepartments = useMemo(() => {
@@ -189,16 +204,15 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     return getDepartmentsByName(["المناظير", "مناظير"]);
   }, [departments]);
 
- // Status options for procedures
- const statusOptions = useMemo(() => [
-   { id: "تحسن", name: "تحسن" },
-   { id: "هروب", name: "هروب" },
-   { id: "تحويل", name: "تحويل" },
-   { id: "حسب الطلب", name: "حسب الطلب" },
-   { id: "وفاة", name: "وفاة" },
- ], []);
-
- const procedureStatus = form.watch("procedure_status");
+  // Status options for procedures (تحسن + قائمة أخرى قابلة للإدارة)
+  const statusOptions = useMemo(() => {
+    const list = (exitStatuses ?? []).map((s: any) => ({ id: s.name as string, name: s.name as string }));
+    const hasTahason = list.some((x) => x.id === "تحسن");
+    const normalized = hasTahason ? list : [{ id: "تحسن", name: "تحسن" }, ...list];
+    const tahason = normalized.filter((x) => x.id === "تحسن");
+    const others = normalized.filter((x) => x.id !== "تحسن");
+    return [...tahason, ...others];
+  }, [exitStatuses]);
 
    const { start, end } = getTimeRangeDates(timeRange);
  
@@ -241,7 +255,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
    });
 
    // Get detailed status counts for each procedure type (endoscopy has no status breakdown here)
-  const { data: statusCounts } = useQuery({
+   const { data: statusCounts } = useQuery({
     queryKey: ["procedures-status-counts", timeRange],
     queryFn: async () => {
        const types: Array<Exclude<ProcedureType, "endoscopy">> = ["procedure", "reception", "kidney"];
@@ -254,20 +268,29 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       const allCounts: Record<string, any> = {};
       
        for (const type of types) {
-        const statuses = ["تحسن", "تحويل", "وفاة", "هروب", "حسب الطلب"];
-        const counts = await Promise.all(statuses.map(async (status) => {
-          const { count, error } = await supabase
-            .from("procedures")
-            .select("id", { count: "exact", head: true })
-            .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
-            .eq("procedure_status", status)
-            .gte("procedure_date", start.toISOString())
-            .lte("procedure_date", end.toISOString());
-          if (error) throw error;
-          return { status, count: count ?? 0 };
-        }));
-        
-        allCounts[type] = Object.fromEntries(counts.map(c => [c.status, c.count]));
+         const { count: improvedCount, error: improvedError } = await supabase
+           .from("procedures")
+           .select("id", { count: "exact", head: true })
+           .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
+           .eq("procedure_status", "تحسن")
+           .gte("procedure_date", start.toISOString())
+           .lte("procedure_date", end.toISOString());
+         if (improvedError) throw improvedError;
+
+         const { count: otherCount, error: otherError } = await supabase
+           .from("procedures")
+           .select("id", { count: "exact", head: true })
+           .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
+           .not("procedure_status", "is", null)
+           .neq("procedure_status", "تحسن")
+           .gte("procedure_date", start.toISOString())
+           .lte("procedure_date", end.toISOString());
+         if (otherError) throw otherError;
+
+         allCounts[type] = {
+           تحسن: improvedCount ?? 0,
+           أخرى: otherCount ?? 0,
+         };
       }
       
       return allCounts;
@@ -564,20 +587,30 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           // قسم المناظير ثابت
           department_id: values.department_id,
 
-          procedure_date: values.procedure_date,
+          // تاريخ الإجراء مخفي مؤقتاً => نسجله تلقائياً وقت الحفظ
+          procedure_date: new Date().toISOString(),
           diagnosis_id: values.diagnosis_id ? values.diagnosis_id : null,
           doctor_id: values.doctor_id ? values.doctor_id : null,
           occupation_id: values.occupation_id ? values.occupation_id : null,
           governorate_id: values.governorate_id ? values.governorate_id : null,
           district_id: values.district_id ? values.district_id : null,
-          station_id: values.station_id ? values.station_id : null,
+          // محطة المناظير ثابتة
+          station_id:
+            findStationIdByName(["عياده المناظير", "عيادة المناظير"]) ??
+            (values.station_id ? values.station_id : null),
           address_details: values.address_details ? values.address_details : null,
 
           // بيانات الدخول + الخروج (Snapshot)
           admission_date: values.admission_date ? values.admission_date : null,
           discharge_date: values.discharge_date ? values.discharge_date : null,
-          discharge_status: values.discharge_status ?? null,
-          discharge_department_id: values.discharge_department_id ? values.discharge_department_id : null,
+          // حالة الخروج دائماً "تحسن" كما طلبت
+          discharge_status: "تحسن",
+          discharge_status_other: (values as any).discharge_status_other?.trim()
+            ? (values as any).discharge_status_other.trim()
+            : null,
+
+          // قسم الخروج ثابت ومخفي = قسم الدخول (المناظير)
+          discharge_department_id: values.department_id,
           discharge_diagnosis_id: values.discharge_diagnosis_id ? values.discharge_diagnosis_id : null,
           discharge_doctor_id: values.discharge_doctor_id ? values.discharge_doctor_id : null,
         };
@@ -1043,6 +1076,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                                 options={statusOptions}
                                 placeholder="اختر الحالة"
                                 emptyText="لا توجد حالات"
+                                onAddNew={() => setShowExitStatusDialog(true)}
+                                onManage={() => setShowExitStatusManage(true)}
+                                addNewLabel="إضافة حالة خروج"
                               />
                             </FormControl>
                             <FormMessage />
@@ -1050,30 +1086,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                         )}
                       />
 
-                      {procedureStatus === "تحويل" && (
-                        <FormField
-                          control={form.control}
-                          name="hospital_id"
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>المستشفى المحول إليها *</FormLabel>
-                              <FormControl>
-                                <SearchableSelect
-                                  value={field.value || ""}
-                                  onValueChange={field.onChange}
-                                  options={hospitals || []}
-                                  placeholder="اختر المستشفى"
-                                  emptyText="لا توجد مستشفيات"
-                                  onAddNew={() => setShowHospitalDialog(true)}
-                                  onManage={() => setShowHospitalManage(true)}
-                                  addNewLabel="إضافة مستشفى"
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                      {/* تم إزالة تحويل/وفاة/هروب/حسب الطلب من حالات الخروج حسب طلبك */}
 
                       {selectedAdmission?.admission_source === "طوارئ" && (
                         <FormField
@@ -1624,23 +1637,31 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                       occupation_id: selectedAdmission.occupation_id ?? "",
                       governorate_id: selectedAdmission.governorate_id ?? "",
                       district_id: selectedAdmission.district_id ?? "",
-                      station_id: selectedAdmission.station_id ?? "",
+                      station_id:
+                        findStationIdByName(["عياده المناظير", "عيادة المناظير"]) ??
+                        (selectedAdmission.station_id ?? ""),
                       address_details: selectedAdmission.address_details ?? "",
                       admission_date: selectedAdmission.admission_date
                         ? new Date(selectedAdmission.admission_date).toISOString().slice(0, 16)
                         : "",
+                      discharge_status_mode: "تحسن",
                     }
                   : undefined
               }
               // نفس فكرة التبويب: المناظير فقط
               departments={endoscopyDepartments}
                manageDepartments={departments || []}
+              exitStatuses={(exitStatuses || []).map((s: any) => ({ id: s.name as string, name: s.name as string }))}
               doctors={doctors || []}
               diagnoses={diagnoses || []}
               occupations={occupations || []}
               governorates={governorates || []}
               districts={districts || []}
-              stations={stations || []}
+              stations={(() => {
+                const id = findStationIdByName(["عياده المناظير", "عيادة المناظير"]);
+                const match = (stations || []).find((s: any) => s.id === id);
+                return match ? [match] : [];
+              })()}
               isSubmitting={endoscopyMutation.isPending}
               onSubmit={(values) => endoscopyMutation.mutate(values)}
             />
@@ -1652,6 +1673,27 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               open={showHospitalManage}
               onOpenChange={setShowHospitalManage}
               items={hospitals || []}
+            />
+          )}
+
+          {showExitStatusDialog && (
+            <LookupCreateDialog
+              type="exit_status"
+              open={showExitStatusDialog}
+              onOpenChange={setShowExitStatusDialog}
+              onCreated={(item) => {
+                form.setValue("procedure_status", item.name);
+                setShowExitStatusDialog(false);
+              }}
+            />
+          )}
+
+          {showExitStatusManage && (
+            <LookupManageDialog
+              type="exit_status"
+              open={showExitStatusManage}
+              onOpenChange={setShowExitStatusManage}
+              items={(exitStatuses || []).map((s: any) => ({ id: s.id as string, name: s.name as string }))}
             />
           )}
        </div>

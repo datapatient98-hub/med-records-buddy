@@ -20,7 +20,8 @@ export type LookupCreateType =
   | "occupation"
   | "station"
   | "district"
-  | "hospital";
+  | "hospital"
+  | "exit_status";
 
 const typeMeta: Record<
   LookupCreateType,
@@ -73,6 +74,12 @@ const typeMeta: Record<
     title: "إضافة مستشفى",
     placeholder: "اسم المستشفى",
     queryKey: "hospitals",
+  },
+  exit_status: {
+    table: "exit_statuses",
+    title: "إضافة حالة خروج",
+    placeholder: "مثال: تحسن / أخرى...",
+    queryKey: "exit_statuses",
   },
 };
 
