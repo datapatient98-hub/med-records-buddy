@@ -219,6 +219,12 @@ export default function EndoscopyForm({
                 <div className="text-xs font-semibold text-muted-foreground">الرقم الموحد</div>
                 <div className="font-bold tabular-nums" dir="ltr">{unifiedNumber}</div>
               </div>
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground">تاريخ ووقت التسجيل</div>
+                <div className="font-semibold tabular-nums" dir="ltr">
+                  {new Date().toISOString().slice(0, 16)}
+                </div>
+              </div>
               <div className="md:col-span-2">
                 <div className="text-xs font-semibold text-muted-foreground">اسم المريض</div>
                 <div className="font-semibold truncate">{form.watch("patient_name") || "-"}</div>
