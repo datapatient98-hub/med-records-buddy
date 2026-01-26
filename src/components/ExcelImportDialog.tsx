@@ -200,15 +200,43 @@
                  <h3 className="text-lg font-semibold text-pink">
                    صفوف بها أخطاء (سيتم استبعادها) ({preview.errors.length})
                  </h3>
-                  <div className="rounded-lg border bg-muted/30 p-4 max-h-[200px] overflow-y-auto">
-                   {preview.errors.slice(0, 50).map((e, idx) => (
+                  
+                  {/* إحصائيات الأخطاء */}
+                  <div className="rounded-lg border bg-destructive/10 p-4">
+                    <h4 className="font-semibold mb-2 text-sm">ملخص الأخطاء:</h4>
+                    {(() => {
+                      const errorTypes = new Map<string, number>();
+                      preview.errors.forEach(e => {
+                        const baseReason = e.reason.split(':')[0].split('(')[0].trim();
+                        errorTypes.set(baseReason, (errorTypes.get(baseReason) || 0) + 1);
+                      });
+                      return (
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {Array.from(errorTypes.entries())
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([reason, count]) => (
+                              <div key={reason} className="flex justify-between bg-background/50 px-2 py-1 rounded">
+                                <span className="text-muted-foreground">{reason}</span>
+                                <span className="font-bold text-destructive">{count}</span>
+                              </div>
+                            ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* تفاصيل الأخطاء */}
+                  <div className="rounded-lg border bg-muted/30 p-4 max-h-[300px] overflow-y-auto">
+                    <h4 className="font-semibold mb-2 text-sm sticky top-0 bg-muted/30 pb-2">تفاصيل الأخطاء (أول 100 صف):</h4>
+                    {preview.errors.slice(0, 100).map((e, idx) => (
                      <div key={idx} className="mb-2 text-sm">
-                       <span className="font-medium text-destructive">الصف #{e.index + 2}:</span> {e.reason}
+                        <span className="inline-block min-w-[80px] font-medium text-destructive">الصف #{e.index + 2}:</span>
+                        <span className="text-foreground/90">{e.reason}</span>
                      </div>
                    ))}
-                   {preview.errors.length > 50 && (
+                    {preview.errors.length > 100 && (
                      <p className="mt-2 text-xs text-muted-foreground">
-                       ...و {preview.errors.length - 50} خطأ إضافي
+                        ...و {preview.errors.length - 100} خطأ إضافي
                      </p>
                    )}
                  </div>
