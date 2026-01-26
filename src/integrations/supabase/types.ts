@@ -22,20 +22,20 @@ export type Database = {
             | Database["public"]["Enums"]["admission_source"]
             | null
           admission_status: Database["public"]["Enums"]["admission_status"]
-          age: number
+          age: number | null
           created_at: string | null
           department_id: string
           diagnosis_id: string | null
           district_id: string | null
           doctor_id: string | null
-          gender: Database["public"]["Enums"]["patient_gender"]
+          gender: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id: string | null
           id: string
-          marital_status: Database["public"]["Enums"]["marital_status"]
-          national_id: string
+          marital_status: Database["public"]["Enums"]["marital_status"] | null
+          national_id: string | null
           occupation_id: string | null
           patient_name: string
-          phone: string
+          phone: string | null
           station_id: string | null
           unified_number: string
           updated_at: string | null
@@ -47,20 +47,20 @@ export type Database = {
             | Database["public"]["Enums"]["admission_source"]
             | null
           admission_status: Database["public"]["Enums"]["admission_status"]
-          age: number
+          age?: number | null
           created_at?: string | null
           department_id: string
           diagnosis_id?: string | null
           district_id?: string | null
           doctor_id?: string | null
-          gender: Database["public"]["Enums"]["patient_gender"]
+          gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
-          marital_status: Database["public"]["Enums"]["marital_status"]
-          national_id: string
+          marital_status?: Database["public"]["Enums"]["marital_status"] | null
+          national_id?: string | null
           occupation_id?: string | null
           patient_name: string
-          phone: string
+          phone?: string | null
           station_id?: string | null
           unified_number: string
           updated_at?: string | null
@@ -72,20 +72,20 @@ export type Database = {
             | Database["public"]["Enums"]["admission_source"]
             | null
           admission_status?: Database["public"]["Enums"]["admission_status"]
-          age?: number
+          age?: number | null
           created_at?: string | null
           department_id?: string
           diagnosis_id?: string | null
           district_id?: string | null
           doctor_id?: string | null
-          gender?: Database["public"]["Enums"]["patient_gender"]
+          gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
-          marital_status?: Database["public"]["Enums"]["marital_status"]
-          national_id?: string
+          marital_status?: Database["public"]["Enums"]["marital_status"] | null
+          national_id?: string | null
           occupation_id?: string | null
           patient_name?: string
-          phone?: string
+          phone?: string | null
           station_id?: string | null
           unified_number?: string
           updated_at?: string | null
