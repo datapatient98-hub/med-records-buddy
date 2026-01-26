@@ -50,14 +50,22 @@ const mapMarital = (v: unknown): "أعزب" | "متزوج" | "مطلق" | "أر�
 };
 
 async function loadLookupMap(table: LookupTable) {
-  const { data, error } = await supabase.from(table).select("id,name");
-  if (error) throw error;
+  try {
+    const { data, error } = await supabase.from(table).select("id,name");
+    if (error) {
+      console.warn(`تحذير: فشل تحميل جدول ${table}:`, error);
+      return new Map<string, string>();
+    }
 
-  const map = new Map<string, string>();
-  (data ?? []).forEach((item: any) => {
-    map.set(normalizeArabicText(item.name), item.id);
-  });
-  return map;
+    const map = new Map<string, string>();
+    (data ?? []).forEach((item: any) => {
+      map.set(normalizeArabicText(item.name), item.id);
+    });
+    return map;
+  } catch (err) {
+    console.warn(`تحذير: خطأ في تحميل جدول ${table}:`, err);
+    return new Map<string, string>();
+  }
 }
 
 function getIdByName(table: LookupTable, name: string, cache: Map<string, string>): string | null {
@@ -76,56 +84,33 @@ export type AdmissionsImportResult = {
 export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Promise<AdmissionsImportResult> {
   console.log(`🔄 بدء استيراد ${rows.length} صف من Excel`);
   
-  // تحميل جداول البحث بشكل آمن مع معالجة الأخطاء
-  let depMap: Map<string, string>;
-  let govMap: Map<string, string>;
-  let distMap: Map<string, string>;
-  let stationMap: Map<string, string>;
-  let occMap: Map<string, string>;
-  let diagMap: Map<string, string>;
-  let docMap: Map<string, string>;
+  // الحصول على قسم افتراضي أولاً (أهم شيء)
   let defaultDepartmentId: string | null = null;
-
-  try {
-    [depMap, govMap, distMap, stationMap, occMap, diagMap, docMap] = await Promise.all([
-      loadLookupMap("departments"),
-      loadLookupMap("governorates"),
-      loadLookupMap("districts"),
-      loadLookupMap("stations"),
-      loadLookupMap("occupations"),
-      loadLookupMap("diagnoses"),
-      loadLookupMap("doctors"),
-    ]);
-    
-    // الحصول على قسم افتراضي (أول قسم في القائمة) لاستخدامه عند عدم وجود قسم صحيح
-    if (depMap.size > 0) {
-      defaultDepartmentId = Array.from(depMap.values())[0];
-    }
-  } catch (error: any) {
-    console.error("خطأ في تحميل جداول البحث:", error);
-    // تهيئة الـ Maps الفارغة
-    depMap = new Map();
-    govMap = new Map();
-    distMap = new Map();
-    stationMap = new Map();
-    occMap = new Map();
-    diagMap = new Map();
-    docMap = new Map();
+  const { data: firstDept } = await supabase
+    .from("departments")
+    .select("id")
+    .limit(1)
+    .single();
+  
+  if (firstDept?.id) {
+    defaultDepartmentId = firstDept.id;
+    console.log(`✅ القسم الافتراضي: ${defaultDepartmentId}`);
+  } else {
+    throw new Error("لا يوجد أقسام في قاعدة البيانات. أضف قسم واحد على الأقل أولاً");
   }
 
-  // الحصول على قسم افتراضي من قاعدة البيانات
-  if (!defaultDepartmentId) {
-    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
-    if (deptData?.id) {
-      defaultDepartmentId = deptData.id;
-    }
-  }
+  // تحميل جداول البحث (اختيارية - لو فشلت مش مشكلة)
+  const [depMap, govMap, distMap, stationMap, occMap, diagMap, docMap] = await Promise.all([
+    loadLookupMap("departments"),
+    loadLookupMap("governorates"),
+    loadLookupMap("districts"),
+    loadLookupMap("stations"),
+    loadLookupMap("occupations"),
+    loadLookupMap("diagnoses"),
+    loadLookupMap("doctors"),
+  ]);
   
-  if (!defaultDepartmentId) {
-    throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل");
-  }
-  
-  console.log(`✅ القسم الافتراضي: ${defaultDepartmentId}`);
+  console.log(`📚 تم تحميل ${depMap.size} قسم، ${govMap.size} محافظة، ${diagMap.size} تشخيص`);
 
   const failed: { index: number; reason: string }[] = [];
   const payloads: any[] = [];
