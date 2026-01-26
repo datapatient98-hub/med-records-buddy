@@ -341,41 +341,49 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       label: string;
     }) => {
       playSuccessSound();
-       sonnerToast.success(
-         <div dir="rtl" className="space-y-3 text-right">
-           <div className="space-y-1">
-             <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
-             <div className="text-sm text-muted-foreground">تم تسجيل {payload.label} بنجاح</div>
-           </div>
+        sonnerToast.custom(
+          (id) => (
+            <div
+              dir="rtl"
+              className="cursor-pointer space-y-3 text-right"
+              onClick={() => sonnerToast.dismiss(id)}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="space-y-1">
+                <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+                <div className="text-sm text-muted-foreground">تم تسجيل {payload.label} بنجاح</div>
+              </div>
 
-           <div className="rounded-lg border bg-card/50 p-4">
-             <div className="flex items-center justify-between gap-3 pb-2 border-b">
-               <span className="text-xs font-semibold text-muted-foreground">اسم المريض</span>
-               <span className="font-bold truncate max-w-[220px]">{payload.patient_name}</span>
-             </div>
-             <div className="flex items-center justify-between gap-3 py-2 border-b">
-               <span className="text-xs font-semibold text-muted-foreground">الرقم الموحد</span>
-               <span className="font-bold tabular-nums" dir="ltr">{payload.unified_number}</span>
-             </div>
-             <div className="flex items-center justify-between gap-3 pt-2">
-               <span className="text-xs font-semibold text-muted-foreground">الرقم الداخلي</span>
-               <span className="text-lg font-black tabular-nums" dir="ltr">🔢 {payload.internal_number}</span>
-             </div>
-           </div>
+              <div className="rounded-lg border bg-card/50 p-4">
+                <div className="flex items-center justify-between gap-3 pb-2 border-b">
+                  <span className="text-xs font-semibold text-muted-foreground">اسم المريض</span>
+                  <span className="font-bold truncate max-w-[220px]">{payload.patient_name}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 py-2 border-b">
+                  <span className="text-xs font-semibold text-muted-foreground">الرقم الموحد</span>
+                  <span className="font-bold tabular-nums" dir="ltr">
+                    {payload.unified_number}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <span className="text-xs font-semibold text-muted-foreground">الرقم الداخلي</span>
+                  <span className="text-lg font-black tabular-nums" dir="ltr">
+                    🔢 {payload.internal_number}
+                  </span>
+                </div>
+              </div>
 
-           <Button
-             type="button"
-             className="w-full"
-             onClick={() => navigate("/records")}
-           >
-             📂 فتح صفحة السجلات
-           </Button>
-         </div>,
-         {
-           duration: 5000,
-           className: "w-[380px]",
-         }
-       );
+              <Button type="button" className="w-full" onClick={() => navigate("/records")}>
+                📂 فتح صفحة السجلات
+              </Button>
+            </div>
+          ),
+          {
+            duration: 5000,
+            className: "w-[380px]",
+          }
+        );
     };
  
    const editAdmissionMutation = useMutation({
@@ -598,6 +606,15 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
      setActiveTab(newTab);
       if (newTab !== "endoscopy") setEndoscopyNewMode(false);
    };
+
+    // عند فتح تبويب المناظير: لو الرقم الموحد مكتوب بالفعل، جرّب تحميله تلقائياً
+    useEffect(() => {
+      if (activeTab !== "endoscopy") return;
+      if (!searchNumber.trim()) return;
+      if (selectedAdmission || endoscopyNewMode) return;
+      void handleSearch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
 
     // عند تغيير التبويب: ثبت/فلتر قسم الخروج حسب المطلوب
     useEffect(() => {
@@ -1577,6 +1594,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               }
               // نفس فكرة التبويب: المناظير فقط
               departments={endoscopyDepartments}
+               manageDepartments={departments || []}
               doctors={doctors || []}
               diagnoses={diagnoses || []}
               occupations={occupations || []}

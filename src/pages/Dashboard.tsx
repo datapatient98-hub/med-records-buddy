@@ -659,7 +659,7 @@ export default function Dashboard() {
         />
 
         <DashboardCard
-          title="المناظير (متخصص)"
+          title="المناظير"
           value={totalEndoscopies}
           icon={Microscope}
           color="purple"
