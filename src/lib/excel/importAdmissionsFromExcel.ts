@@ -76,42 +76,6 @@ export type AdmissionsImportResult = {
 export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Promise<AdmissionsImportResult> {
   console.log(`🔄 بدء استيراد ${rows.length} صف من Excel`);
   
-  // فحص صلاحيات المستخدم أولاً
-  const { data: sessionData } = await supabase.auth.getSession();
-  if (!sessionData?.session) {
-    throw new Error("يجب تسجيل الدخول أولاً لاستيراد البيانات");
-  }
-  
-  const userId = sessionData.session.user.id;
-  
-  // فحص هل المستخدم admin أو records_clerk (لهم صلاحية على كل الأقسام)
-  const { data: userRoles } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  
-  const isAdmin = userRoles?.some(r => r.role === "admin");
-  const isRecordsClerk = userRoles?.some(r => r.role === "records_clerk");
-  const hasFullAccess = isAdmin || isRecordsClerk;
-  
-  console.log(`👤 المستخدم: ${hasFullAccess ? 'له صلاحية كاملة' : 'صلاحية محدودة'}`);
-  
-  // إذا لم يكن له صلاحية كاملة، نحصل على الأقسام المصرح له بها
-  let allowedDepartments: Set<string> = new Set();
-  if (!hasFullAccess) {
-    const { data: userDepts } = await supabase
-      .from("user_departments")
-      .select("department_id")
-      .eq("user_id", userId);
-    
-    allowedDepartments = new Set(userDepts?.map(d => d.department_id) || []);
-    console.log(`🔒 الأقسام المصرح بها: ${allowedDepartments.size} قسم`);
-    
-    if (allowedDepartments.size === 0) {
-      throw new Error("لا يوجد أقسام مصرح لك بالإدخال عليها. تواصل مع المدير لإضافة صلاحيات");
-    }
-  }
-  
   // تحميل جداول البحث بشكل آمن مع معالجة الأخطاء
   let depMap: Map<string, string>;
   let govMap: Map<string, string>;
@@ -139,7 +103,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     }
   } catch (error: any) {
     console.error("خطأ في تحميل جداول البحث:", error);
-    
     // تهيئة الـ Maps الفارغة
     depMap = new Map();
     govMap = new Map();
@@ -150,24 +113,16 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     docMap = new Map();
   }
 
-  // الحصول على قسم افتراضي مسموح به للمستخدم
+  // الحصول على قسم افتراضي من قاعدة البيانات
   if (!defaultDepartmentId) {
-    if (hasFullAccess) {
-      // إذا كان admin أو records_clerk، نحصل على أي قسم
-      const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
-      if (deptData?.id) {
-        defaultDepartmentId = deptData.id;
-      }
-    } else {
-      // إذا لم يكن له صلاحية كاملة، نستخدم أول قسم مصرح له
-      if (allowedDepartments.size > 0) {
-        defaultDepartmentId = Array.from(allowedDepartments)[0];
-      }
+    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
+    if (deptData?.id) {
+      defaultDepartmentId = deptData.id;
     }
   }
   
   if (!defaultDepartmentId) {
-    throw new Error("لا يوجد أقسام مصرح لك بالإدخال عليها");
+    throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل");
   }
   
   console.log(`✅ القسم الافتراضي: ${defaultDepartmentId}`);
@@ -230,15 +185,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     if (!department_id) {
       department_id = defaultDepartmentId;
     }
-    
-    // فحص الصلاحية على القسم
-    if (!hasFullAccess && !allowedDepartments.has(department_id)) {
-      failed.push({ 
-        index: i, 
-        reason: `ليس لديك صلاحية على القسم "${departmentName || 'غير محدد'}"` 
-      });
-      continue;
-    }
 
     // الحقول الاختيارية: إذا لم تكن موجودة نتركها null
     const governorate_id = governorateName ? getIdByName("governorates", governorateName, govMap) : null;
@@ -288,14 +234,14 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
   
   const cleanedPayloads = payloads.map(({ __rowIndex, ...rest }) => rest);
 
-  // محاولة إدخال دفعة واحدة أولاً
+  // محاولة إدخال دفعة واحدة (الأسرع)
   const { error } = await supabase.from("admissions").insert(cleanedPayloads);
   if (!error) {
     console.log(`✅ تم إدراج ${cleanedPayloads.length} صف بنجاح`);
     return { inserted: cleanedPayloads.length, failed };
   }
 
-  // إذا فشل الإدراج الجماعي، نحاول إدراج صف بصف
+  // إذا فشل الإدراج الجماعي، نحاول إدراج صف بصف لتحديد الأخطاء
   console.warn(`⚠️ فشل الإدراج الجماعي، محاولة إدراج صف بصف. الخطأ:`, error);
 
   let inserted = 0;
@@ -313,14 +259,12 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       
       let reason = "تعذر إدخال الصف بسبب خطأ في قاعدة البيانات";
       
-      if (rowIsDup) {
-        reason = "الرقم الموحد موجود بالفعل في قاعدة البيانات";
-      } else if (rowMsg.includes("violates row-level security") || rowMsg.includes("RLS")) {
-        reason = "ليس لديك صلاحية لإدخال هذا الصف (مشكلة صلاحيات)";
-      } else if (rowMsg.includes("null value")) {
+      if (rowMsg.includes("null value") || rowMsg.includes("not-null")) {
         reason = "بيانات ناقصة: حقول إلزامية فارغة";
       } else if (rowMsg.includes("foreign key")) {
         reason = "خطأ في البيانات المرجعية (قسم، محافظة، إلخ)";
+      } else if (rowMsg.includes("violates")) {
+        reason = "خطأ في البيانات أو قيود قاعدة البيانات";
       }
       
       failed.push({
