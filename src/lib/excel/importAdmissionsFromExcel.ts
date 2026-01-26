@@ -131,29 +131,12 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    // قيم افتراضية للبيانات الناقصة أو غير الصحيحة
-    if (!national_id || national_id.length < 14) {
-      national_id = national_id.padEnd(14, "0");
-    }
-    if (!gender) {
-      gender = "ذكر";
-    }
-    if (!marital_status) {
-      marital_status = "أعزب";
-    }
-    if (!phone || phone.length < 11) {
-      phone = phone.padEnd(11, "0");
+    // التحقق من صحة البيانات بدون قيم افتراضية
+    if (national_id && national_id.length !== 14) {
+      national_id = ""; // إعادة تعيين إذا كان غير صالح
     }
     if (!Number.isFinite(age) || age < 0) {
-      age = 1;
-    }
-    
-    if (!admission_status) {
-      admission_status = "محجوز";
-    }
-    
-    if (!admission_date) {
-      admission_date = new Date().toISOString();
+      age = 0; // قيمة محايدة للعمر غير الصالح
     }
 
     // محاولة الحصول على القسم، إذا لم يتم العثور عليه نستخدم القسم الافتراضي
@@ -185,21 +168,21 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       __rowIndex: i,
       unified_number,
       patient_name,
-      national_id,
-      gender,
-      marital_status,
-      phone,
-      age: Number(age),
+      national_id: national_id || null,
+      gender: gender || null,
+      marital_status: marital_status || null,
+      phone: phone || null,
+      age: age > 0 ? Number(age) : null,
       governorate_id,
       district_id,
       station_id,
       address_details,
       department_id,
-      admission_status,
+      admission_status: admission_status || null,
       occupation_id,
       diagnosis_id,
       doctor_id,
-      admission_date,
+      admission_date: admission_date || null,
       ...(created_at ? { created_at } : {}),
     });
   }
