@@ -74,6 +74,44 @@ export type AdmissionsImportResult = {
 };
 
 export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Promise<AdmissionsImportResult> {
+  console.log(`🔄 بدء استيراد ${rows.length} صف من Excel`);
+  
+  // فحص صلاحيات المستخدم أولاً
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session) {
+    throw new Error("يجب تسجيل الدخول أولاً لاستيراد البيانات");
+  }
+  
+  const userId = sessionData.session.user.id;
+  
+  // فحص هل المستخدم admin أو records_clerk (لهم صلاحية على كل الأقسام)
+  const { data: userRoles } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId);
+  
+  const isAdmin = userRoles?.some(r => r.role === "admin");
+  const isRecordsClerk = userRoles?.some(r => r.role === "records_clerk");
+  const hasFullAccess = isAdmin || isRecordsClerk;
+  
+  console.log(`👤 المستخدم: ${hasFullAccess ? 'له صلاحية كاملة' : 'صلاحية محدودة'}`);
+  
+  // إذا لم يكن له صلاحية كاملة، نحصل على الأقسام المصرح له بها
+  let allowedDepartments: Set<string> = new Set();
+  if (!hasFullAccess) {
+    const { data: userDepts } = await supabase
+      .from("user_departments")
+      .select("department_id")
+      .eq("user_id", userId);
+    
+    allowedDepartments = new Set(userDepts?.map(d => d.department_id) || []);
+    console.log(`🔒 الأقسام المصرح بها: ${allowedDepartments.size} قسم`);
+    
+    if (allowedDepartments.size === 0) {
+      throw new Error("لا يوجد أقسام مصرح لك بالإدخال عليها. تواصل مع المدير لإضافة صلاحيات");
+    }
+  }
+  
   // تحميل جداول البحث بشكل آمن مع معالجة الأخطاء
   let depMap: Map<string, string>;
   let govMap: Map<string, string>;
@@ -101,11 +139,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     }
   } catch (error: any) {
     console.error("خطأ في تحميل جداول البحث:", error);
-    // إذا فشل تحميل الجداول، نحاول الحصول على قسم افتراضي مباشرة من قاعدة البيانات
-    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
-    if (deptData?.id) {
-      defaultDepartmentId = deptData.id;
-    }
     
     // تهيئة الـ Maps الفارغة
     depMap = new Map();
@@ -117,15 +150,27 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     docMap = new Map();
   }
 
-  // إذا لم نتمكن من الحصول على قسم افتراضي، نحصل عليه مباشرة
+  // الحصول على قسم افتراضي مسموح به للمستخدم
   if (!defaultDepartmentId) {
-    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
-    if (deptData?.id) {
-      defaultDepartmentId = deptData.id;
+    if (hasFullAccess) {
+      // إذا كان admin أو records_clerk، نحصل على أي قسم
+      const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
+      if (deptData?.id) {
+        defaultDepartmentId = deptData.id;
+      }
     } else {
-      throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل من صفحة الإعدادات");
+      // إذا لم يكن له صلاحية كاملة، نستخدم أول قسم مصرح له
+      if (allowedDepartments.size > 0) {
+        defaultDepartmentId = Array.from(allowedDepartments)[0];
+      }
     }
   }
+  
+  if (!defaultDepartmentId) {
+    throw new Error("لا يوجد أقسام مصرح لك بالإدخال عليها");
+  }
+  
+  console.log(`✅ القسم الافتراضي: ${defaultDepartmentId}`);
 
   const failed: { index: number; reason: string }[] = [];
   const payloads: any[] = [];
@@ -185,6 +230,15 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     if (!department_id) {
       department_id = defaultDepartmentId;
     }
+    
+    // فحص الصلاحية على القسم
+    if (!hasFullAccess && !allowedDepartments.has(department_id)) {
+      failed.push({ 
+        index: i, 
+        reason: `ليس لديك صلاحية على القسم "${departmentName || 'غير محدد'}"` 
+      });
+      continue;
+    }
 
     // الحقول الاختيارية: إذا لم تكن موجودة نتركها null
     const governorate_id = governorateName ? getIdByName("governorates", governorateName, govMap) : null;
@@ -230,39 +284,55 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
   
   if (payloads.length === 0) return { inserted: 0, failed };
 
+  console.log(`📦 محاولة إدراج ${payloads.length} صف`);
+  
   const cleanedPayloads = payloads.map(({ __rowIndex, ...rest }) => rest);
 
-  // محاولة إدخال دفعة واحدة (الأسرع)
+  // محاولة إدخال دفعة واحدة أولاً
   const { error } = await supabase.from("admissions").insert(cleanedPayloads);
   if (!error) {
+    console.log(`✅ تم إدراج ${cleanedPayloads.length} صف بنجاح`);
     return { inserted: cleanedPayloads.length, failed };
   }
 
-  // في حال وجود تكرار/تعارض (409) نحاول إدخال صف-بصف حتى لا تفشل العملية بالكامل
-  // ونحوّل الصفوف المتعارضة إلى أخطاء عربية داخل تقرير الاستيراد.
-  const msg = String((error as any)?.message ?? "");
-  const isDup = msg.includes("admissions_unified_number_key") || msg.toLowerCase().includes("duplicate key");
-  if (!isDup) throw error;
+  // إذا فشل الإدراج الجماعي، نحاول إدراج صف بصف
+  console.warn(`⚠️ فشل الإدراج الجماعي، محاولة إدراج صف بصف. الخطأ:`, error);
 
   let inserted = 0;
   for (let i = 0; i < payloads.length; i++) {
     const { __rowIndex, ...rowPayload } = payloads[i];
     const rowIndex = Number(__rowIndex ?? i);
+    
     const { error: rowErr } = await supabase.from("admissions").insert([rowPayload]);
     if (rowErr) {
       const rowMsg = String((rowErr as any)?.message ?? "");
+      console.error(`❌ فشل الصف ${rowIndex}:`, rowMsg);
+      
       const rowIsDup =
         rowMsg.includes("admissions_unified_number_key") || rowMsg.toLowerCase().includes("duplicate key");
+      
+      let reason = "تعذر إدخال الصف بسبب خطأ في قاعدة البيانات";
+      
+      if (rowIsDup) {
+        reason = "الرقم الموحد موجود بالفعل في قاعدة البيانات";
+      } else if (rowMsg.includes("violates row-level security") || rowMsg.includes("RLS")) {
+        reason = "ليس لديك صلاحية لإدخال هذا الصف (مشكلة صلاحيات)";
+      } else if (rowMsg.includes("null value")) {
+        reason = "بيانات ناقصة: حقول إلزامية فارغة";
+      } else if (rowMsg.includes("foreign key")) {
+        reason = "خطأ في البيانات المرجعية (قسم، محافظة، إلخ)";
+      }
+      
       failed.push({
         index: rowIndex,
-        reason: rowIsDup
-          ? "الرقم الموحد موجود بالفعل داخل قاعدة البيانات (تم تجاهل الصف)"
-          : "تعذر إدخال الصف بسبب خطأ في قاعدة البيانات",
+        reason,
       });
       continue;
     }
     inserted += 1;
   }
 
+  console.log(`📊 النتيجة النهائية: ${inserted} صف ناجح، ${failed.length} صف فاشل`);
+  
   return { inserted, failed };
 }
