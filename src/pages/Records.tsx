@@ -477,7 +477,6 @@ export default function Records() {
                     <TableRow>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>الرقم الداخلي</TableHead>
-                      <TableHead>حالة الملف</TableHead>
                       <TableHead>اسم المريض</TableHead>
                       <TableHead>الرقم القومي</TableHead>
                       <TableHead>النوع</TableHead>
@@ -493,39 +492,20 @@ export default function Records() {
                   <TableBody>
                     {admissionsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={12} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
                     ) : admissionsInternalFiltered.length > 0 ? (
                       admissionsInternalFiltered.map((admission: any) => (
                         <TableRow key={admission.id}>
                           <TableCell>{admission.unified_number}</TableCell>
                           <TableCell>{admission.internal_number}</TableCell>
-                          <TableCell>
-                            {dischargesLoading ? (
-                              <span className="text-sm text-muted-foreground">...</span>
-                            ) : unifiedExitFlag.get(admission.unified_number) ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-discharged text-primary-foreground font-extrabold text-base">
-                                  خرج
-                                </span>
-                                <span className="text-sm font-semibold text-foreground">خرج</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-active text-primary-foreground font-extrabold text-base">
-                                  محجوز
-                                </span>
-                                <span className="text-sm font-semibold text-foreground">محجوز</span>
-                              </span>
-                            )}
-                          </TableCell>
                           <TableCell>{admission.patient_name}</TableCell>
                           <TableCell>{admission.national_id}</TableCell>
                           <TableCell>{admission.gender}</TableCell>
                           <TableCell>{admission.age}</TableCell>
                           <TableCell>{admission.department?.name}</TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded text-xs font-medium text-primary-foreground ${
+                            <span className={`px-3 py-1.5 rounded-md text-sm font-extrabold text-primary-foreground ${
                               admission.admission_status === 'محجوز' ? 'bg-status-active' :
                               admission.admission_status === 'خروج' ? 'bg-status-discharged' :
                               admission.admission_status === 'متوفى' ? 'bg-status-deceased' :
@@ -551,7 +531,7 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={13} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={12} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
