@@ -191,6 +191,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       address_details,
       department_id,
       admission_status,
+      occupation_id,
       diagnosis_id,
       doctor_id,
       admission_date,
