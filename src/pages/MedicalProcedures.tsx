@@ -14,14 +14,15 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 import { useNavigate } from "react-router-dom";
  import ColoredStatTab from "@/components/ColoredStatTab";
  import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
- import { Save, Search, Syringe, UserCheck, Activity, Edit } from "lucide-react";
+ import { Save, Search, Syringe, UserCheck, Activity, Edit, Eye } from "lucide-react";
  import SearchableSelect from "@/components/SearchableSelect";
  import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
  import LookupManageDialog from "@/components/LookupManageDialog";
  import { Database } from "@/integrations/supabase/types";
  import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import EndoscopyForm, { type EndoscopyFormValues } from "@/components/MedicalProcedures/EndoscopyForm";
  
- type ProcedureType = "procedure" | "reception" | "kidney";
+  type ProcedureType = "procedure" | "reception" | "kidney" | "endoscopy";
  
  const procedureSchema = z.object({
    procedure_date: z.string().min(1, "تاريخ الإجراء مطلوب"),
@@ -40,10 +41,11 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  export default function MedicalProcedures() {
   const navigate = useNavigate();
    const queryClient = useQueryClient();
-   const [activeTab, setActiveTab] = useState<ProcedureType>("procedure");
+    const [activeTab, setActiveTab] = useState<ProcedureType>("procedure");
    const [searchNumber, setSearchNumber] = useState("");
    const [timeRange, setTimeRange] = useState<TimeRange>("month");
    const [selectedAdmission, setSelectedAdmission] = useState<AdmissionData | null>(null);
+    const [endoscopyNewMode, setEndoscopyNewMode] = useState(false);
    const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
    
    // Lookup dialog states
@@ -180,46 +182,58 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
 
    const { start, end } = getTimeRangeDates(timeRange);
  
-   // Get counts for each procedure type
+    // Get counts for each procedure type
    const { data: procedureCounts } = useQuery({
      queryKey: ["procedures-counts", timeRange],
      queryFn: async () => {
-       const types = ["procedure", "reception", "kidney"] as const;
-       const typeMap = {
-         procedure: "بذل",
-         reception: "استقبال",
-         kidney: "كلي"
-       } as const;
- 
-       const counts = await Promise.all(types.map(async (type) => {
-         const { count, error } = await supabase
-           .from("procedures")
-           .select("id", { count: "exact", head: true })
-           .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
-           .gte("procedure_date", start.toISOString())
-           .lte("procedure_date", end.toISOString());
-         if (error) throw error;
-         return { type, count: count ?? 0 };
-       }));
- 
-       return Object.fromEntries(counts.map(c => [c.type, c.count]));
+        const baseTypes = ["procedure", "reception", "kidney"] as const;
+        const typeMap = {
+          procedure: "بذل",
+          reception: "استقبال",
+          kidney: "كلي",
+        } as const;
+
+        const baseCounts = await Promise.all(
+          baseTypes.map(async (type) => {
+            const { count, error } = await supabase
+              .from("procedures")
+              .select("id", { count: "exact", head: true })
+              .eq("procedure_type", typeMap[type] as Database["public"]["Enums"]["procedure_type"])
+              .gte("procedure_date", start.toISOString())
+              .lte("procedure_date", end.toISOString());
+            if (error) throw error;
+            return { type, count: count ?? 0 };
+          })
+        );
+
+        const { count: endoscopyCount, error: endoscopyError } = await supabase
+          .from("endoscopies")
+          .select("id", { count: "exact", head: true })
+          .gte("procedure_date", start.toISOString())
+          .lte("procedure_date", end.toISOString());
+        if (endoscopyError) throw endoscopyError;
+
+        return {
+          ...Object.fromEntries(baseCounts.map((c) => [c.type, c.count])),
+          endoscopy: endoscopyCount ?? 0,
+        } as Record<ProcedureType, number>;
      },
    });
 
-  // Get detailed status counts for each procedure type
+   // Get detailed status counts for each procedure type (endoscopy has no status breakdown here)
   const { data: statusCounts } = useQuery({
     queryKey: ["procedures-status-counts", timeRange],
     queryFn: async () => {
-      const types: ProcedureType[] = ["procedure", "reception", "kidney"];
-      const typeMap: Record<ProcedureType, string> = {
+       const types: Array<Exclude<ProcedureType, "endoscopy">> = ["procedure", "reception", "kidney"];
+       const typeMap: Record<Exclude<ProcedureType, "endoscopy">, string> = {
         procedure: "بذل",
         reception: "استقبال",
-        kidney: "كلي"
+         kidney: "كلي",
       };
       
       const allCounts: Record<string, any> = {};
       
-      for (const type of types) {
+       for (const type of types) {
         const statuses = ["تحسن", "تحويل", "وفاة", "هروب", "حسب الطلب"];
         const counts = await Promise.all(statuses.map(async (status) => {
           const { count, error } = await supabase
@@ -240,7 +254,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     },
   });
  
-   const handleSearch = async () => {
+    const handleSearch = async () => {
      if (!searchNumber.trim()) {
       sonnerToast.error("الرجاء إدخال الرقم الموحد", {
         description: "يجب إدخال الرقم الموحد للبحث عن المريض",
@@ -254,15 +268,27 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        .eq("unified_number", searchNumber)
        .maybeSingle();
  
-     if (error || !data) {
-      sonnerToast.error("لم يتم العثور على المريض", {
-        description: "تأكد من الرقم الموحد",
-      });
-       setSelectedAdmission(null);
-       return;
-     }
+      if (error || !data) {
+        // For endoscopy: allow registering from scratch even if the unified number isn't in admissions.
+        if (activeTab === "endoscopy") {
+          setSelectedAdmission(null);
+          setEndoscopyNewMode(true);
+          sonnerToast.message("⚠️ الرقم غير مسجل بدخول - تسجيل مناظير جديد", {
+            description: "اكمل بيانات المريض ثم احفظ",
+            duration: 5000,
+          });
+          return;
+        }
+
+        sonnerToast.error("لم يتم العثور على المريض", {
+          description: "تأكد من الرقم الموحد",
+        });
+        setSelectedAdmission(null);
+        return;
+      }
  
      setSelectedAdmission(data);
+      setEndoscopyNewMode(false);
      form.setValue("diagnosis_id", data.diagnosis_id || "");
      form.setValue("doctor_id", data.doctor_id || "");
      form.setValue("procedure_date", new Date().toISOString().slice(0, 16));
@@ -276,6 +302,51 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       duration: 5000,
     });
    };
+
+    const showSuccessNotification = (payload: {
+      patient_name: string;
+      unified_number: string;
+      internal_number: number;
+      label: string;
+    }) => {
+      playSuccessSound();
+      sonnerToast.success(
+        <div dir="rtl" className="space-y-3 text-right">
+          <div>
+            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+            <div className="text-sm opacity-90 mt-1">تم تسجيل {payload.label} بنجاح</div>
+          </div>
+          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
+              <span className="font-extrabold text-base truncate max-w-[200px]">{payload.patient_name}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
+              <span className="font-bold text-base tabular-nums" dir="ltr">
+                {payload.unified_number}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
+              <span className="text-xl font-black tabular-nums" dir="ltr">
+                🔢 {payload.internal_number}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate("/records")}
+            className="w-full mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            📂 فتح صفحة السجلات
+          </button>
+        </div>,
+        {
+          duration: 10000,
+          className: "w-[420px]",
+        }
+      );
+    };
  
    const editAdmissionMutation = useMutation({
      mutationFn: async (values: any) => {
@@ -334,7 +405,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
    });
  
   // Success sound effect (simple beep)
-  const playSuccessSound = () => {
+   const playSuccessSound = () => {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -356,23 +427,24 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     }
   };
 
-   const mutation = useMutation({
+    const mutation = useMutation({
      mutationFn: async (values: ProcedureFormValues) => {
        if (!selectedAdmission) throw new Error("لم يتم اختيار مريض");
  
-       const typeMap: Record<ProcedureType, string> = {
+        const typeMap: Record<Exclude<ProcedureType, "endoscopy">, string> = {
          procedure: "بذل",
          reception: "استقبال",
-         kidney: "كلي"
+          kidney: "كلي",
        };
  
-       const departmentMap: Record<ProcedureType, string> = {
+        const departmentMap: Record<Exclude<ProcedureType, "endoscopy">, string> = {
          procedure: "بذل",
          reception: "استقبال",
-         kidney: "كلي"
+          kidney: "كلي",
        };
        
-       const targetDeptName = departmentMap[activeTab];
+        const safeTab = activeTab as Exclude<ProcedureType, "endoscopy">;
+        const targetDeptName = departmentMap[safeTab];
        const targetDept = departments?.find(d => d.name === targetDeptName);
  
        const insertData: any = {
@@ -386,7 +458,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          age: selectedAdmission.age,
          department_id: targetDept?.id || selectedAdmission.department_id,
          procedure_date: values.procedure_date,
-         procedure_type: typeMap[activeTab],
+          procedure_type: typeMap[safeTab],
          occupation_id: selectedAdmission.occupation_id || null,
          governorate_id: selectedAdmission.governorate_id || null,
          district_id: selectedAdmission.district_id || null,
@@ -415,42 +487,12 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       queryClient.invalidateQueries({ queryKey: ["procedures-status-counts"] });
        const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
 
-      // Play success sound
-      playSuccessSound();
-
-      // Professional top-left notification
-      sonnerToast.success(
-        <div dir="rtl" className="space-y-3 text-right">
-          <div>
-            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
-            <div className="text-sm opacity-90 mt-1">تم تسجيل {typeLabel} بنجاح</div>
-          </div>
-          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
-              <span className="font-extrabold text-base truncate max-w-[200px]">{data.patient_name}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
-              <span className="font-bold text-base tabular-nums" dir="ltr">{data.unified_number}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
-              <span className="text-xl font-black tabular-nums" dir="ltr">🔢 {data.internal_number}</span>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate('/records')}
-            className="w-full mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors"
-          >
-            📂 فتح صفحة السجلات
-          </button>
-        </div>,
-        {
-          duration: 10000,
-          className: "w-[420px]",
-        }
-      );
+        showSuccessNotification({
+          patient_name: data.patient_name,
+          unified_number: data.unified_number,
+          internal_number: data.internal_number,
+          label: typeLabel,
+        });
       
       // Reset form and clear selection
       setSelectedAdmission(null);
@@ -470,6 +512,60 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       });
      },
    });
+
+    const endoscopyMutation = useMutation({
+      mutationFn: async (values: EndoscopyFormValues) => {
+        if (!searchNumber.trim()) throw new Error("الرقم الموحد مطلوب");
+
+        const insertData: Database["public"]["Tables"]["endoscopies"]["Insert"] = {
+          admission_id: selectedAdmission?.id ?? null,
+          unified_number: searchNumber.trim(),
+          patient_name: values.patient_name,
+          national_id: values.national_id,
+          phone: values.phone,
+          gender: values.gender as any,
+          marital_status: values.marital_status as any,
+          age: values.age,
+          department_id: values.department_id,
+          procedure_date: values.procedure_date,
+          diagnosis_id: values.diagnosis_id ? values.diagnosis_id : null,
+          doctor_id: values.doctor_id ? values.doctor_id : null,
+          occupation_id: values.occupation_id ? values.occupation_id : null,
+          governorate_id: values.governorate_id ? values.governorate_id : null,
+          district_id: values.district_id ? values.district_id : null,
+          station_id: values.station_id ? values.station_id : null,
+          address_details: values.address_details ? values.address_details : null,
+        };
+
+        const { data, error } = await supabase
+          .from("endoscopies")
+          .insert([insertData])
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      },
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: ["endoscopies"] });
+        queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
+        showSuccessNotification({
+          patient_name: data.patient_name,
+          unified_number: data.unified_number,
+          internal_number: data.internal_number,
+          label: "مناظير",
+        });
+
+        setSelectedAdmission(null);
+        setEndoscopyNewMode(false);
+        setSearchNumber("");
+      },
+      onError: (error: any) => {
+        sonnerToast.error("خطأ في الحفظ", {
+          description: error.message || "حدث خطأ أثناء محاولة حفظ المناظير",
+          duration: 8000,
+        });
+      },
+    });
  
    const onSubmit = (data: ProcedureFormValues) => {
      mutation.mutate(data);
@@ -477,6 +573,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
    const handleTabChange = (newTab: ProcedureType) => {
      setActiveTab(newTab);
+      if (newTab !== "endoscopy") setEndoscopyNewMode(false);
    };
  
    const getTabInfo = () => {
@@ -487,6 +584,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          return { icon: UserCheck, title: "تسجيل استقبال", color: "text-cyan" };
        case "kidney":
          return { icon: Activity, title: "تسجيل كلي", color: "text-orange" };
+        case "endoscopy":
+          return { icon: Eye, title: "تسجيل مناظير", color: "text-purple" };
      }
    };
  
@@ -499,14 +598,14 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          <div className="flex items-center justify-between">
            <div>
              <h2 className="text-3xl font-bold text-foreground">تسجيل الإجراءات الطبية</h2>
-             <p className="text-muted-foreground">البذل - الاستقبال - الغسيل الكلوي</p>
+              <p className="text-muted-foreground">البذل - الاستقبال - الغسيل الكلوي - المناظير</p>
            </div>
            <TimeFilter value={timeRange} onChange={setTimeRange} />
          </div>
  
          {/* Colored Tabs */}
          <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pb-4">
-           <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-4">
              <ColoredStatTab
                title="البذل"
                value={procedureCounts?.procedure ?? 0}
@@ -515,10 +614,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
               color="blue"
                onClick={() => handleTabChange("procedure")}
                active={activeTab === "procedure"}
-              details={statusCounts?.procedure ? 
-                `تحسن ${statusCounts.procedure["تحسن"] || 0} • تحويل ${statusCounts.procedure["تحويل"] || 0} • وفاة ${statusCounts.procedure["وفاة"] || 0} • هروب ${statusCounts.procedure["هروب"] || 0} • حسب الطلب ${statusCounts.procedure["حسب الطلب"] || 0}` : 
-                undefined
-              }
+               details={undefined}
              />
              <ColoredStatTab
                title="الاستقبال"
@@ -546,6 +642,16 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                 undefined
               }
              />
+
+              <ColoredStatTab
+                title="المناظير"
+                value={procedureCounts?.endoscopy ?? 0}
+                subtitle={`خلال ${timeRange === "day" ? "اليوم" : timeRange === "week" ? "الأسبوع" : timeRange === "month" ? "الشهر" : "3 أشهر"}`}
+                icon={Eye}
+                color="purple"
+                onClick={() => handleTabChange("endoscopy")}
+                active={activeTab === "endoscopy"}
+              />
            </div>
          </div>
  
@@ -556,7 +662,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                <Icon className={`h-5 w-5 ${tabInfo.color}`} />
                {tabInfo.title}
              </CardTitle>
-             <CardDescription>ابحث بالرقم الموحد لتحميل بيانات المريض</CardDescription>
+              <CardDescription>
+                ابحث بالرقم الموحد لتحميل بيانات المريض — وفي (المناظير) لو الرقم مش موجود هتقدر تسجل جديد
+              </CardDescription>
            </CardHeader>
            <CardContent className="space-y-4">
              <div className="flex gap-2">
@@ -732,8 +840,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
            </Card>
          )}
  
-         {/* Procedure Form */}
-         {selectedAdmission && (
+          {/* Procedure Form */}
+          {activeTab !== "endoscopy" && selectedAdmission && (
            <Card className="shadow-lg border-border">
              <CardHeader>
                <CardTitle className="flex items-center gap-2">
@@ -1393,6 +1501,42 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                 form.setValue("hospital_id", item.id);
                 setShowHospitalDialog(false);
               }}
+            />
+          )}
+
+          {/* Endoscopy Form (works سواء تم تحميل دخول أو تسجيل جديد) */}
+          {activeTab === "endoscopy" && (selectedAdmission || endoscopyNewMode) && (
+            <EndoscopyForm
+              unifiedNumber={searchNumber.trim()}
+              defaultValues={
+                selectedAdmission
+                  ? {
+                      patient_name: selectedAdmission.patient_name,
+                      national_id: selectedAdmission.national_id ?? "",
+                      phone: selectedAdmission.phone ?? "",
+                      gender: (selectedAdmission.gender as any) ?? "ذكر",
+                      marital_status: (selectedAdmission.marital_status as any) ?? "أعزب",
+                      age: selectedAdmission.age ?? 0,
+                      department_id: selectedAdmission.department_id,
+                      diagnosis_id: selectedAdmission.diagnosis_id ?? "",
+                      doctor_id: selectedAdmission.doctor_id ?? "",
+                      occupation_id: selectedAdmission.occupation_id ?? "",
+                      governorate_id: selectedAdmission.governorate_id ?? "",
+                      district_id: selectedAdmission.district_id ?? "",
+                      station_id: selectedAdmission.station_id ?? "",
+                      address_details: selectedAdmission.address_details ?? "",
+                    }
+                  : undefined
+              }
+              departments={departments || []}
+              doctors={doctors || []}
+              diagnoses={diagnoses || []}
+              occupations={occupations || []}
+              governorates={governorates || []}
+              districts={districts || []}
+              stations={stations || []}
+              isSubmitting={endoscopyMutation.isPending}
+              onSubmit={(values) => endoscopyMutation.mutate(values)}
             />
           )}
 
