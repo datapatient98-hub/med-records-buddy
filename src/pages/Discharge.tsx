@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "@/components/ui/sonner";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
@@ -36,7 +35,6 @@ const dischargeSchema = z.object({
 type DischargeFormValues = z.infer<typeof dischargeSchema>;
 
 export default function Discharge() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [unifiedNumber, setUnifiedNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
@@ -192,10 +190,8 @@ export default function Discharge() {
 
   const handleSearch = async () => {
     if (!unifiedNumber.trim()) {
-      toast({
-        title: "خطأ",
-        description: "الرجاء إدخال الرقم الموحد",
-        variant: "destructive",
+      sonnerToast.error("الرجاء إدخال الرقم الموحد", {
+        description: "يجب إدخال الرقم الموحد للبحث عن المريض",
       });
       return;
     }
@@ -208,10 +204,8 @@ export default function Discharge() {
       .eq("admission_status", "محجوز");
 
     if (error || !admissions || admissions.length === 0) {
-      toast({
-        title: "لم يتم العثور على المريض",
+      sonnerToast.error("لم يتم العثور على المريض", {
         description: "تأكد من الرقم الموحد أو أن المريض مازال محجوزاً",
-        variant: "destructive",
       });
       return;
     }
@@ -259,8 +253,7 @@ export default function Discharge() {
     },
     onSuccess: async (unifiedNumber) => {
       queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      toast({
-        title: "تم التحديث بنجاح",
+      sonnerToast.success("تم التحديث بنجاح", {
         description: "تم تحديث بيانات الدخول",
       });
       
@@ -285,10 +278,8 @@ export default function Discharge() {
       setShowEditAdmissionDialog(false);
     },
     onError: (error: any) => {
-      toast({
-        title: "خطأ في التحديث",
-        description: error.message,
-        variant: "destructive",
+      sonnerToast.error("خطأ في التحديث", {
+        description: error.message || "حدث خطأ أثناء تحديث بيانات الدخول",
       });
     },
   });
@@ -334,31 +325,35 @@ export default function Discharge() {
       queryClient.invalidateQueries({ queryKey: ["discharges"] });
       queryClient.invalidateQueries({ queryKey: ["discharges-counts"] });
 
-      // Professional top-left success notification (Sonner is configured globally as top-left)
-      sonnerToast.success("تم الحفظ بنجاح", {
-        duration: 10000,
-        description: (
-          <div dir="rtl" className="space-y-2 text-right">
-            <div className="text-sm text-muted-foreground">تم تسجيل خروج الحالة بنجاح</div>
-            <div className="grid gap-2 rounded-md border bg-muted/30 p-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xs text-muted-foreground">اسم المريض</span>
-                <span className="font-bold text-foreground truncate">{data?.admission?.patient_name}</span>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xs text-muted-foreground">الرقم الموحد</span>
-                <span className="font-semibold text-foreground" dir="ltr">{data?.admission?.unified_number}</span>
-              </div>
-              {data?.internalNumber ? (
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-xs text-muted-foreground">الرقم الداخلي</span>
-                  <span className="text-base font-extrabold text-foreground" dir="ltr">🔢 {data.internalNumber}</span>
-                </div>
-              ) : null}
-            </div>
+      // Professional top-left notification with bold patient details
+      sonnerToast.success(
+        <div dir="rtl" className="space-y-3 text-right">
+          <div>
+            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+            <div className="text-sm opacity-90 mt-1">تم تسجيل خروج الحالة بنجاح</div>
           </div>
-        ),
-      });
+          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
+              <span className="font-extrabold text-base truncate max-w-[200px]">{data?.admission?.patient_name}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 pb-2 border-b">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
+              <span className="font-bold text-base tabular-nums" dir="ltr">{data?.admission?.unified_number}</span>
+            </div>
+            {data?.internalNumber ? (
+              <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
+                <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
+                <span className="text-xl font-black tabular-nums" dir="ltr">🔢 {data.internalNumber}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>,
+        {
+          duration: 12000,
+          className: "w-[420px]",
+        }
+      );
 
       // Reset form
       setSelectedAdmission(null);
@@ -368,10 +363,9 @@ export default function Discharge() {
       form.reset();
     },
     onError: (error: any) => {
-      toast({
-        title: "خطأ في الحفظ",
-        description: error.message,
-        variant: "destructive",
+      sonnerToast.error("خطأ في الحفظ", {
+        description: error.message || "حدث خطأ أثناء محاولة حفظ بيانات الخروج",
+        duration: 8000,
       });
     },
   });
