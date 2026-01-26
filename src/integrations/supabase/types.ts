@@ -441,66 +441,90 @@ export type Database = {
       endoscopies: {
         Row: {
           address_details: string | null
+          admission_date: string | null
           admission_id: string | null
-          age: number
+          age: number | null
           created_at: string | null
           department_id: string
           diagnosis_id: string | null
+          discharge_date: string | null
+          discharge_department_id: string | null
+          discharge_diagnosis_id: string | null
+          discharge_doctor_id: string | null
+          discharge_status:
+            | Database["public"]["Enums"]["discharge_status"]
+            | null
           district_id: string | null
           doctor_id: string | null
-          gender: Database["public"]["Enums"]["patient_gender"]
+          gender: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id: string | null
           id: string
           internal_number: number
-          marital_status: Database["public"]["Enums"]["marital_status"]
-          national_id: string
+          marital_status: Database["public"]["Enums"]["marital_status"] | null
+          national_id: string | null
           occupation_id: string | null
-          patient_name: string
-          phone: string
+          patient_name: string | null
+          phone: string | null
           procedure_date: string
           station_id: string | null
           unified_number: string
         }
         Insert: {
           address_details?: string | null
+          admission_date?: string | null
           admission_id?: string | null
-          age: number
+          age?: number | null
           created_at?: string | null
           department_id: string
           diagnosis_id?: string | null
+          discharge_date?: string | null
+          discharge_department_id?: string | null
+          discharge_diagnosis_id?: string | null
+          discharge_doctor_id?: string | null
+          discharge_status?:
+            | Database["public"]["Enums"]["discharge_status"]
+            | null
           district_id?: string | null
           doctor_id?: string | null
-          gender: Database["public"]["Enums"]["patient_gender"]
+          gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
           internal_number?: number
-          marital_status: Database["public"]["Enums"]["marital_status"]
-          national_id: string
+          marital_status?: Database["public"]["Enums"]["marital_status"] | null
+          national_id?: string | null
           occupation_id?: string | null
-          patient_name: string
-          phone: string
+          patient_name?: string | null
+          phone?: string | null
           procedure_date: string
           station_id?: string | null
           unified_number: string
         }
         Update: {
           address_details?: string | null
+          admission_date?: string | null
           admission_id?: string | null
-          age?: number
+          age?: number | null
           created_at?: string | null
           department_id?: string
           diagnosis_id?: string | null
+          discharge_date?: string | null
+          discharge_department_id?: string | null
+          discharge_diagnosis_id?: string | null
+          discharge_doctor_id?: string | null
+          discharge_status?:
+            | Database["public"]["Enums"]["discharge_status"]
+            | null
           district_id?: string | null
           doctor_id?: string | null
-          gender?: Database["public"]["Enums"]["patient_gender"]
+          gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
           internal_number?: number
-          marital_status?: Database["public"]["Enums"]["marital_status"]
-          national_id?: string
+          marital_status?: Database["public"]["Enums"]["marital_status"] | null
+          national_id?: string | null
           occupation_id?: string | null
-          patient_name?: string
-          phone?: string
+          patient_name?: string | null
+          phone?: string | null
           procedure_date?: string
           station_id?: string | null
           unified_number?: string
@@ -525,6 +549,27 @@ export type Database = {
             columns: ["diagnosis_id"]
             isOneToOne: false
             referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "endoscopies_discharge_department_id_fkey"
+            columns: ["discharge_department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "endoscopies_discharge_diagnosis_id_fkey"
+            columns: ["discharge_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "endoscopies_discharge_doctor_id_fkey"
+            columns: ["discharge_doctor_id"]
+            isOneToOne: false
+            referencedRelation: "doctors"
             referencedColumns: ["id"]
           },
           {

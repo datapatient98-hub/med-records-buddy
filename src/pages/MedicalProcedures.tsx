@@ -548,16 +548,22 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       mutationFn: async (values: EndoscopyFormValues) => {
         if (!searchNumber.trim()) throw new Error("الرقم الموحد مطلوب");
 
-        const insertData: Database["public"]["Tables"]["endoscopies"]["Insert"] = {
+        // NOTE: نستخدم any لتفادي تعارض types قبل تحديثها تلقائياً بعد ترقية الجدول
+        const insertData: any = {
           admission_id: selectedAdmission?.id ?? null,
           unified_number: searchNumber.trim(),
-          patient_name: values.patient_name,
-          national_id: values.national_id,
-          phone: values.phone,
-          gender: values.gender as any,
-          marital_status: values.marital_status as any,
-          age: values.age,
+
+          // بيانات المريض (غير إلزامية)
+          patient_name: values.patient_name?.trim() ? values.patient_name.trim() : null,
+          national_id: values.national_id?.trim() ? values.national_id.trim() : null,
+          phone: values.phone?.trim() ? values.phone.trim() : null,
+          gender: values.gender ?? null,
+          marital_status: values.marital_status ?? null,
+          age: typeof values.age === "number" ? values.age : values.age ? Number(values.age) : null,
+
+          // قسم المناظير ثابت
           department_id: values.department_id,
+
           procedure_date: values.procedure_date,
           diagnosis_id: values.diagnosis_id ? values.diagnosis_id : null,
           doctor_id: values.doctor_id ? values.doctor_id : null,
@@ -566,6 +572,14 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           district_id: values.district_id ? values.district_id : null,
           station_id: values.station_id ? values.station_id : null,
           address_details: values.address_details ? values.address_details : null,
+
+          // بيانات الدخول + الخروج (Snapshot)
+          admission_date: values.admission_date ? values.admission_date : null,
+          discharge_date: values.discharge_date ? values.discharge_date : null,
+          discharge_status: values.discharge_status ?? null,
+          discharge_department_id: values.discharge_department_id ? values.discharge_department_id : null,
+          discharge_diagnosis_id: values.discharge_diagnosis_id ? values.discharge_diagnosis_id : null,
+          discharge_doctor_id: values.discharge_doctor_id ? values.discharge_doctor_id : null,
         };
 
         const { data, error } = await supabase
@@ -580,7 +594,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
         queryClient.invalidateQueries({ queryKey: ["endoscopies"] });
         queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
         showSuccessNotification({
-          patient_name: data.patient_name,
+          patient_name: data.patient_name || "-",
           unified_number: data.unified_number,
           internal_number: data.internal_number,
           label: "مناظير",
@@ -746,6 +760,28 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
              </div>
            </CardContent>
          </Card>
+
+          {/* ملخص الرقم الموحد (للمناظير) */}
+          {activeTab === "endoscopy" && (selectedAdmission || endoscopyNewMode) && searchNumber.trim() && (
+            <Card className="shadow-lg border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">ملخص سريع</CardTitle>
+                <CardDescription>عرض فقط — نفس الرقم الذي تم البحث عنه</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-3 text-sm">
+                  <div className="p-2 rounded-md bg-secondary/30">
+                    <div className="text-xs font-semibold text-muted-foreground mb-1">الرقم الموحد</div>
+                    <div className="font-bold tabular-nums" dir="ltr">{searchNumber.trim()}</div>
+                  </div>
+                  <div className="p-2 rounded-md bg-secondary/30 md:col-span-2">
+                    <div className="text-xs font-semibold text-muted-foreground mb-1">اسم المريض</div>
+                    <div className="font-semibold truncate">{selectedAdmission?.patient_name || "-"}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
  
          {/* Patient Data Display Card */}
          {selectedAdmission && (
@@ -1581,7 +1617,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                       gender: (selectedAdmission.gender as any) ?? "ذكر",
                       marital_status: (selectedAdmission.marital_status as any) ?? "أعزب",
                       age: selectedAdmission.age ?? 0,
-                      department_id: selectedAdmission.department_id,
+                      // تأكيد قسم المناظير
+                      department_id: endoscopyDepartments?.[0]?.id ?? selectedAdmission.department_id,
                       diagnosis_id: selectedAdmission.diagnosis_id ?? "",
                       doctor_id: selectedAdmission.doctor_id ?? "",
                       occupation_id: selectedAdmission.occupation_id ?? "",
@@ -1589,6 +1626,9 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                       district_id: selectedAdmission.district_id ?? "",
                       station_id: selectedAdmission.station_id ?? "",
                       address_details: selectedAdmission.address_details ?? "",
+                      admission_date: selectedAdmission.admission_date
+                        ? new Date(selectedAdmission.admission_date).toISOString().slice(0, 16)
+                        : "",
                     }
                   : undefined
               }
