@@ -17,14 +17,11 @@ export default function Records() {
   const [activeTab, setActiveTab] = useState(
     "admissions_internal" as
       | "admissions_internal"
-      | "emergencies"
       | "endoscopies"
       | "reception"
       | "dialysis"
-      | "paracentesis_men"
-      | "paracentesis_women"
-      | "loans_men"
-      | "loans_women",
+      | "paracentesis"
+      | "loans",
   );
 
   // Fetch admissions
@@ -47,32 +44,6 @@ export default function Records() {
 
       if (searchTerm) {
         query = query.or(`patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%,internal_number.eq.${searchTerm}`);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Fetch emergencies
-  const { data: emergencies, isLoading: emergenciesLoading } = useQuery({
-    queryKey: ["emergencies", searchTerm],
-    queryFn: async () => {
-      let query = supabase
-        .from("emergencies")
-        .select(`
-          *,
-          department:departments(name),
-          governorate:governorates(name),
-          district:districts(name),
-          diagnosis:diagnoses(name),
-          doctor:doctors(name)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (searchTerm) {
-        query = query.or(`patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;
@@ -165,40 +136,20 @@ export default function Records() {
     return {
       reception: list.filter((p) => (p?.procedure_type as ProcedureType | null) === "استقبال"),
       dialysis: list.filter((p) => (p?.procedure_type as ProcedureType | null) === "كلي"),
-      paracentesis_men: list.filter(
-        (p) =>
-          (p?.procedure_type as ProcedureType | null) === "بذل" &&
-          (p?.department?.name ?? "") === "رجال بذل بطن",
-      ),
-      paracentesis_women: list.filter(
-        (p) =>
-          (p?.procedure_type as ProcedureType | null) === "بذل" &&
-          (p?.department?.name ?? "") === "بذل حريم بطن",
-      ),
+      paracentesis: list.filter((p) => (p?.procedure_type as ProcedureType | null) === "بذل"),
     };
   }, [procedures]);
-
-  const loansByDepartment = useMemo(() => {
-    const list = (loans as any[]) ?? [];
-    return {
-      loans_men: list.filter((l) => (l?.borrowed_to_department ?? "") === "رجال بذل بطن"),
-      loans_women: list.filter((l) => (l?.borrowed_to_department ?? "") === "بذل حريم بطن"),
-    };
-  }, [loans]);
 
   const tabCounts = useMemo(() => {
     return {
       admissions_internal: admissionsInternal.length,
-      emergencies: (emergencies as any[])?.length ?? 0,
       endoscopies: (endoscopies as any[])?.length ?? 0,
       reception: proceduresOfType.reception.length,
       dialysis: proceduresOfType.dialysis.length,
-      paracentesis_men: proceduresOfType.paracentesis_men.length,
-      paracentesis_women: proceduresOfType.paracentesis_women.length,
-      loans_men: loansByDepartment.loans_men.length,
-      loans_women: loansByDepartment.loans_women.length,
+      paracentesis: proceduresOfType.paracentesis.length,
+      loans: (loans as any[])?.length ?? 0,
     };
-  }, [admissionsInternal, emergencies, endoscopies, loansByDepartment, proceduresOfType]);
+  }, [admissionsInternal, endoscopies, loans, proceduresOfType]);
 
   return (
     <Layout>
@@ -227,16 +178,13 @@ export default function Records() {
           }}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
             <TabsTrigger value="admissions_internal">الحجز الداخلي ({tabCounts.admissions_internal})</TabsTrigger>
-            <TabsTrigger value="emergencies">الطوارئ ({tabCounts.emergencies})</TabsTrigger>
             <TabsTrigger value="endoscopies">المناظير ({tabCounts.endoscopies})</TabsTrigger>
             <TabsTrigger value="reception">الاستقبال ({tabCounts.reception})</TabsTrigger>
             <TabsTrigger value="dialysis">الغسيل الكلوي ({tabCounts.dialysis})</TabsTrigger>
-            <TabsTrigger value="paracentesis_men">البذل - رجال ({tabCounts.paracentesis_men})</TabsTrigger>
-            <TabsTrigger value="paracentesis_women">البذل - حريم ({tabCounts.paracentesis_women})</TabsTrigger>
-            <TabsTrigger value="loans_men">الاستعارات - رجال ({tabCounts.loans_men})</TabsTrigger>
-            <TabsTrigger value="loans_women">الاستعارات - حريم ({tabCounts.loans_women})</TabsTrigger>
+            <TabsTrigger value="paracentesis">البذل ({tabCounts.paracentesis})</TabsTrigger>
+            <TabsTrigger value="loans">الاستعارات ({tabCounts.loans})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="admissions_internal" className="mt-6">
@@ -291,53 +239,6 @@ export default function Records() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={11} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="emergencies" className="mt-6">
-            <div className="rounded-lg border bg-card">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>الرقم الموحد</TableHead>
-                      <TableHead>اسم المريض</TableHead>
-                      <TableHead>الرقم القومي</TableHead>
-                      <TableHead>النوع</TableHead>
-                      <TableHead>السن</TableHead>
-                      <TableHead>القسم</TableHead>
-                      <TableHead>التشخيص</TableHead>
-                      <TableHead>الطبيب</TableHead>
-                      <TableHead>تاريخ الزيارة</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {emergenciesLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
-                      </TableRow>
-                    ) : emergencies && emergencies.length > 0 ? (
-                      emergencies.map((emergency: any) => (
-                        <TableRow key={emergency.id}>
-                          <TableCell>{emergency.unified_number}</TableCell>
-                          <TableCell>{emergency.patient_name}</TableCell>
-                          <TableCell>{emergency.national_id}</TableCell>
-                          <TableCell>{emergency.gender}</TableCell>
-                          <TableCell>{emergency.age}</TableCell>
-                          <TableCell>{emergency.department?.name}</TableCell>
-                          <TableCell>{emergency.diagnosis?.name || '-'}</TableCell>
-                          <TableCell>{emergency.doctor?.name || '-'}</TableCell>
-                          <TableCell>{format(new Date(emergency.visit_date), 'dd/MM/yyyy HH:mm')}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -487,7 +388,7 @@ export default function Records() {
             </div>
           </TabsContent>
 
-          <TabsContent value="paracentesis_men" className="mt-6">
+          <TabsContent value="paracentesis" className="mt-6">
             <div className="rounded-lg border bg-card">
               <div className="overflow-x-auto">
                 <Table>
@@ -509,8 +410,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : proceduresOfType.paracentesis_men.length > 0 ? (
-                      proceduresOfType.paracentesis_men.map((procedure: any) => (
+                    ) : proceduresOfType.paracentesis.length > 0 ? (
+                      proceduresOfType.paracentesis.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -534,54 +435,7 @@ export default function Records() {
             </div>
           </TabsContent>
 
-          <TabsContent value="paracentesis_women" className="mt-6">
-            <div className="rounded-lg border bg-card">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>الرقم الموحد</TableHead>
-                      <TableHead>اسم المريض</TableHead>
-                      <TableHead>الرقم القومي</TableHead>
-                      <TableHead>النوع</TableHead>
-                      <TableHead>السن</TableHead>
-                      <TableHead>القسم</TableHead>
-                      <TableHead>التشخيص</TableHead>
-                      <TableHead>الطبيب</TableHead>
-                      <TableHead>تاريخ الإجراء</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {proceduresLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
-                      </TableRow>
-                    ) : proceduresOfType.paracentesis_women.length > 0 ? (
-                      proceduresOfType.paracentesis_women.map((procedure: any) => (
-                        <TableRow key={procedure.id}>
-                          <TableCell>{procedure.unified_number}</TableCell>
-                          <TableCell>{procedure.patient_name}</TableCell>
-                          <TableCell>{procedure.national_id}</TableCell>
-                          <TableCell>{procedure.gender}</TableCell>
-                          <TableCell>{procedure.age}</TableCell>
-                          <TableCell>{procedure.department?.name}</TableCell>
-                          <TableCell>{procedure.diagnosis?.name || "-"}</TableCell>
-                          <TableCell>{procedure.doctor?.name || "-"}</TableCell>
-                          <TableCell>{format(new Date(procedure.procedure_date), "dd/MM/yyyy HH:mm")}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="loans_men" className="mt-6">
+          <TabsContent value="loans" className="mt-6">
             <div className="rounded-lg border bg-card">
               <div className="overflow-x-auto">
                 <Table>
@@ -602,8 +456,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : loansByDepartment.loans_men.length > 0 ? (
-                      loansByDepartment.loans_men.map((loan: any) => (
+                    ) : loans && loans.length > 0 ? (
+                      loans.map((loan: any) => (
                         <TableRow key={loan.id}>
                           <TableCell>{loan.unified_number}</TableCell>
                           <TableCell>{loan.internal_number}</TableCell>
@@ -617,63 +471,6 @@ export default function Records() {
                               loan.is_returned ? 'bg-status-discharged text-status-discharged' : 'bg-status-pending text-status-pending'
                             }`}>
                               {loan.is_returned ? 'تم الإرجاع' : 'مستعار'}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="loans_women" className="mt-6">
-            <div className="rounded-lg border bg-card">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>الرقم الموحد</TableHead>
-                      <TableHead>الرقم الداخلي</TableHead>
-                      <TableHead>اسم المريض</TableHead>
-                      <TableHead>المستعار</TableHead>
-                      <TableHead>القسم المستعار إليه</TableHead>
-                      <TableHead>تاريخ الاستعارة</TableHead>
-                      <TableHead>تاريخ الإرجاع</TableHead>
-                      <TableHead>الحالة</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loansLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
-                      </TableRow>
-                    ) : loansByDepartment.loans_women.length > 0 ? (
-                      loansByDepartment.loans_women.map((loan: any) => (
-                        <TableRow key={loan.id}>
-                          <TableCell>{loan.unified_number}</TableCell>
-                          <TableCell>{loan.internal_number}</TableCell>
-                          <TableCell>{loan.admission?.patient_name}</TableCell>
-                          <TableCell>{loan.borrowed_by}</TableCell>
-                          <TableCell>{loan.borrowed_to_department}</TableCell>
-                          <TableCell>{format(new Date(loan.loan_date), "dd/MM/yyyy HH:mm")}</TableCell>
-                          <TableCell>
-                            {loan.return_date ? format(new Date(loan.return_date), "dd/MM/yyyy HH:mm") : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                loan.is_returned
-                                  ? "bg-status-discharged text-status-discharged"
-                                  : "bg-status-pending text-status-pending"
-                              }`}
-                            >
-                              {loan.is_returned ? "تم الإرجاع" : "مستعار"}
                             </span>
                           </TableCell>
                         </TableRow>
