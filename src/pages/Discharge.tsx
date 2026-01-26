@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "@/components/ui/sonner";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit } from "lucide-react";
@@ -332,12 +333,33 @@ export default function Discharge() {
       queryClient.invalidateQueries({ queryKey: ["admissions"] });
       queryClient.invalidateQueries({ queryKey: ["discharges"] });
       queryClient.invalidateQueries({ queryKey: ["discharges-counts"] });
-      toast({
-        title: "تم الحفظ بنجاح",
-        description: data?.internalNumber 
-          ? `تم تسجيل خروج المريض ${data.admission.patient_name}\n\n🔢 الرقم الداخلي: ${data.internalNumber}`
-          : `تم تسجيل خروج المريض ${data?.admission.patient_name}`,
+
+      // Professional top-left success notification (Sonner is configured globally as top-left)
+      sonnerToast.success("تم الحفظ بنجاح", {
+        duration: 10000,
+        description: (
+          <div dir="rtl" className="space-y-2 text-right">
+            <div className="text-sm text-muted-foreground">تم تسجيل خروج الحالة بنجاح</div>
+            <div className="grid gap-2 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs text-muted-foreground">اسم المريض</span>
+                <span className="font-bold text-foreground truncate">{data?.admission?.patient_name}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs text-muted-foreground">الرقم الموحد</span>
+                <span className="font-semibold text-foreground" dir="ltr">{data?.admission?.unified_number}</span>
+              </div>
+              {data?.internalNumber ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">الرقم الداخلي</span>
+                  <span className="text-base font-extrabold text-foreground" dir="ltr">🔢 {data.internalNumber}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ),
       });
+
       // Reset form
       setSelectedAdmission(null);
       setUnifiedNumber("");
