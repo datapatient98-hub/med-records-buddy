@@ -205,35 +205,35 @@ export default function Records() {
 
     const admissionIds = (admissionsForUn ?? []).map((a: any) => a.id).filter(Boolean);
 
-    const [disRes, endRes, procRes] = await Promise.all([
+    const [disRes, procRes, loansRes] = await Promise.all([
       admissionIds.length
         ? supabase
             .from("discharges")
-            .select("id, admission_id, discharge_date, discharge_status, internal_number")
+            .select("*")
             .in("admission_id", admissionIds)
             .order("discharge_date", { ascending: false })
         : Promise.resolve({ data: [], error: null } as any),
       supabase
-        .from("endoscopies")
-        .select("id, unified_number, internal_number, discharge_status, discharge_status_other, procedure_date")
+        .from("procedures")
+        .select("*")
         .eq("unified_number", unifiedNumber)
         .order("procedure_date", { ascending: false }),
       supabase
-        .from("procedures")
-        .select("id, unified_number, internal_number, procedure_type, procedure_date")
+        .from("file_loans")
+        .select("*")
         .eq("unified_number", unifiedNumber)
-        .order("procedure_date", { ascending: false }),
+        .order("loan_date", { ascending: false }),
     ]);
 
     if (disRes.error) throw disRes.error;
-    if (endRes.error) throw endRes.error;
     if (procRes.error) throw procRes.error;
+    if (loansRes.error) throw loansRes.error;
 
     setExitPayload({
       unified_number: unifiedNumber,
       discharges: disRes.data ?? [],
-      endoscopies: endRes.data ?? [],
       procedures: procRes.data ?? [],
+      loans: loansRes.data ?? [],
     });
     setExitOpen(true);
   };
@@ -309,11 +309,13 @@ export default function Records() {
                             {dischargesLoading ? (
                               <span className="text-sm text-muted-foreground">...</span>
                             ) : unifiedExitFlag.get(admission.unified_number) ? (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-status-discharged text-status-discharged">
+                              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold bg-status-discharged text-status-discharged">
+                                <span className="h-2.5 w-2.5 rounded-full bg-status-discharged" />
                                 خرج
                               </span>
                             ) : (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-status-active text-status-active">
+                              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold bg-status-active text-status-active">
+                                <span className="h-2.5 w-2.5 rounded-full bg-status-active" />
                                 محجوز
                               </span>
                             )}
