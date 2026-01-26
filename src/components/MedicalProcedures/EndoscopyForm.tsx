@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SearchableSelect from "@/components/SearchableSelect";
 import { Save } from "lucide-react";
+import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
+import LookupManageDialog from "@/components/LookupManageDialog";
 
 type Option = { id: string; name: string };
 
@@ -37,6 +39,8 @@ type Props = {
   unifiedNumber: string;
   defaultValues?: Partial<EndoscopyFormValues>;
   departments: Option[];
+  /** Full departments list for إدارة القوائم (حتى لو الحقل نفسه فلتر) */
+  manageDepartments?: Option[];
   doctors: Option[];
   diagnoses: Option[];
   occupations: Option[];
@@ -51,6 +55,7 @@ export default function EndoscopyForm({
   unifiedNumber,
   defaultValues,
   departments,
+  manageDepartments,
   doctors,
   diagnoses,
   occupations,
@@ -83,6 +88,35 @@ export default function EndoscopyForm({
   });
 
   const districtOptions = useMemo(() => districts ?? [], [districts]);
+
+  const [createType, setCreateType] = useState<LookupCreateType | null>(null);
+  const [manageType, setManageType] = useState<LookupCreateType | null>(null);
+
+  const governorateId = form.watch("governorate_id") || "";
+
+  const typeToField: Partial<Record<LookupCreateType, keyof EndoscopyFormValues>> = {
+    diagnosis: "diagnosis_id",
+    doctor: "doctor_id",
+    occupation: "occupation_id",
+    governorate: "governorate_id",
+    district: "district_id",
+    station: "station_id",
+    department: "department_id",
+  };
+
+  const itemsForManage = useMemo(() => {
+    const map: Record<LookupCreateType, Option[]> = {
+      department: manageDepartments ?? departments,
+      diagnosis: diagnoses,
+      doctor: doctors,
+      governorate: governorates,
+      occupation: occupations,
+      station: stations,
+      district: districts,
+      hospital: [],
+    };
+    return map;
+  }, [departments, diagnoses, doctors, districts, governorates, manageDepartments, occupations, stations]);
 
   return (
     <Card className="shadow-lg border-border">
@@ -211,6 +245,9 @@ export default function EndoscopyForm({
                         options={departments}
                         placeholder="اختر القسم"
                         emptyText="لا توجد أقسام"
+                        onAddNew={() => setCreateType("department")}
+                        onManage={() => setManageType("department")}
+                        addNewLabel="إضافة قسم"
                       />
                     </FormControl>
                     <FormMessage />
@@ -245,6 +282,9 @@ export default function EndoscopyForm({
                         options={diagnoses}
                         placeholder="اختر التشخيص"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("diagnosis")}
+                        onManage={() => setManageType("diagnosis")}
+                        addNewLabel="إضافة تشخيص"
                       />
                     </FormControl>
                     <FormMessage />
@@ -265,6 +305,9 @@ export default function EndoscopyForm({
                         options={doctors}
                         placeholder="اختر الطبيب"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("doctor")}
+                        onManage={() => setManageType("doctor")}
+                        addNewLabel="إضافة طبيب"
                       />
                     </FormControl>
                     <FormMessage />
@@ -285,6 +328,9 @@ export default function EndoscopyForm({
                         options={occupations}
                         placeholder="اختر المهنة"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("occupation")}
+                        onManage={() => setManageType("occupation")}
+                        addNewLabel="إضافة مهنة"
                       />
                     </FormControl>
                     <FormMessage />
@@ -305,6 +351,9 @@ export default function EndoscopyForm({
                         options={governorates}
                         placeholder="اختر المحافظة"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("governorate")}
+                        onManage={() => setManageType("governorate")}
+                        addNewLabel="إضافة محافظة"
                       />
                     </FormControl>
                     <FormMessage />
@@ -325,6 +374,9 @@ export default function EndoscopyForm({
                         options={districtOptions}
                         placeholder="اختر المركز"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("district")}
+                        onManage={() => setManageType("district")}
+                        addNewLabel="إضافة مركز"
                       />
                     </FormControl>
                     <FormMessage />
@@ -345,6 +397,9 @@ export default function EndoscopyForm({
                         options={stations}
                         placeholder="اختر المحطة"
                         emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("station")}
+                        onManage={() => setManageType("station")}
+                        addNewLabel="إضافة محطة"
                       />
                     </FormControl>
                     <FormMessage />
@@ -376,6 +431,37 @@ export default function EndoscopyForm({
           </form>
         </Form>
       </CardContent>
+
+      {createType && (
+        <LookupCreateDialog
+          open={!!createType}
+          type={createType}
+          onOpenChange={(open) => {
+            if (!open) setCreateType(null);
+          }}
+          context={
+            createType === "district" && governorateId
+              ? { governorate_id: governorateId }
+              : undefined
+          }
+          onCreated={(item) => {
+            const field = typeToField[createType];
+            if (field) form.setValue(field as any, item.id as any);
+            setCreateType(null);
+          }}
+        />
+      )}
+
+      {manageType && (
+        <LookupManageDialog
+          open={!!manageType}
+          type={manageType}
+          onOpenChange={(open) => {
+            if (!open) setManageType(null);
+          }}
+          items={itemsForManage[manageType] || []}
+        />
+      )}
     </Card>
   );
 }
