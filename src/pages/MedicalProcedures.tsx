@@ -362,6 +362,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       unified_number: string;
       internal_number: number;
       label: string;
+      created_at?: string | null;
     }) => {
       playSuccessSound();
         sonnerToast.custom(
@@ -393,6 +394,13 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                   <span className="text-xs font-semibold text-muted-foreground">الرقم الداخلي</span>
                   <span className="text-lg font-black tabular-nums" dir="ltr">
                     🔢 {payload.internal_number}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2 mt-2 border-t">
+                  <span className="text-xs font-semibold text-muted-foreground">تاريخ ووقت التسجيل</span>
+                  <span className="text-sm font-bold tabular-nums" dir="ltr">
+                    {payload.created_at ? new Date(payload.created_at).toLocaleString("ar-EG") : "-"}
                   </span>
                 </div>
               </div>
@@ -546,6 +554,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           unified_number: data.unified_number,
           internal_number: data.internal_number,
           label: typeLabel,
+          created_at: (data as any).created_at ?? null,
         });
       
       // Reset form and clear selection
@@ -631,6 +640,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           unified_number: data.unified_number,
           internal_number: data.internal_number,
           label: "مناظير",
+          created_at: (data as any).created_at ?? null,
         });
 
         setSelectedAdmission(null);
@@ -987,6 +997,18 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                <Form {...form}>
                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormItem>
+                        <FormLabel>تاريخ ووقت التسجيل (تلقائي)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="datetime-local"
+                            value={new Date().toISOString().slice(0, 16)}
+                            readOnly
+                            aria-readonly
+                          />
+                        </FormControl>
+                      </FormItem>
+
                      <FormField
                        control={form.control}
                        name="diagnosis_id"

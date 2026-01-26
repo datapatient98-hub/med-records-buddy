@@ -59,6 +59,7 @@ export default function Discharge() {
   const [showOccupationDialog, setShowOccupationDialog] = useState(false);
   const [showOccupationManage, setShowOccupationManage] = useState(false);
   const [isEmergencyFile, setIsEmergencyFile] = useState(false);
+  const [registrationAt, setRegistrationAt] = useState(() => new Date().toISOString().slice(0, 16));
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -302,7 +303,7 @@ export default function Discharge() {
           finance_source: values.finance_source as any || null,
           child_national_id: values.child_national_id || null,
         }])
-        .select("internal_number")
+        .select("internal_number, created_at")
         .single();
 
       if (dischargeError) throw dischargeError;
@@ -317,7 +318,8 @@ export default function Discharge() {
 
       return { 
         admission: selectedAdmission, 
-        internalNumber: dischargeData?.internal_number 
+        internalNumber: dischargeData?.internal_number,
+        createdAt: (dischargeData as any)?.created_at as string | null,
       };
     },
     onSuccess: (data) => {
@@ -347,6 +349,13 @@ export default function Discharge() {
                 <span className="text-xl font-black tabular-nums" dir="ltr">🔢 {data.internalNumber}</span>
               </div>
             ) : null}
+
+            <div className="flex items-center justify-between gap-4 pt-2 border-t">
+              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">تاريخ ووقت التسجيل</span>
+              <span className="text-sm font-bold tabular-nums" dir="ltr">
+                {data?.createdAt ? new Date(data.createdAt).toLocaleString("ar-EG") : "-"}
+              </span>
+            </div>
           </div>
         </div>,
         {
@@ -534,7 +543,13 @@ export default function Discharge() {
                 <Edit className="ml-2 h-4 w-4" />
                 تعديل بيانات الدخول
               </Button>
-              <Button onClick={() => setShowDischargeForm(true)} className="flex-1">
+              <Button
+                onClick={() => {
+                  setRegistrationAt(new Date().toISOString().slice(0, 16));
+                  setShowDischargeForm(true);
+                }}
+                className="flex-1"
+              >
                 <ArrowRight className="ml-2 h-4 w-4" />
                 المتابعة لتسجيل الخروج
               </Button>
@@ -555,6 +570,13 @@ export default function Discharge() {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2">
+                  <FormItem>
+                    <FormLabel>تاريخ ووقت التسجيل (تلقائي)</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" value={registrationAt} readOnly aria-readonly />
+                    </FormControl>
+                  </FormItem>
+
                   <FormField
                     control={form.control}
                     name="discharge_date"
