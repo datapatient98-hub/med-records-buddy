@@ -8,9 +8,21 @@ export function buildExactRowKey(headers: string[], row: ExcelRow) {
 }
 
 export function dedupeExactRows(headers: string[], rows: ExcelRow[]) {
-  // تم تعطيل نظام إزالة التكرار - استيراد كل الصفوف كما هي
-  return { 
-    unique: rows, 
-    duplicates: [] as { row: ExcelRow; firstIndex: number; duplicateIndex: number }[]
-  };
+  const seen = new Map<string, number>();
+  const unique: ExcelRow[] = [];
+  const duplicates: { row: ExcelRow; firstIndex: number; duplicateIndex: number }[] = [];
+
+  rows.forEach((row, idx) => {
+    const key = buildExactRowKey(headers, row);
+    const firstIdx = seen.get(key);
+    
+    if (firstIdx === undefined) {
+      seen.set(key, idx);
+      unique.push(row);
+    } else {
+      duplicates.push({ row, firstIndex: firstIdx, duplicateIndex: idx });
+    }
+  });
+
+  return { unique, duplicates };
 }

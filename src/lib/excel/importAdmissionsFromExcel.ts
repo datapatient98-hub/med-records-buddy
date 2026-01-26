@@ -86,11 +86,19 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
   
   // الحصول على قسم افتراضي أولاً (أهم شيء)
   let defaultDepartmentId: string | null = null;
-  const { data: firstDept } = await supabase
+  console.log("🔍 محاولة جلب قسم افتراضي...");
+  
+  const { data: firstDept, error: deptError } = await supabase
     .from("departments")
     .select("id")
     .limit(1)
-    .single();
+    .maybeSingle();
+  
+  if (deptError) {
+    console.error("❌ خطأ في جلب الأقسام:", deptError);
+  }
+  
+  console.log("📋 نتيجة استعلام الأقسام:", { firstDept, deptError });
   
   if (firstDept?.id) {
     defaultDepartmentId = firstDept.id;
