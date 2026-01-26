@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
  import Layout from "@/components/Layout";
  import { useForm } from "react-hook-form";
  import { zodResolver } from "@hookform/resolvers/zod";
@@ -162,12 +162,32 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
      },
    });
  
- // Filter departments for discharge - only specific ones
- const dischargeDepartments = useMemo(() => {
-   if (!departments) return [];
-   const allowedNames = ["بذل رجال بطن", "غسيل كلوي", "استقبال"];
-   return departments.filter(d => allowedNames.includes(d.name));
- }, [departments]);
+  const getDepartmentsByName = (names: string[]) => {
+    const list = departments ?? [];
+    return list.filter((d) => names.includes(d.name));
+  };
+
+  const findDepartmentIdByName = (names: string[]) => {
+    const match = (departments ?? []).find((d) => names.includes(d.name));
+    return match?.id;
+  };
+
+  const dischargeDepartments = useMemo(() => {
+    // قسم الخروج حسب التبويب
+    if (!departments) return [];
+
+    if (activeTab === "kidney") return getDepartmentsByName(["الغسيل الكلوي", "غسيل كلوي"]);
+    if (activeTab === "reception") return getDepartmentsByName(["الاستقبال", "استقبال"]);
+    if (activeTab === "endoscopy") return getDepartmentsByName(["المناظير", "مناظير"]);
+
+    // procedure (البذل)
+    return getDepartmentsByName(["بذل حريم بطن", "رجال بذل بطن", "بذل رجال بطن"]);
+  }, [activeTab, departments]);
+
+  const endoscopyDepartments = useMemo(() => {
+    if (!departments) return [];
+    return getDepartmentsByName(["المناظير", "مناظير"]);
+  }, [departments]);
 
  // Status options for procedures
  const statusOptions = useMemo(() => [
@@ -254,10 +274,11 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     },
   });
  
-    const handleSearch = async () => {
+     const handleSearch = async () => {
      if (!searchNumber.trim()) {
       sonnerToast.error("الرجاء إدخال الرقم الموحد", {
         description: "يجب إدخال الرقم الموحد للبحث عن المريض",
+         duration: 5000,
       });
        return;
      }
@@ -280,9 +301,10 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           return;
         }
 
-        sonnerToast.error("لم يتم العثور على المريض", {
-          description: "تأكد من الرقم الموحد",
-        });
+         sonnerToast.error("لم يتم العثور على المريض", {
+           description: "تأكد من الرقم الموحد",
+           duration: 5000,
+         });
         setSelectedAdmission(null);
         return;
       }
@@ -296,6 +318,15 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     form.setValue("procedure_status", "");
     form.setValue("hospital_id", "");
     form.setValue("transferred_from_department_id", "");
+
+      // تعيين قسم الخروج افتراضياً حسب التبويب
+      if (activeTab === "kidney") {
+        const id = findDepartmentIdByName(["الغسيل الكلوي", "غسيل كلوي"]);
+        if (id) form.setValue("discharge_department_id", id);
+      } else if (activeTab === "reception") {
+        const id = findDepartmentIdByName(["الاستقبال", "استقبال"]);
+        if (id) form.setValue("discharge_department_id", id);
+      }
     
     sonnerToast.success("✓ تم تحميل بيانات المريض بنجاح", {
       description: `${data.patient_name} - ${data.unified_number}`,
@@ -310,42 +341,41 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       label: string;
     }) => {
       playSuccessSound();
-      sonnerToast.success(
-        <div dir="rtl" className="space-y-3 text-right">
-          <div>
-            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
-            <div className="text-sm opacity-90 mt-1">تم تسجيل {payload.label} بنجاح</div>
-          </div>
-          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
-              <span className="font-extrabold text-base truncate max-w-[200px]">{payload.patient_name}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
-              <span className="font-bold text-base tabular-nums" dir="ltr">
-                {payload.unified_number}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
-              <span className="text-xl font-black tabular-nums" dir="ltr">
-                🔢 {payload.internal_number}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => navigate("/records")}
-            className="w-full mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-md font-semibold text-sm hover:bg-primary/90 transition-colors"
-          >
-            📂 فتح صفحة السجلات
-          </button>
-        </div>,
-        {
-          duration: 10000,
-          className: "w-[420px]",
-        }
-      );
+       sonnerToast.success(
+         <div dir="rtl" className="space-y-3 text-right">
+           <div className="space-y-1">
+             <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+             <div className="text-sm text-muted-foreground">تم تسجيل {payload.label} بنجاح</div>
+           </div>
+
+           <div className="rounded-lg border bg-card/50 p-4">
+             <div className="flex items-center justify-between gap-3 pb-2 border-b">
+               <span className="text-xs font-semibold text-muted-foreground">اسم المريض</span>
+               <span className="font-bold truncate max-w-[220px]">{payload.patient_name}</span>
+             </div>
+             <div className="flex items-center justify-between gap-3 py-2 border-b">
+               <span className="text-xs font-semibold text-muted-foreground">الرقم الموحد</span>
+               <span className="font-bold tabular-nums" dir="ltr">{payload.unified_number}</span>
+             </div>
+             <div className="flex items-center justify-between gap-3 pt-2">
+               <span className="text-xs font-semibold text-muted-foreground">الرقم الداخلي</span>
+               <span className="text-lg font-black tabular-nums" dir="ltr">🔢 {payload.internal_number}</span>
+             </div>
+           </div>
+
+           <Button
+             type="button"
+             className="w-full"
+             onClick={() => navigate("/records")}
+           >
+             📂 فتح صفحة السجلات
+           </Button>
+         </div>,
+         {
+           duration: 5000,
+           className: "w-[380px]",
+         }
+       );
     };
  
    const editAdmissionMutation = useMutation({
@@ -437,15 +467,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           kidney: "كلي",
        };
  
-        const departmentMap: Record<Exclude<ProcedureType, "endoscopy">, string> = {
-         procedure: "بذل",
-         reception: "استقبال",
-          kidney: "كلي",
-       };
-       
-        const safeTab = activeTab as Exclude<ProcedureType, "endoscopy">;
-        const targetDeptName = departmentMap[safeTab];
-       const targetDept = departments?.find(d => d.name === targetDeptName);
+         const safeTab = activeTab as Exclude<ProcedureType, "endoscopy">;
  
        const insertData: any = {
          admission_id: selectedAdmission.id,
@@ -456,7 +478,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          marital_status: selectedAdmission.marital_status,
          phone: selectedAdmission.phone,
          age: selectedAdmission.age,
-         department_id: targetDept?.id || selectedAdmission.department_id,
+          // قسم الدخول = بيانات الدخول التي تم تحميلها
+          department_id: selectedAdmission.department_id,
          procedure_date: values.procedure_date,
           procedure_type: typeMap[safeTab],
          occupation_id: selectedAdmission.occupation_id || null,
@@ -485,7 +508,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        queryClient.invalidateQueries({ queryKey: ["procedures"] });
        queryClient.invalidateQueries({ queryKey: ["procedures-counts"] });
       queryClient.invalidateQueries({ queryKey: ["procedures-status-counts"] });
-       const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
+        const typeLabel = activeTab === "procedure" ? "بذل" : activeTab === "reception" ? "استقبال" : "كلي";
 
         showSuccessNotification({
           patient_name: data.patient_name,
@@ -575,6 +598,30 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
      setActiveTab(newTab);
       if (newTab !== "endoscopy") setEndoscopyNewMode(false);
    };
+
+    // عند تغيير التبويب: ثبت/فلتر قسم الخروج حسب المطلوب
+    useEffect(() => {
+      if (!departments) return;
+
+      if (activeTab === "kidney") {
+        const id = findDepartmentIdByName(["الغسيل الكلوي", "غسيل كلوي"]);
+        if (id) form.setValue("discharge_department_id", id);
+        return;
+      }
+
+      if (activeTab === "reception") {
+        const id = findDepartmentIdByName(["الاستقبال", "استقبال"]);
+        if (id) form.setValue("discharge_department_id", id);
+        return;
+      }
+
+      if (activeTab === "procedure") {
+        // لو القيمة الحالية ليست ضمن (رجال/حريم) امسحها
+        const allowed = new Set(getDepartmentsByName(["بذل حريم بطن", "رجال بذل بطن", "بذل رجال بطن"]).map((d) => d.id));
+        const current = form.getValues("discharge_department_id") || "";
+        if (current && !allowed.has(current)) form.setValue("discharge_department_id", "");
+      }
+    }, [activeTab, departments]);
  
    const getTabInfo = () => {
      switch (activeTab) {
@@ -1528,7 +1575,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                     }
                   : undefined
               }
-              departments={departments || []}
+              // نفس فكرة التبويب: المناظير فقط
+              departments={endoscopyDepartments}
               doctors={doctors || []}
               diagnoses={diagnoses || []}
               occupations={occupations || []}
