@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
@@ -61,6 +61,7 @@ export default function Dashboard() {
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
   const [exportType, setExportType] = useState<ExportType>("all");
+  const [autoRefresh, setAutoRefresh] = useState(true);
   
   // Chart visibility toggles - merged procedures (بذل) into emergencies
   const [visibleSeries, setVisibleSeries] = useState({
@@ -90,6 +91,33 @@ export default function Dashboard() {
   };
 
   const dateRange = getDateRange();
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const t = window.setInterval(() => {
+      // Avoid spamming: just invalidate; react-query will refetch active queries.
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const key0 = Array.isArray(q.queryKey) ? (q.queryKey[0] as string) : "";
+          return (
+            key0 === "admissions-period" ||
+            key0 === "discharges-period" ||
+            key0 === "emergencies-period" ||
+            key0 === "endoscopies-period" ||
+            key0 === "procedures-period" ||
+            key0 === "active-admissions" ||
+            key0 === "departments" ||
+            key0 === "loans-period" ||
+            key0 === "unreturned-loans" ||
+            key0 === "previous-admissions" ||
+            key0 === "previous-discharges"
+          );
+        },
+      });
+    }, 30_000);
+
+    return () => window.clearInterval(t);
+  }, [autoRefresh, queryClient]);
 
   // Fetch all data
   const { data: admissionsData } = useQuery({
@@ -437,6 +465,14 @@ export default function Dashboard() {
               }}
             >
               تحديث الأرقام
+            </Button>
+
+            <Button
+              variant={autoRefresh ? "default" : "outline"}
+              size="sm"
+              onClick={() => setAutoRefresh((v) => !v)}
+            >
+              {autoRefresh ? "إيقاف التحديث التلقائي" : "تشغيل التحديث التلقائي"}
             </Button>
             {[
               { key: "today", label: "اليوم" },
