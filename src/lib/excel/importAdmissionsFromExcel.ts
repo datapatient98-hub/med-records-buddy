@@ -74,24 +74,57 @@ export type AdmissionsImportResult = {
 };
 
 export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Promise<AdmissionsImportResult> {
-  const [depMap, govMap, distMap, stationMap, occMap, diagMap, docMap] = await Promise.all([
-    loadLookupMap("departments"),
-    loadLookupMap("governorates"),
-    loadLookupMap("districts"),
-    loadLookupMap("stations"),
-    loadLookupMap("occupations"),
-    loadLookupMap("diagnoses"),
-    loadLookupMap("doctors"),
-  ]);
-
-  // الحصول على قسم افتراضي (أول قسم في القائمة) لاستخدامه عند عدم وجود قسم صحيح
+  // تحميل جداول البحث بشكل آمن مع معالجة الأخطاء
+  let depMap: Map<string, string>;
+  let govMap: Map<string, string>;
+  let distMap: Map<string, string>;
+  let stationMap: Map<string, string>;
+  let occMap: Map<string, string>;
+  let diagMap: Map<string, string>;
+  let docMap: Map<string, string>;
   let defaultDepartmentId: string | null = null;
-  if (depMap.size > 0) {
-    defaultDepartmentId = Array.from(depMap.values())[0];
+
+  try {
+    [depMap, govMap, distMap, stationMap, occMap, diagMap, docMap] = await Promise.all([
+      loadLookupMap("departments"),
+      loadLookupMap("governorates"),
+      loadLookupMap("districts"),
+      loadLookupMap("stations"),
+      loadLookupMap("occupations"),
+      loadLookupMap("diagnoses"),
+      loadLookupMap("doctors"),
+    ]);
+    
+    // الحصول على قسم افتراضي (أول قسم في القائمة) لاستخدامه عند عدم وجود قسم صحيح
+    if (depMap.size > 0) {
+      defaultDepartmentId = Array.from(depMap.values())[0];
+    }
+  } catch (error: any) {
+    console.error("خطأ في تحميل جداول البحث:", error);
+    // إذا فشل تحميل الجداول، نحاول الحصول على قسم افتراضي مباشرة من قاعدة البيانات
+    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
+    if (deptData?.id) {
+      defaultDepartmentId = deptData.id;
+    }
+    
+    // تهيئة الـ Maps الفارغة
+    depMap = new Map();
+    govMap = new Map();
+    distMap = new Map();
+    stationMap = new Map();
+    occMap = new Map();
+    diagMap = new Map();
+    docMap = new Map();
   }
 
+  // إذا لم نتمكن من الحصول على قسم افتراضي، نحصل عليه مباشرة
   if (!defaultDepartmentId) {
-    throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل من صفحة الإعدادات");
+    const { data: deptData } = await supabase.from("departments").select("id").limit(1).single();
+    if (deptData?.id) {
+      defaultDepartmentId = deptData.id;
+    } else {
+      throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل من صفحة الإعدادات");
+    }
   }
 
   const failed: { index: number; reason: string }[] = [];
