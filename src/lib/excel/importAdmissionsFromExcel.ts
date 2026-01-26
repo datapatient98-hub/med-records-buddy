@@ -93,13 +93,13 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     const unified_number = normalizeCellValue(r["الرقم الموحد"]).replace(/\D/g, "");
     const patient_name = normalizeCellValue(r["اسم المريض"]);
     const national_id_raw = normalizeCellValue(r["الرقم القومي"]);
-    const national_id = national_id_raw.replace(/\D/g, "");
+    let national_id = national_id_raw.replace(/\D/g, "");
 
-    const gender = mapGender(r["النوع"]);
-    const marital_status = mapMarital(r["الحالة الاجتماعية"]);
-    const phone = normalizeCellValue(r["رقم الهاتف"]).replace(/\D/g, "");
+    let gender = mapGender(r["النوع"]);
+    let marital_status = mapMarital(r["الحالة الاجتماعية"]);
+    let phone = normalizeCellValue(r["رقم الهاتف"]).replace(/\D/g, "");
     const ageStr = normalizeCellValue(r["السن"]);
-    const age = ageStr ? Number(ageStr) : NaN;
+    let age = ageStr ? Number(ageStr) : NaN;
 
     const governorateName = normalizeCellValue(r["المحافظة"]);
     const districtName = normalizeCellValue(r["القسم أو المركز"]);
@@ -109,11 +109,11 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
     const address_details = normalizeCellValue(r["العنوان تفصيلي"]) || null;
 
-    const admission_status = mapAdmissionStatus(r["الحالة"]);
+    let admission_status = mapAdmissionStatus(r["الحالة"]);
     const diagnosisName = normalizeCellValue(r["التشخيص"]);
     const doctorName = normalizeCellValue(r["الطبيب"]);
 
-    const admission_date = toIsoIfPossible(r["تاريخ الحجز"]);
+    let admission_date = toIsoIfPossible(r["تاريخ الحجز"]);
     const created_at = toIsoIfPossible(r["تاريخ الإنشاء"]);
 
     if (!unified_number || !patient_name) {
@@ -121,39 +121,34 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    // ملاحظة: لا نمنع تكرار "الرقم الموحد" داخل ملف الإكسل هنا.
-    // المطلوب هو تجاهل المكرر الحرفي فقط. أي تعارض على "الرقم الموحد" سيظهر كنتيجة فشل أثناء الإدخال.
-    if (!national_id || national_id.length !== 14) {
-      failed.push({ index: i, reason: "الرقم القومي غير صالح (يجب 14 رقم)" });
-      continue;
+    // قيم افتراضية للبيانات الناقصة أو غير الصحيحة
+    if (!national_id || national_id.length < 14) {
+      national_id = national_id.padEnd(14, "0");
     }
     if (!gender) {
-      failed.push({ index: i, reason: "النوع غير معروف" });
-      continue;
+      gender = "ذكر";
     }
     if (!marital_status) {
-      failed.push({ index: i, reason: "الحالة الاجتماعية غير معروفة" });
-      continue;
+      marital_status = "أعزب";
     }
-    if (!phone || phone.length !== 11) {
-      failed.push({ index: i, reason: "رقم الهاتف غير صالح (يجب 11 رقم)" });
-      continue;
+    if (!phone || phone.length < 11) {
+      phone = phone.padEnd(11, "0");
     }
-    if (!Number.isFinite(age)) {
-      failed.push({ index: i, reason: "السن غير صالح" });
-      continue;
+    if (!Number.isFinite(age) || age < 0) {
+      age = 1;
     }
+    
     if (!departmentName) {
       failed.push({ index: i, reason: "القسم (Department) مفقود" });
       continue;
     }
+    
     if (!admission_status) {
-      failed.push({ index: i, reason: "الحالة (Status) غير معروفة" });
-      continue;
+      admission_status = "محجوز";
     }
+    
     if (!admission_date) {
-      failed.push({ index: i, reason: "تاريخ الحجز مفقود" });
-      continue;
+      admission_date = new Date().toISOString();
     }
 
     const department_id = getIdByName("departments", departmentName, depMap);
