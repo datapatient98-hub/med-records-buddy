@@ -505,14 +505,14 @@ export default function Records() {
                               <span className="text-sm text-muted-foreground">...</span>
                             ) : unifiedExitFlag.get(admission.unified_number) ? (
                               <span className="inline-flex items-center gap-2">
-                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-discharged text-status-discharged font-extrabold text-base">
+                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-discharged text-primary-foreground font-extrabold text-base">
                                   خرج
                                 </span>
                                 <span className="text-sm font-semibold text-foreground">خرج</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-2">
-                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-active text-status-active font-extrabold text-base">
+                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-active text-primary-foreground font-extrabold text-base">
                                   محجوز
                                 </span>
                                 <span className="text-sm font-semibold text-foreground">محجوز</span>
@@ -525,11 +525,11 @@ export default function Records() {
                           <TableCell>{admission.age}</TableCell>
                           <TableCell>{admission.department?.name}</TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              admission.admission_status === 'محجوز' ? 'bg-status-active text-status-active' :
-                              admission.admission_status === 'خروج' ? 'bg-status-discharged text-status-discharged' :
-                              admission.admission_status === 'متوفى' ? 'bg-status-deceased text-status-deceased' :
-                              'bg-status-pending text-status-pending'
+                            <span className={`px-2 py-1 rounded text-xs font-medium text-primary-foreground ${
+                              admission.admission_status === 'محجوز' ? 'bg-status-active' :
+                              admission.admission_status === 'خروج' ? 'bg-status-discharged' :
+                              admission.admission_status === 'متوفى' ? 'bg-status-deceased' :
+                              'bg-status-pending'
                             }`}>
                               {admission.admission_status}
                             </span>
@@ -780,8 +780,8 @@ export default function Records() {
                           <TableCell>{format(new Date(loan.loan_date), 'dd/MM/yyyy HH:mm')}</TableCell>
                           <TableCell>{loan.return_date ? format(new Date(loan.return_date), 'dd/MM/yyyy HH:mm') : '-'}</TableCell>
                           <TableCell>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              loan.is_returned ? 'bg-status-discharged text-status-discharged' : 'bg-status-pending text-status-pending'
+                            <span className={`px-2 py-1 rounded text-xs font-medium text-primary-foreground ${
+                              loan.is_returned ? 'bg-status-discharged' : 'bg-status-pending'
                             }`}>
                               {loan.is_returned ? 'تم الإرجاع' : 'مستعار'}
                             </span>
