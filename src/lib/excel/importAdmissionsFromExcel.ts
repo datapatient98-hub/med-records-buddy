@@ -84,6 +84,16 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     loadLookupMap("doctors"),
   ]);
 
+  // الحصول على قسم افتراضي (أول قسم في القائمة) لاستخدامه عند عدم وجود قسم صحيح
+  let defaultDepartmentId: string | null = null;
+  if (depMap.size > 0) {
+    defaultDepartmentId = Array.from(depMap.values())[0];
+  }
+
+  if (!defaultDepartmentId) {
+    throw new Error("لا يوجد أقسام في قاعدة البيانات. يجب إضافة قسم واحد على الأقل من صفحة الإعدادات");
+  }
+
   const failed: { index: number; reason: string }[] = [];
   const payloads: any[] = [];
 
@@ -138,11 +148,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       age = 1;
     }
     
-    if (!departmentName) {
-      failed.push({ index: i, reason: "القسم (Department) مفقود" });
-      continue;
-    }
-    
     if (!admission_status) {
       admission_status = "محجوز";
     }
@@ -151,10 +156,15 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       admission_date = new Date().toISOString();
     }
 
-    const department_id = getIdByName("departments", departmentName, depMap);
+    // محاولة الحصول على القسم، إذا لم يتم العثور عليه نستخدم القسم الافتراضي
+    let department_id: string | null = null;
+    if (departmentName) {
+      department_id = getIdByName("departments", departmentName, depMap);
+    }
+    
+    // إذا لم نجد القسم أو كان فارغاً، نستخدم القسم الافتراضي
     if (!department_id) {
-      failed.push({ index: i, reason: `القسم "${departmentName}" غير موجود في قاعدة البيانات. يجب إضافته أولاً من صفحة الإعدادات` });
-      continue;
+      department_id = defaultDepartmentId;
     }
 
     // الحقول الاختيارية: إذا لم تكن موجودة نتركها null
