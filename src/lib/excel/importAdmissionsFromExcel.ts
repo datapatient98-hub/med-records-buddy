@@ -214,35 +214,9 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
 
   if (payloads.length === 0) return { inserted: 0, failed };
 
-  // Skip rows whose unified_number already exists in DB (unique constraint)
-  try {
-    const numbers = Array.from(new Set(payloads.map((p) => p.unified_number).filter(Boolean)));
-    if (numbers.length > 0) {
-      const { data: existing, error: existingErr } = await supabase
-        .from("admissions")
-        .select("unified_number")
-        .in("unified_number", numbers);
-      if (existingErr) throw existingErr;
-
-      const existingSet = new Set((existing ?? []).map((r: any) => String(r.unified_number)));
-      if (existingSet.size > 0) {
-        const nextPayloads: any[] = [];
-        for (let i = 0; i < payloads.length; i++) {
-          const p = payloads[i];
-          if (existingSet.has(String(p.unified_number))) {
-            failed.push({ index: Number(p.__rowIndex ?? i), reason: "الرقم الموحد موجود بالفعل (تم تجاهل الصف)" });
-            continue;
-          }
-          nextPayloads.push(p);
-        }
-        payloads.length = 0;
-        payloads.push(...nextPayloads);
-      }
-    }
-  } catch {
-    // If this pre-check fails, we still attempt insert and rely on DB error handling below
-  }
-
+  // Note: No longer checking for duplicate unified_number since we allow multiple admissions per patient
+  // (e.g., Emergency + Inpatient records)
+  
   if (payloads.length === 0) return { inserted: 0, failed };
 
   const cleanedPayloads = payloads.map(({ __rowIndex, ...rest }) => rest);

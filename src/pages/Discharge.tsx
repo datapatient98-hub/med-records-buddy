@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
 import LookupCreateDialog from "@/components/LookupCreateDialog";
 import LookupManageDialog from "@/components/LookupManageDialog";
@@ -57,6 +59,7 @@ export default function Discharge() {
   const [showStationManage, setShowStationManage] = useState(false);
   const [showOccupationDialog, setShowOccupationDialog] = useState(false);
   const [showOccupationManage, setShowOccupationManage] = useState(false);
+  const [isEmergencyFile, setIsEmergencyFile] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -196,14 +199,14 @@ export default function Discharge() {
       return;
     }
 
-    const { data, error } = await supabase
+    // Fetch all admissions with this unified number that are still "محجوز"
+    const { data: admissions, error } = await supabase
       .from("admissions")
       .select("*, departments(name), doctors(name), diagnoses(name), governorates(name)")
       .eq("unified_number", unifiedNumber)
-      .eq("admission_status", "محجوز")
-      .single();
+      .eq("admission_status", "محجوز");
 
-    if (error || !data) {
+    if (error || !admissions || admissions.length === 0) {
       toast({
         title: "لم يتم العثور على المريض",
         description: "تأكد من الرقم الموحد أو أن المريض مازال محجوزاً",
@@ -212,6 +215,11 @@ export default function Discharge() {
       return;
     }
 
+    // Prioritize Emergency files (طوارئ) over Internal (داخلي)
+    const emergencyAdmission = admissions.find((a: any) => a.admission_source === "طوارئ");
+    const data = emergencyAdmission || admissions[0];
+    
+    setIsEmergencyFile(data.admission_source === "طوارئ");
     setSelectedAdmission(data);
     setShowDischargeForm(false);
     // Set default discharge department to admission department
@@ -256,18 +264,21 @@ export default function Discharge() {
       });
       
       // Reload admission data
-      const { data } = await supabase
+      const { data: updatedAdmissions } = await supabase
         .from("admissions")
         .select("*, departments(name), doctors(name), diagnoses(name), governorates(name)")
         .eq("unified_number", unifiedNumber)
-        .eq("admission_status", "محجوز")
-        .single();
+        .eq("admission_status", "محجوز");
 
-      if (data) {
-        setSelectedAdmission(data);
-        form.setValue("discharge_department_id", data.department_id);
-        form.setValue("discharge_diagnosis_id", data.diagnosis_id || "");
-        form.setValue("discharge_doctor_id", data.doctor_id || "");
+      if (updatedAdmissions && updatedAdmissions.length > 0) {
+        const emergencyAdmission = updatedAdmissions.find((a: any) => a.admission_source === "طوارئ");
+        const updatedData = emergencyAdmission || updatedAdmissions[0];
+        
+        setIsEmergencyFile(updatedData.admission_source === "طوارئ");
+        setSelectedAdmission(updatedData);
+        form.setValue("discharge_department_id", updatedData.department_id);
+        form.setValue("discharge_diagnosis_id", updatedData.diagnosis_id || "");
+        form.setValue("discharge_doctor_id", updatedData.doctor_id || "");
       }
 
       setShowEditAdmissionDialog(false);
@@ -286,7 +297,7 @@ export default function Discharge() {
       if (!selectedAdmission) return;
 
       // Insert discharge record
-      const { error: dischargeError } = await supabase
+      const { data: dischargeData, error: dischargeError } = await supabase
         .from("discharges")
         .insert([{
           admission_id: selectedAdmission.id,
@@ -298,7 +309,9 @@ export default function Discharge() {
           hospital_id: values.hospital_id || null,
           finance_source: values.finance_source as any || null,
           child_national_id: values.child_national_id || null,
-        }]);
+        }])
+        .select("internal_number")
+        .single();
 
       if (dischargeError) throw dischargeError;
 
@@ -310,19 +323,26 @@ export default function Discharge() {
 
       if (updateError) throw updateError;
 
-      return selectedAdmission;
+      return { 
+        admission: selectedAdmission, 
+        internalNumber: dischargeData?.internal_number 
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["admissions"] });
       queryClient.invalidateQueries({ queryKey: ["discharges"] });
+      queryClient.invalidateQueries({ queryKey: ["discharges-counts"] });
       toast({
         title: "تم الحفظ بنجاح",
-        description: `تم تسجيل خروج المريض ${data.patient_name}`,
+        description: data?.internalNumber 
+          ? `تم تسجيل خروج المريض ${data.admission.patient_name}\n\n🔢 الرقم الداخلي: ${data.internalNumber}`
+          : `تم تسجيل خروج المريض ${data?.admission.patient_name}`,
       });
       // Reset form
       setSelectedAdmission(null);
       setUnifiedNumber("");
       setShowDischargeForm(false);
+      setIsEmergencyFile(false);
       form.reset();
     },
     onError: (error: any) => {
@@ -420,6 +440,16 @@ export default function Discharge() {
 
       {/* Admission Details */}
       {selectedAdmission && !showDischargeForm && (
+        <>
+          {isEmergencyFile && (
+            <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+              <AlertDescription className="text-amber-800 dark:text-amber-300 font-semibold text-base">
+                ⚠️ هذا ملف طوارئ - سيتم استكمال بيانات الخروج من القسم الداخلي
+              </AlertDescription>
+            </Alert>
+          )}
+        
         <Card className="shadow-lg border-border">
           <CardHeader>
             <CardTitle>بيانات الدخول - للمراجعة والتعديل</CardTitle>
@@ -495,6 +525,7 @@ export default function Discharge() {
             </div>
           </CardContent>
         </Card>
+        </>
       )}
 
       {/* Discharge Form */}
@@ -692,7 +723,12 @@ export default function Discharge() {
                   </Button>
                   <Button type="submit" disabled={mutation.isPending}>
                     <Save className="ml-2 h-4 w-4" />
-                    {mutation.isPending ? "جاري الحفظ..." : "حفظ بيانات الخروج"}
+                    {mutation.isPending 
+                      ? "جاري الحفظ..." 
+                      : isEmergencyFile 
+                        ? "استكمال خروج الحالة من الأقسام الداخلي"
+                        : "حفظ بيانات الخروج"
+                    }
                   </Button>
                 </div>
               </form>
