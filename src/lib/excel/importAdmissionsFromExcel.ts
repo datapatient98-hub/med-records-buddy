@@ -147,10 +147,6 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       failed.push({ index: i, reason: "القسم (Department) مفقود" });
       continue;
     }
-    if (!governorateName) {
-      failed.push({ index: i, reason: "المحافظة مفقودة" });
-      continue;
-    }
     if (!admission_status) {
       failed.push({ index: i, reason: "الحالة (Status) غير معروفة" });
       continue;
@@ -160,34 +156,22 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    const governorate_id = getIdByName("governorates", governorateName, govMap);
-    if (!governorate_id) {
-      failed.push({ index: i, reason: `المحافظة "${governorateName}" غير موجودة في قاعدة البيانات. يجب إضافتها أولاً من صفحة الإعدادات` });
-      continue;
-    }
-
-    const district_id = districtName
-      ? getIdByName("districts", districtName, distMap)
-      : null;
-    
-    const station_id = stationName
-      ? getIdByName("stations", stationName, stationMap)
-      : null;
-    
     const department_id = getIdByName("departments", departmentName, depMap);
     if (!department_id) {
       failed.push({ index: i, reason: `القسم "${departmentName}" غير موجود في قاعدة البيانات. يجب إضافته أولاً من صفحة الإعدادات` });
       continue;
     }
 
+    // الحقول الاختيارية: إذا لم تكن موجودة نتركها null
+    const governorate_id = governorateName ? getIdByName("governorates", governorateName, govMap) : null;
+    const district_id = districtName ? getIdByName("districts", districtName, distMap) : null;
+    const station_id = stationName ? getIdByName("stations", stationName, stationMap) : null;
     const occupation_id = occupationName
       ? getIdByName("occupations", occupationName, occMap)
       : null;
-    
     const diagnosis_id = diagnosisName
       ? getIdByName("diagnoses", diagnosisName, diagMap)
       : null;
-    
     const doctor_id = doctorName
       ? getIdByName("doctors", doctorName, docMap)
       : null;
