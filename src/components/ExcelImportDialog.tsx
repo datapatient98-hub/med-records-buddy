@@ -287,6 +287,10 @@
                  try {
                    await props.onConfirm(preview);
                    props.onOpenChange(false);
+                   // تحديث الصفحة بعد الاستيراد الناجح
+                   setTimeout(() => {
+                     window.location.reload();
+                   }, 500);
                  } catch (e: any) {
                    console.error("Excel import confirm failed:", e);
                    const msg =

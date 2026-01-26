@@ -41,7 +41,7 @@ import SearchableSelect from "@/components/SearchableSelect";
 import TopLeftNotice from "@/components/TopLeftNotice";
 import ExcelImportDialog from "@/components/ExcelImportDialog";
 import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
-import { downloadImportSummaryPdf } from "@/lib/pdf/exportImportPdf";
+import { downloadImportSummaryExcel } from "@/lib/excel/exportImportExcel";
 import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
 import { validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
@@ -1122,9 +1122,9 @@ export default function Admission() {
                 return obj;
               });
 
-              downloadImportSummaryPdf({
+              downloadImportSummaryExcel({
                 title: "تقرير استيراد الحجوزات",
-                fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.pdf`,
+                fileName: `admissions-import_${new Date().toISOString().slice(0, 10)}.xlsx`,
                 columns: preview.headers,
                 importedRows,
                 duplicatesRows,
@@ -1133,14 +1133,14 @@ export default function Admission() {
               if (result.failed.length > 0) {
                 setNotice({
                   title: "تم الاستيراد مع ملاحظات",
-                  description: `تم استيراد ${result.inserted} صف، وفشل ${result.failed.length} صف. تم تحميل تقرير PDF للتفاصيل.` ,
+                  description: `تم استيراد ${result.inserted} صف، وفشل ${result.failed.length} صف. تم تحميل تقرير Excel للتفاصيل.`,
                   variant: "info",
                   durationMs: 9000,
                 });
               } else {
                 setNotice({
                   title: "تم الاستيراد بنجاح",
-                  description: `تم استيراد ${result.inserted} صف، وتجاهل ${preview.duplicates.length} صف متطابق. تم تحميل تقرير PDF.` ,
+                  description: `تم استيراد ${result.inserted} صف، وتجاهل ${preview.duplicates.length} صف متطابق. تم تحميل تقرير Excel.`,
                   variant: "success",
                   durationMs: 7000,
                 });
