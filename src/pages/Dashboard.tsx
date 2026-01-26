@@ -5,7 +5,6 @@ import Layout from "@/components/Layout";
 import DashboardCard from "@/components/DashboardCard";
 import KPICard from "@/components/KPICard";
 import LoanAlertNotification from "@/components/LoanAlertNotification";
-import ApprovedDepartmentsInstaller from "@/components/ApprovedDepartmentsInstaller";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -503,9 +502,6 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
-
-       {/* Admin Tool: Install Approved Departments */}
-       <ApprovedDepartmentsInstaller />
 
       {/* Priority Stats - Deaths, Active, Emergencies, Unreturned Loans */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
