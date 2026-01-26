@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Layout from "@/components/Layout";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
+import ExitHistoryDialog, { type ExitHistoryPayload } from "@/components/ExitHistoryDialog";
 
 type ProcedureType = "بذل" | "استقبال" | "كلي" | "مناظير";
 
@@ -23,6 +24,10 @@ export default function Records() {
       | "paracentesis"
       | "loans",
   );
+
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [exitOpen, setExitOpen] = useState(false);
+  const [exitPayload, setExitPayload] = useState<ExitHistoryPayload | null>(null);
 
   // Fetch admissions
   const { data: admissions, isLoading: admissionsLoading } = useQuery({
@@ -131,6 +136,25 @@ export default function Records() {
     [admissions],
   );
 
+  const admissionsInternalIds = useMemo(
+    () => admissionsInternal.map((a: any) => a?.id).filter(Boolean) as string[],
+    [admissionsInternal],
+  );
+
+  const { data: discharges, isLoading: dischargesLoading } = useQuery({
+    queryKey: ["discharges-by-admission", admissionsInternalIds],
+    enabled: admissionsInternalIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("discharges")
+        .select("id, admission_id, discharge_date, discharge_status, internal_number")
+        .in("admission_id", admissionsInternalIds)
+        .order("discharge_date", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const proceduresOfType = useMemo(() => {
     const list = (procedures as any[]) ?? [];
     return {
@@ -150,6 +174,69 @@ export default function Records() {
       loans: (loans as any[])?.length ?? 0,
     };
   }, [admissionsInternal, endoscopies, loans, proceduresOfType]);
+
+  const unifiedExitFlag = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const a of admissionsInternal) {
+      if (a?.unified_number) map.set(a.unified_number, false);
+    }
+    for (const d of (discharges as any[]) ?? []) {
+      const admission = admissionsInternal.find((a: any) => a?.id === d.admission_id);
+      const un = admission?.unified_number;
+      if (un) map.set(un, true);
+    }
+    for (const p of (procedures as any[]) ?? []) {
+      const un = p?.unified_number;
+      if (un) map.set(un, true);
+    }
+    for (const e of (endoscopies as any[]) ?? []) {
+      const un = e?.unified_number;
+      if (un) map.set(un, true);
+    }
+    return map;
+  }, [admissionsInternal, discharges, endoscopies, procedures]);
+
+  const openExitHistory = async (unifiedNumber: string) => {
+    const { data: admissionsForUn, error: admErr } = await supabase
+      .from("admissions")
+      .select("id")
+      .eq("unified_number", unifiedNumber);
+    if (admErr) throw admErr;
+
+    const admissionIds = (admissionsForUn ?? []).map((a: any) => a.id).filter(Boolean);
+
+    const [disRes, endRes, procRes] = await Promise.all([
+      admissionIds.length
+        ? supabase
+            .from("discharges")
+            .select("id, admission_id, discharge_date, discharge_status, internal_number")
+            .in("admission_id", admissionIds)
+            .order("discharge_date", { ascending: false })
+        : Promise.resolve({ data: [], error: null } as any),
+      supabase
+        .from("endoscopies")
+        .select("id, unified_number, internal_number, discharge_status, discharge_status_other, procedure_date")
+        .eq("unified_number", unifiedNumber)
+        .order("procedure_date", { ascending: false }),
+      supabase
+        .from("procedures")
+        .select("id, unified_number, internal_number, procedure_type, procedure_date")
+        .eq("unified_number", unifiedNumber)
+        .order("procedure_date", { ascending: false }),
+    ]);
+
+    if (disRes.error) throw disRes.error;
+    if (endRes.error) throw endRes.error;
+    if (procRes.error) throw procRes.error;
+
+    setExitPayload({
+      unified_number: unifiedNumber,
+      discharges: disRes.data ?? [],
+      endoscopies: endRes.data ?? [],
+      procedures: procRes.data ?? [],
+    });
+    setExitOpen(true);
+  };
 
   return (
     <Layout>
@@ -195,6 +282,7 @@ export default function Records() {
                     <TableRow>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>الرقم الداخلي</TableHead>
+                      <TableHead>حالة الملف</TableHead>
                       <TableHead>اسم المريض</TableHead>
                       <TableHead>الرقم القومي</TableHead>
                       <TableHead>النوع</TableHead>
@@ -204,18 +292,32 @@ export default function Records() {
                       <TableHead>التشخيص</TableHead>
                       <TableHead>الطبيب</TableHead>
                       <TableHead>تاريخ الحجز</TableHead>
+                      <TableHead>الخروج</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {admissionsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={13} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
                     ) : admissionsInternal.length > 0 ? (
                       admissionsInternal.map((admission: any) => (
                         <TableRow key={admission.id}>
                           <TableCell>{admission.unified_number}</TableCell>
                           <TableCell>{admission.internal_number}</TableCell>
+                          <TableCell>
+                            {dischargesLoading ? (
+                              <span className="text-sm text-muted-foreground">...</span>
+                            ) : unifiedExitFlag.get(admission.unified_number) ? (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-status-discharged text-status-discharged">
+                                خرج
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-status-active text-status-active">
+                                محجوز
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell>{admission.patient_name}</TableCell>
                           <TableCell>{admission.national_id}</TableCell>
                           <TableCell>{admission.gender}</TableCell>
@@ -234,11 +336,21 @@ export default function Records() {
                           <TableCell>{admission.diagnosis?.name || '-'}</TableCell>
                           <TableCell>{admission.doctor?.name || '-'}</TableCell>
                           <TableCell>{format(new Date(admission.admission_date), 'dd/MM/yyyy HH:mm')}</TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openExitHistory(admission.unified_number)}
+                            >
+                              عرض سجل الخروج
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={11} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={13} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -486,7 +598,24 @@ export default function Records() {
             </div>
           </TabsContent>
         </Tabs>
+
+        <div ref={bottomRef} />
+
+        <div className="sticky bottom-0 z-10 border-t bg-background/80 backdrop-blur">
+          <div className="mx-auto max-w-7xl px-4 py-2 flex items-center justify-between gap-2">
+            <div className="text-sm text-muted-foreground">تنقل سريع</div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
+            >
+              اذهب لآخر الصفحة
+            </Button>
+          </div>
+        </div>
       </div>
+
+      <ExitHistoryDialog open={exitOpen} onOpenChange={setExitOpen} payload={exitPayload} />
     </Layout>
   );
 }
