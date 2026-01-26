@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,13 +15,21 @@ import LookupManageDialog from "@/components/LookupManageDialog";
 
 type Option = { id: string; name: string };
 
+const digitsOnlyOptional = (msg: string) => z.string().trim().regex(/^\d+$/, msg).optional().or(z.literal(""));
+
 const endoscopySchema = z.object({
-  patient_name: z.string().min(3, "اسم المريض مطلوب"),
-  national_id: z.string().min(14, "الرقم القومي 14 رقم"),
-  phone: z.string().min(11, "رقم الهاتف 11 رقم"),
-  gender: z.enum(["ذكر", "أنثى"], { required_error: "النوع مطلوب" }),
-  marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"], { required_error: "الحالة الاجتماعية مطلوبة" }),
-  age: z.coerce.number().min(0, "السن مطلوب"),
+  // ملاحظة: حسب طلبك، الحقول التالية غير إلزامية داخل المناظير (السجل قد يكون غير مكتمل)
+  patient_name: z
+    .string()
+    .trim()
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || v.split(/\s+/).filter(Boolean).length === 0 || v.split(/\s+/).filter(Boolean).length >= 4, "الاسم رباعي"),
+  national_id: digitsOnlyOptional("الرقم القومي يجب أن يكون أرقام فقط").refine((v) => !v || v.length === 14, "الرقم القومي يجب أن يكون 14 رقم"),
+  phone: digitsOnlyOptional("رقم الهاتف يجب أن يكون أرقام فقط").refine((v) => !v || v.length === 11, "رقم الهاتف يجب أن يكون 11 رقم"),
+  gender: z.enum(["ذكر", "أنثى"]).optional(),
+  marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"]).optional(),
+  age: z.coerce.number().min(0, "السن يجب أن يكون رقم موجب").optional(),
   department_id: z.string().min(1, "القسم مطلوب"),
   procedure_date: z.string().min(1, "تاريخ وساعة الإجراء مطلوب"),
   diagnosis_id: z.string().optional(),
@@ -31,6 +39,16 @@ const endoscopySchema = z.object({
   district_id: z.string().optional(),
   station_id: z.string().optional(),
   address_details: z.string().optional(),
+
+  // بيانات الدخول (Snapshot)
+  admission_date: z.string().optional().or(z.literal("")),
+
+  // بيانات الخروج (Snapshot)
+  discharge_date: z.string().optional().or(z.literal("")),
+  discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]).optional(),
+  discharge_department_id: z.string().optional().or(z.literal("")),
+  discharge_diagnosis_id: z.string().optional().or(z.literal("")),
+  discharge_doctor_id: z.string().optional().or(z.literal("")),
 });
 
 export type EndoscopyFormValues = z.infer<typeof endoscopySchema>;
@@ -71,9 +89,9 @@ export default function EndoscopyForm({
       patient_name: "",
       national_id: "",
       phone: "",
-      gender: "ذكر",
-      marital_status: "أعزب",
-      age: 0,
+      gender: undefined,
+      marital_status: undefined,
+      age: undefined,
       department_id: "",
       procedure_date: new Date().toISOString().slice(0, 16),
       diagnosis_id: "",
@@ -83,6 +101,13 @@ export default function EndoscopyForm({
       district_id: "",
       station_id: "",
       address_details: "",
+
+      admission_date: "",
+      discharge_date: "",
+      discharge_status: undefined,
+      discharge_department_id: "",
+      discharge_diagnosis_id: "",
+      discharge_doctor_id: "",
       ...defaultValues,
     },
   });
@@ -93,6 +118,21 @@ export default function EndoscopyForm({
   const [manageType, setManageType] = useState<LookupCreateType | null>(null);
 
   const governorateId = form.watch("governorate_id") || "";
+
+  // تثبيت قسم المناظير تلقائياً لو القائمة فيها خيار واحد
+  useEffect(() => {
+    if (departments?.length === 1) {
+      const only = departments[0];
+      if (only?.id && form.getValues("department_id") !== only.id) {
+        form.setValue("department_id", only.id, { shouldDirty: true });
+      }
+
+      const currentDischargeDept = form.getValues("discharge_department_id") || "";
+      if (!currentDischargeDept) {
+        form.setValue("discharge_department_id", only.id, { shouldDirty: true });
+      }
+    }
+  }, [departments, form]);
 
   const typeToField: Partial<Record<LookupCreateType, keyof EndoscopyFormValues>> = {
     diagnosis: "diagnosis_id",
@@ -129,29 +169,48 @@ export default function EndoscopyForm({
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* ملخص سريع (عرض فقط) */}
+            <div className="grid gap-3 rounded-lg border bg-card/50 p-4 md:grid-cols-3">
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground">الرقم الموحد</div>
+                <div className="font-bold tabular-nums" dir="ltr">{unifiedNumber}</div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="text-xs font-semibold text-muted-foreground">اسم المريض</div>
+                <div className="font-semibold truncate">{form.watch("patient_name") || "-"}</div>
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
                 name="patient_name"
                 render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>اسم المريض *</FormLabel>
+                  <FormItem>
+                    <FormLabel>اسم المريض</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} placeholder="الاسم رباعي" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              <FormItem>
+                <FormLabel>الرقم الموحد</FormLabel>
+                <FormControl>
+                  <Input value={unifiedNumber} readOnly aria-readonly className="font-bold tabular-nums" dir="ltr" />
+                </FormControl>
+              </FormItem>
+
               <FormField
                 control={form.control}
                 name="national_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>الرقم القومي *</FormLabel>
+                    <FormLabel>الرقم القومي</FormLabel>
                     <FormControl>
-                      <Input {...field} maxLength={14} />
+                      <Input {...field} maxLength={14} placeholder="14 رقم" inputMode="numeric" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -163,9 +222,9 @@ export default function EndoscopyForm({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>الهاتف *</FormLabel>
+                    <FormLabel>الهاتف</FormLabel>
                     <FormControl>
-                      <Input {...field} maxLength={11} />
+                      <Input {...field} maxLength={11} placeholder="11 رقم" inputMode="numeric" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -177,8 +236,8 @@ export default function EndoscopyForm({
                 name="gender"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>النوع *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel>النوع</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
@@ -199,8 +258,8 @@ export default function EndoscopyForm({
                 name="marital_status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>الحالة الاجتماعية *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <FormLabel>الحالة الاجتماعية</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
@@ -223,9 +282,9 @@ export default function EndoscopyForm({
                 name="age"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>السن *</FormLabel>
+                    <FormLabel>السن</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <Input type="number" {...field} placeholder="بالسنوات" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -237,18 +296,18 @@ export default function EndoscopyForm({
                 name="department_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>القسم *</FormLabel>
+                    <FormLabel>قسم المناظير</FormLabel>
                     <FormControl>
-                      <SearchableSelect
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        options={departments}
-                        placeholder="اختر القسم"
-                        emptyText="لا توجد أقسام"
-                        onAddNew={() => setCreateType("department")}
-                        onManage={() => setManageType("department")}
-                        addNewLabel="إضافة قسم"
-                      />
+                      <div className="pointer-events-none opacity-90">
+                        <SearchableSelect
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          options={departments}
+                          placeholder="قسم المناظير"
+                          emptyText="لا توجد أقسام"
+                          allowClear={false}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -261,6 +320,21 @@ export default function EndoscopyForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>تاريخ وساعة الإجراء *</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* بيانات الدخول */}
+              <FormField
+                control={form.control}
+                name="admission_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>تاريخ وساعة الدخول</FormLabel>
                     <FormControl>
                       <Input type="datetime-local" {...field} />
                     </FormControl>
@@ -298,6 +372,115 @@ export default function EndoscopyForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>الطبيب</FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        options={doctors}
+                        placeholder="اختر الطبيب"
+                        emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("doctor")}
+                        onManage={() => setManageType("doctor")}
+                        addNewLabel="إضافة طبيب"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* بيانات الخروج */}
+              <FormField
+                control={form.control}
+                name="discharge_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>تاريخ وساعة الخروج</FormLabel>
+                    <FormControl>
+                      <Input type="datetime-local" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="discharge_status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>حالة الخروج</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر الحالة" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="تحسن">تحسن</SelectItem>
+                        <SelectItem value="تحويل">تحويل</SelectItem>
+                        <SelectItem value="وفاة">وفاة</SelectItem>
+                        <SelectItem value="هروب">هروب</SelectItem>
+                        <SelectItem value="رفض العلاج">رفض العلاج</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="discharge_department_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>قسم الخروج (مناظير)</FormLabel>
+                    <FormControl>
+                      <div className="pointer-events-none opacity-90">
+                        <SearchableSelect
+                          value={field.value || ""}
+                          onValueChange={field.onChange}
+                          options={departments}
+                          placeholder="قسم المناظير"
+                          emptyText="لا توجد أقسام"
+                          allowClear={false}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="discharge_diagnosis_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>تشخيص الخروج</FormLabel>
+                    <FormControl>
+                      <SearchableSelect
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                        options={diagnoses}
+                        placeholder="اختر التشخيص"
+                        emptyText="لا توجد بيانات"
+                        onAddNew={() => setCreateType("diagnosis")}
+                        onManage={() => setManageType("diagnosis")}
+                        addNewLabel="إضافة تشخيص"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="discharge_doctor_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>طبيب الخروج</FormLabel>
                     <FormControl>
                       <SearchableSelect
                         value={field.value || ""}
@@ -414,7 +597,7 @@ export default function EndoscopyForm({
                   <FormItem className="md:col-span-2">
                     <FormLabel>العنوان التفصيلي</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} placeholder="مثال: شارع... عمارة... شقة..." />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
