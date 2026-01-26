@@ -17,11 +17,13 @@ export type Database = {
       admissions: {
         Row: {
           address_details: string | null
-          admission_date: string
+          admission_date: string | null
           admission_source:
             | Database["public"]["Enums"]["admission_source"]
             | null
-          admission_status: Database["public"]["Enums"]["admission_status"]
+          admission_status:
+            | Database["public"]["Enums"]["admission_status"]
+            | null
           age: number | null
           created_at: string | null
           department_id: string
@@ -42,11 +44,13 @@ export type Database = {
         }
         Insert: {
           address_details?: string | null
-          admission_date: string
+          admission_date?: string | null
           admission_source?:
             | Database["public"]["Enums"]["admission_source"]
             | null
-          admission_status: Database["public"]["Enums"]["admission_status"]
+          admission_status?:
+            | Database["public"]["Enums"]["admission_status"]
+            | null
           age?: number | null
           created_at?: string | null
           department_id: string
@@ -67,11 +71,13 @@ export type Database = {
         }
         Update: {
           address_details?: string | null
-          admission_date?: string
+          admission_date?: string | null
           admission_source?:
             | Database["public"]["Enums"]["admission_source"]
             | null
-          admission_status?: Database["public"]["Enums"]["admission_status"]
+          admission_status?:
+            | Database["public"]["Enums"]["admission_status"]
+            | null
           age?: number | null
           created_at?: string | null
           department_id?: string
