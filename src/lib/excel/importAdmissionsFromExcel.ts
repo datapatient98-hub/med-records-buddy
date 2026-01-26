@@ -60,23 +60,12 @@ async function loadLookupMap(table: LookupTable) {
   return map;
 }
 
-async function getOrCreateByName(table: LookupTable, name: string, cache: Map<string, string>) {
+function getIdByName(table: LookupTable, name: string, cache: Map<string, string>): string | null {
   const key = normalizeArabicText(name);
   if (!key) return null;
 
   const existing = cache.get(key);
-  if (existing) return existing;
-
-  const { data, error } = await supabase
-    .from(table)
-    .insert([{ name: name.trim() }])
-    .select("id,name")
-    .single();
-
-  if (error) throw error;
-  const id = (data as any).id as string;
-  cache.set(key, id);
-  return id;
+  return existing ?? null;
 }
 
 export type AdmissionsImportResult = {
@@ -171,23 +160,36 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       continue;
     }
 
-    const governorate_id = await getOrCreateByName("governorates", governorateName, govMap);
+    const governorate_id = getIdByName("governorates", governorateName, govMap);
+    if (!governorate_id) {
+      failed.push({ index: i, reason: `المحافظة "${governorateName}" غير موجودة في قاعدة البيانات. يجب إضافتها أولاً من صفحة الإعدادات` });
+      continue;
+    }
+
     const district_id = districtName
-      ? await getOrCreateByName("districts", districtName, distMap)
+      ? getIdByName("districts", districtName, distMap)
       : null;
+    
     const station_id = stationName
-      ? await getOrCreateByName("stations", stationName, stationMap)
+      ? getIdByName("stations", stationName, stationMap)
       : null;
-    const department_id = await getOrCreateByName("departments", departmentName, depMap);
+    
+    const department_id = getIdByName("departments", departmentName, depMap);
+    if (!department_id) {
+      failed.push({ index: i, reason: `القسم "${departmentName}" غير موجود في قاعدة البيانات. يجب إضافته أولاً من صفحة الإعدادات` });
+      continue;
+    }
 
     const occupation_id = occupationName
-      ? await getOrCreateByName("occupations", occupationName, occMap)
+      ? getIdByName("occupations", occupationName, occMap)
       : null;
+    
     const diagnosis_id = diagnosisName
-      ? await getOrCreateByName("diagnoses", diagnosisName, diagMap)
+      ? getIdByName("diagnoses", diagnosisName, diagMap)
       : null;
+    
     const doctor_id = doctorName
-      ? await getOrCreateByName("doctors", doctorName, docMap)
+      ? getIdByName("doctors", doctorName, docMap)
       : null;
 
     payloads.push({
