@@ -1,73 +1,31 @@
 import { useMemo, useState } from "react";
 import Layout from "@/components/Layout";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Search, Trash2 } from "lucide-react";
+import { Search } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
+type ProcedureType = "بذل" | "استقبال" | "كلي" | "مناظير";
 
 export default function Records() {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("admissions");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  const currentTable = useMemo(() => {
-    switch (activeTab) {
-      case "admissions":
-        return "admissions";
-      case "emergencies":
-        return "emergencies";
-      case "endoscopies":
-        return "endoscopies";
-      case "procedures":
-        return "procedures";
-      case "loans":
-        return "file_loans";
-      default:
-        return "admissions";
-    }
-  }, [activeTab]);
-
-  const toggleOne = (id: string, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const s = new Set(prev);
-      if (checked) s.add(id);
-      else s.delete(id);
-      return Array.from(s);
-    });
-  };
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (selectedIds.length === 0) return;
-      const { error } = await supabase.from(currentTable as any).delete().in("id", selectedIds);
-      if (error) throw error;
-    },
-    onSuccess: async () => {
-      setSelectedIds([]);
-      await queryClient.invalidateQueries({ queryKey: [activeTab] });
-      await queryClient.invalidateQueries({ queryKey: [activeTab, searchTerm] });
-      // In case other screens depend on these
-      await queryClient.invalidateQueries({ queryKey: ["unified-database"] });
-    },
-  });
+  const [activeTab, setActiveTab] = useState(
+    "admissions_internal" as
+      | "admissions_internal"
+      | "emergencies"
+      | "endoscopies"
+      | "reception"
+      | "dialysis"
+      | "paracentesis_men"
+      | "paracentesis_women"
+      | "loans_men"
+      | "loans_women",
+  );
 
   // Fetch admissions
   const { data: admissions, isLoading: admissionsLoading } = useQuery({
@@ -197,33 +155,50 @@ export default function Records() {
     },
   });
 
-  const currentRows: any[] = useMemo(() => {
-    switch (activeTab) {
-      case "admissions":
-        return (admissions as any[]) ?? [];
-      case "emergencies":
-        return (emergencies as any[]) ?? [];
-      case "endoscopies":
-        return (endoscopies as any[]) ?? [];
-      case "procedures":
-        return (procedures as any[]) ?? [];
-      case "loans":
-        return (loans as any[]) ?? [];
-      default:
-        return [];
-    }
-  }, [activeTab, admissions, emergencies, endoscopies, procedures, loans]);
-
-  const allVisibleIds = useMemo(
-    () => currentRows.map((r) => r?.id).filter(Boolean) as string[],
-    [currentRows]
+  const admissionsInternal = useMemo(
+    () => ((admissions as any[]) ?? []).filter((a) => (a?.admission_source ?? "داخلي") === "داخلي"),
+    [admissions],
   );
-  const allSelected = allVisibleIds.length > 0 && selectedIds.length === allVisibleIds.length;
-  const someSelected = selectedIds.length > 0 && selectedIds.length < allVisibleIds.length;
 
-  const toggleAll = (checked: boolean) => {
-    setSelectedIds(checked ? allVisibleIds : []);
-  };
+  const proceduresOfType = useMemo(() => {
+    const list = (procedures as any[]) ?? [];
+    return {
+      reception: list.filter((p) => (p?.procedure_type as ProcedureType | null) === "استقبال"),
+      dialysis: list.filter((p) => (p?.procedure_type as ProcedureType | null) === "كلي"),
+      paracentesis_men: list.filter(
+        (p) =>
+          (p?.procedure_type as ProcedureType | null) === "بذل" &&
+          (p?.department?.name ?? "") === "رجال بذل بطن",
+      ),
+      paracentesis_women: list.filter(
+        (p) =>
+          (p?.procedure_type as ProcedureType | null) === "بذل" &&
+          (p?.department?.name ?? "") === "بذل حريم بطن",
+      ),
+    };
+  }, [procedures]);
+
+  const loansByDepartment = useMemo(() => {
+    const list = (loans as any[]) ?? [];
+    return {
+      loans_men: list.filter((l) => (l?.borrowed_to_department ?? "") === "رجال بذل بطن"),
+      loans_women: list.filter((l) => (l?.borrowed_to_department ?? "") === "بذل حريم بطن"),
+    };
+  }, [loans]);
+
+  const tabCounts = useMemo(() => {
+    return {
+      admissions_internal: admissionsInternal.length,
+      emergencies: (emergencies as any[])?.length ?? 0,
+      endoscopies: (endoscopies as any[])?.length ?? 0,
+      reception: proceduresOfType.reception.length,
+      dialysis: proceduresOfType.dialysis.length,
+      paracentesis_men: proceduresOfType.paracentesis_men.length,
+      paracentesis_women: proceduresOfType.paracentesis_women.length,
+      loans_men: loansByDepartment.loans_men.length,
+      loans_women: loansByDepartment.loans_women.length,
+    };
+  }, [admissionsInternal, emergencies, endoscopies, loansByDepartment, proceduresOfType]);
 
   return (
     <Layout>
@@ -248,90 +223,28 @@ export default function Records() {
         <Tabs
           value={activeTab}
           onValueChange={(v) => {
-            setActiveTab(v);
-            setSelectedIds([]);
+            setActiveTab(v as any);
           }}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="admissions">الحجوزات ({admissions?.length || 0})</TabsTrigger>
-            <TabsTrigger value="emergencies">الطوارئ ({emergencies?.length || 0})</TabsTrigger>
-            <TabsTrigger value="endoscopies">المناظير ({endoscopies?.length || 0})</TabsTrigger>
-            <TabsTrigger value="procedures">البذل ({procedures?.length || 0})</TabsTrigger>
-            <TabsTrigger value="loans">الاستعارات ({loans?.length || 0})</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
+            <TabsTrigger value="admissions_internal">الحجز الداخلي ({tabCounts.admissions_internal})</TabsTrigger>
+            <TabsTrigger value="emergencies">الطوارئ ({tabCounts.emergencies})</TabsTrigger>
+            <TabsTrigger value="endoscopies">المناظير ({tabCounts.endoscopies})</TabsTrigger>
+            <TabsTrigger value="reception">الاستقبال ({tabCounts.reception})</TabsTrigger>
+            <TabsTrigger value="dialysis">الغسيل الكلوي ({tabCounts.dialysis})</TabsTrigger>
+            <TabsTrigger value="paracentesis_men">البذل - رجال ({tabCounts.paracentesis_men})</TabsTrigger>
+            <TabsTrigger value="paracentesis_women">البذل - حريم ({tabCounts.paracentesis_women})</TabsTrigger>
+            <TabsTrigger value="loans_men">الاستعارات - رجال ({tabCounts.loans_men})</TabsTrigger>
+            <TabsTrigger value="loans_women">الاستعارات - حريم ({tabCounts.loans_women})</TabsTrigger>
           </TabsList>
 
-          <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm text-muted-foreground">
-              المحدد: <span className="font-semibold text-foreground">{selectedIds.length}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => toggleAll(true)}
-                disabled={allVisibleIds.length === 0}
-              >
-                تحديد الكل
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => toggleAll(false)}
-                disabled={selectedIds.length === 0}
-              >
-                إلغاء التحديد
-              </Button>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={selectedIds.length === 0 || deleteMutation.isPending}
-                  >
-                    <Trash2 className="ml-2 h-4 w-4" />
-                    حذف المحدد
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      سيتم حذف <b>{selectedIds.length}</b> سجل من تبويب <b>{activeTab}</b>.
-                      لا يمكن التراجع عن هذا الإجراء.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={deleteMutation.isPending}>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction
-                      disabled={deleteMutation.isPending}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        deleteMutation.mutate();
-                      }}
-                    >
-                      {deleteMutation.isPending ? "جارٍ الحذف..." : "حذف"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </div>
-
-          <TabsContent value="admissions" className="mt-6">
+          <TabsContent value="admissions_internal" className="mt-6">
             <div className="rounded-lg border bg-card">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px]">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(Boolean(v))}
-                          aria-label="تحديد الكل"
-                        />
-                      </TableHead>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>الرقم الداخلي</TableHead>
                       <TableHead>اسم المريض</TableHead>
@@ -348,18 +261,11 @@ export default function Records() {
                   <TableBody>
                     {admissionsLoading ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={11} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : admissions && admissions.length > 0 ? (
-                      admissions.map((admission: any) => (
+                    ) : admissionsInternal.length > 0 ? (
+                      admissionsInternal.map((admission: any) => (
                         <TableRow key={admission.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.includes(admission.id)}
-                              onCheckedChange={(v) => toggleOne(admission.id, Boolean(v))}
-                              aria-label="تحديد السجل"
-                            />
-                          </TableCell>
                           <TableCell>{admission.unified_number}</TableCell>
                           <TableCell>{admission.internal_number}</TableCell>
                           <TableCell>{admission.patient_name}</TableCell>
@@ -384,7 +290,7 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={11} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -399,13 +305,6 @@ export default function Records() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px]">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(Boolean(v))}
-                          aria-label="تحديد الكل"
-                        />
-                      </TableHead>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>اسم المريض</TableHead>
                       <TableHead>الرقم القومي</TableHead>
@@ -420,18 +319,11 @@ export default function Records() {
                   <TableBody>
                     {emergenciesLoading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
                     ) : emergencies && emergencies.length > 0 ? (
                       emergencies.map((emergency: any) => (
                         <TableRow key={emergency.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.includes(emergency.id)}
-                              onCheckedChange={(v) => toggleOne(emergency.id, Boolean(v))}
-                              aria-label="تحديد السجل"
-                            />
-                          </TableCell>
                           <TableCell>{emergency.unified_number}</TableCell>
                           <TableCell>{emergency.patient_name}</TableCell>
                           <TableCell>{emergency.national_id}</TableCell>
@@ -445,7 +337,7 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -460,13 +352,6 @@ export default function Records() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px]">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(Boolean(v))}
-                          aria-label="تحديد الكل"
-                        />
-                      </TableHead>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>اسم المريض</TableHead>
                       <TableHead>الرقم القومي</TableHead>
@@ -481,18 +366,11 @@ export default function Records() {
                   <TableBody>
                     {endoscopiesLoading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
                     ) : endoscopies && endoscopies.length > 0 ? (
                       endoscopies.map((endoscopy: any) => (
                         <TableRow key={endoscopy.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.includes(endoscopy.id)}
-                              onCheckedChange={(v) => toggleOne(endoscopy.id, Boolean(v))}
-                              aria-label="تحديد السجل"
-                            />
-                          </TableCell>
                           <TableCell>{endoscopy.unified_number}</TableCell>
                           <TableCell>{endoscopy.patient_name}</TableCell>
                           <TableCell>{endoscopy.national_id}</TableCell>
@@ -506,7 +384,7 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -515,19 +393,12 @@ export default function Records() {
             </div>
           </TabsContent>
 
-          <TabsContent value="procedures" className="mt-6">
+          <TabsContent value="reception" className="mt-6">
             <div className="rounded-lg border bg-card">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px]">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(Boolean(v))}
-                          aria-label="تحديد الكل"
-                        />
-                      </TableHead>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>اسم المريض</TableHead>
                       <TableHead>الرقم القومي</TableHead>
@@ -542,18 +413,11 @@ export default function Records() {
                   <TableBody>
                     {proceduresLoading ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : procedures && procedures.length > 0 ? (
-                      procedures.map((procedure: any) => (
+                    ) : proceduresOfType.reception.length > 0 ? (
+                      proceduresOfType.reception.map((procedure: any) => (
                         <TableRow key={procedure.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.includes(procedure.id)}
-                              onCheckedChange={(v) => toggleOne(procedure.id, Boolean(v))}
-                              aria-label="تحديد السجل"
-                            />
-                          </TableCell>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
                           <TableCell>{procedure.national_id}</TableCell>
@@ -567,7 +431,7 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -576,19 +440,153 @@ export default function Records() {
             </div>
           </TabsContent>
 
-          <TabsContent value="loans" className="mt-6">
+          <TabsContent value="dialysis" className="mt-6">
             <div className="rounded-lg border bg-card">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[44px]">
-                        <Checkbox
-                          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                          onCheckedChange={(v) => toggleAll(Boolean(v))}
-                          aria-label="تحديد الكل"
-                        />
-                      </TableHead>
+                      <TableHead>الرقم الموحد</TableHead>
+                      <TableHead>اسم المريض</TableHead>
+                      <TableHead>الرقم القومي</TableHead>
+                      <TableHead>النوع</TableHead>
+                      <TableHead>السن</TableHead>
+                      <TableHead>القسم</TableHead>
+                      <TableHead>التشخيص</TableHead>
+                      <TableHead>الطبيب</TableHead>
+                      <TableHead>تاريخ الإجراء</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {proceduresLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
+                      </TableRow>
+                    ) : proceduresOfType.dialysis.length > 0 ? (
+                      proceduresOfType.dialysis.map((procedure: any) => (
+                        <TableRow key={procedure.id}>
+                          <TableCell>{procedure.unified_number}</TableCell>
+                          <TableCell>{procedure.patient_name}</TableCell>
+                          <TableCell>{procedure.national_id}</TableCell>
+                          <TableCell>{procedure.gender}</TableCell>
+                          <TableCell>{procedure.age}</TableCell>
+                          <TableCell>{procedure.department?.name}</TableCell>
+                          <TableCell>{procedure.diagnosis?.name || "-"}</TableCell>
+                          <TableCell>{procedure.doctor?.name || "-"}</TableCell>
+                          <TableCell>{format(new Date(procedure.procedure_date), "dd/MM/yyyy HH:mm")}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="paracentesis_men" className="mt-6">
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الرقم الموحد</TableHead>
+                      <TableHead>اسم المريض</TableHead>
+                      <TableHead>الرقم القومي</TableHead>
+                      <TableHead>النوع</TableHead>
+                      <TableHead>السن</TableHead>
+                      <TableHead>القسم</TableHead>
+                      <TableHead>التشخيص</TableHead>
+                      <TableHead>الطبيب</TableHead>
+                      <TableHead>تاريخ الإجراء</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {proceduresLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
+                      </TableRow>
+                    ) : proceduresOfType.paracentesis_men.length > 0 ? (
+                      proceduresOfType.paracentesis_men.map((procedure: any) => (
+                        <TableRow key={procedure.id}>
+                          <TableCell>{procedure.unified_number}</TableCell>
+                          <TableCell>{procedure.patient_name}</TableCell>
+                          <TableCell>{procedure.national_id}</TableCell>
+                          <TableCell>{procedure.gender}</TableCell>
+                          <TableCell>{procedure.age}</TableCell>
+                          <TableCell>{procedure.department?.name}</TableCell>
+                          <TableCell>{procedure.diagnosis?.name || "-"}</TableCell>
+                          <TableCell>{procedure.doctor?.name || "-"}</TableCell>
+                          <TableCell>{format(new Date(procedure.procedure_date), "dd/MM/yyyy HH:mm")}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="paracentesis_women" className="mt-6">
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الرقم الموحد</TableHead>
+                      <TableHead>اسم المريض</TableHead>
+                      <TableHead>الرقم القومي</TableHead>
+                      <TableHead>النوع</TableHead>
+                      <TableHead>السن</TableHead>
+                      <TableHead>القسم</TableHead>
+                      <TableHead>التشخيص</TableHead>
+                      <TableHead>الطبيب</TableHead>
+                      <TableHead>تاريخ الإجراء</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {proceduresLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
+                      </TableRow>
+                    ) : proceduresOfType.paracentesis_women.length > 0 ? (
+                      proceduresOfType.paracentesis_women.map((procedure: any) => (
+                        <TableRow key={procedure.id}>
+                          <TableCell>{procedure.unified_number}</TableCell>
+                          <TableCell>{procedure.patient_name}</TableCell>
+                          <TableCell>{procedure.national_id}</TableCell>
+                          <TableCell>{procedure.gender}</TableCell>
+                          <TableCell>{procedure.age}</TableCell>
+                          <TableCell>{procedure.department?.name}</TableCell>
+                          <TableCell>{procedure.diagnosis?.name || "-"}</TableCell>
+                          <TableCell>{procedure.doctor?.name || "-"}</TableCell>
+                          <TableCell>{format(new Date(procedure.procedure_date), "dd/MM/yyyy HH:mm")}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="loans_men" className="mt-6">
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
                       <TableHead>الرقم الموحد</TableHead>
                       <TableHead>الرقم الداخلي</TableHead>
                       <TableHead>اسم المريض</TableHead>
@@ -602,18 +600,11 @@ export default function Records() {
                   <TableBody>
                     {loansLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
+                        <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : loans && loans.length > 0 ? (
-                      loans.map((loan: any) => (
+                    ) : loansByDepartment.loans_men.length > 0 ? (
+                      loansByDepartment.loans_men.map((loan: any) => (
                         <TableRow key={loan.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.includes(loan.id)}
-                              onCheckedChange={(v) => toggleOne(loan.id, Boolean(v))}
-                              aria-label="تحديد السجل"
-                            />
-                          </TableCell>
                           <TableCell>{loan.unified_number}</TableCell>
                           <TableCell>{loan.internal_number}</TableCell>
                           <TableCell>{loan.admission?.patient_name}</TableCell>
@@ -632,7 +623,64 @@ export default function Records() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="loans_women" className="mt-6">
+            <div className="rounded-lg border bg-card">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الرقم الموحد</TableHead>
+                      <TableHead>الرقم الداخلي</TableHead>
+                      <TableHead>اسم المريض</TableHead>
+                      <TableHead>المستعار</TableHead>
+                      <TableHead>القسم المستعار إليه</TableHead>
+                      <TableHead>تاريخ الاستعارة</TableHead>
+                      <TableHead>تاريخ الإرجاع</TableHead>
+                      <TableHead>الحالة</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loansLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
+                      </TableRow>
+                    ) : loansByDepartment.loans_women.length > 0 ? (
+                      loansByDepartment.loans_women.map((loan: any) => (
+                        <TableRow key={loan.id}>
+                          <TableCell>{loan.unified_number}</TableCell>
+                          <TableCell>{loan.internal_number}</TableCell>
+                          <TableCell>{loan.admission?.patient_name}</TableCell>
+                          <TableCell>{loan.borrowed_by}</TableCell>
+                          <TableCell>{loan.borrowed_to_department}</TableCell>
+                          <TableCell>{format(new Date(loan.loan_date), "dd/MM/yyyy HH:mm")}</TableCell>
+                          <TableCell>
+                            {loan.return_date ? format(new Date(loan.return_date), "dd/MM/yyyy HH:mm") : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                loan.is_returned
+                                  ? "bg-status-discharged text-status-discharged"
+                                  : "bg-status-pending text-status-pending"
+                              }`}
+                            >
+                              {loan.is_returned ? "تم الإرجاع" : "مستعار"}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">لا توجد بيانات</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
