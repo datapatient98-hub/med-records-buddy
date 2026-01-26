@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Layout from "@/components/Layout";
 import DashboardCard from "@/components/DashboardCard";
@@ -56,6 +56,7 @@ type PeriodType = "today" | "week" | "month" | "quarter" | "year";
 type ExportType = "all" | "admissions" | "discharges" | "emergencies" | "endoscopies" | "procedures";
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
   const [period, setPeriod] = useState<PeriodType>("month");
   const [exportStartDate, setExportStartDate] = useState("");
   const [exportEndDate, setExportEndDate] = useState("");
@@ -427,7 +428,16 @@ export default function Dashboard() {
             <p className="text-muted-foreground">نظرة شاملة على البيانات - {dateRange.label}</p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                queryClient.invalidateQueries();
+              }}
+            >
+              تحديث الأرقام
+            </Button>
             {[
               { key: "today", label: "اليوم" },
               { key: "week", label: "الأسبوع" },
