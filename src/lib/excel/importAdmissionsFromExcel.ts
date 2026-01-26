@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeArabicText, normalizeCellValue } from "../excel/normalizeArabic";
+import { normalizeDepartmentName } from "./normalizeDepartmentName";
 
 export type AdmissionExcelRow = Record<string, unknown>;
 
@@ -140,7 +141,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     const governorateName = normalizeCellValue(r["المحافظة"]);
     const districtName = normalizeCellValue(r["القسم أو المركز"]);
     const stationName = normalizeCellValue(r["المحطة اللي جاي منها"]);
-    const departmentName = normalizeCellValue(r["القسم"]);
+    const departmentName = normalizeDepartmentName(r["القسم"]);
     const occupationName = normalizeCellValue(r["المهنة"]);
 
     const address_details = normalizeCellValue(r["العنوان تفصيلي"]) || null;

@@ -616,9 +616,6 @@ export default function Discharge() {
                             options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
                             placeholder="اختر أو ابحث عن قسم"
                             emptyText="لا توجد أقسام"
-                            onAddNew={() => setShowDepartmentDialog(true)}
-                            onManage={() => setShowDepartmentManage(true)}
-                            addNewLabel="إضافة قسم"
                           />
                         </FormControl>
                         <FormMessage />
@@ -962,9 +959,6 @@ export default function Discharge() {
                   options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
                   placeholder="اختر أو ابحث عن قسم"
                   emptyText="لا توجد أقسام"
-                  onAddNew={() => setShowDepartmentDialog(true)}
-                  onManage={() => setShowDepartmentManage(true)}
-                  addNewLabel="إضافة قسم"
                 />
               </div>
 

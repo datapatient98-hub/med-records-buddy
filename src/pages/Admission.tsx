@@ -911,15 +911,6 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={departments ?? []}
                             placeholder="اختر قسم الحجز"
-                            onManage={() => setShowManageDialog("department")}
-                            onAddNew={() => {
-                              setDialogContext(undefined);
-                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
-                                field.onChange(item.id);
-                              });
-                              setShowNewItemDialog("department");
-                            }}
-                            addNewLabel="إضافة قسم حجز"
                           />
                         </FormControl>
                         <FormMessage />
