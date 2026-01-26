@@ -16,19 +16,16 @@ export function downloadImportSummaryPdf(params: {
     format: "a4"
   });
 
-  // إعداد الخط لدعم العربية بشكل أفضل
-  doc.setLanguage("ar");
-  
-  // عنوان التقرير بالعربية
+  // عنوان التقرير - نص عربي واضح
   doc.setFontSize(18);
   doc.setFont("helvetica", "normal");
   const pageWidth = doc.internal.pageSize.getWidth();
   doc.text(params.title, pageWidth / 2, 40, { align: "center" });
   
-  // معلومات إضافية
+  // معلومات إضافية بالعربي
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  const today = new Date().toLocaleDateString("ar", { 
+  const today = new Date().toLocaleDateString("ar-EG", { 
     year: "numeric", 
     month: "long", 
     day: "numeric" 
@@ -43,7 +40,7 @@ export function downloadImportSummaryPdf(params: {
 
   const startY = 110;
 
-  // عنوان جدول البيانات المستوردة
+  // جدول البيانات المستوردة بنجاح
   doc.setFontSize(12);
   autoTable(doc, {
     startY,
@@ -94,7 +91,7 @@ export function downloadImportSummaryPdf(params: {
 
   const afterImportedY = (doc as any).lastAutoTable?.finalY ?? afterTitle1Y + 60;
 
-  // عنوان جدول البيانات المكررة
+  // جدول البيانات المتجاهلة (المكررة)
   doc.setFontSize(12);
   autoTable(doc, {
     startY: afterImportedY + 25,
@@ -143,7 +140,7 @@ export function downloadImportSummaryPdf(params: {
     margin: { left: 40, right: 40 }
   });
 
-  // تذييل الصفحة مع الأرقام
+  // ترقيم الصفحات بالعربي
   const pageCount = doc.internal.pages.length - 1;
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
