@@ -454,6 +454,7 @@ export type Database = {
           discharge_status:
             | Database["public"]["Enums"]["discharge_status"]
             | null
+          discharge_status_other: string | null
           district_id: string | null
           doctor_id: string | null
           gender: Database["public"]["Enums"]["patient_gender"] | null
@@ -484,6 +485,7 @@ export type Database = {
           discharge_status?:
             | Database["public"]["Enums"]["discharge_status"]
             | null
+          discharge_status_other?: string | null
           district_id?: string | null
           doctor_id?: string | null
           gender?: Database["public"]["Enums"]["patient_gender"] | null
@@ -514,6 +516,7 @@ export type Database = {
           discharge_status?:
             | Database["public"]["Enums"]["discharge_status"]
             | null
+          discharge_status_other?: string | null
           district_id?: string | null
           doctor_id?: string | null
           gender?: Database["public"]["Enums"]["patient_gender"] | null
@@ -608,6 +611,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      exit_statuses: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       file_loans: {
         Row: {

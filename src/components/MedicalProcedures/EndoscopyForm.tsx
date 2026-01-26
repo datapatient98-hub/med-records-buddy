@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
+import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -31,7 +33,8 @@ const endoscopySchema = z.object({
   marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"]).optional(),
   age: z.coerce.number().min(0, "السن يجب أن يكون رقم موجب").optional(),
   department_id: z.string().min(1, "القسم مطلوب"),
-  procedure_date: z.string().min(1, "تاريخ وساعة الإجراء مطلوب"),
+  // سيتم تسجيله تلقائياً (مخفي مؤقتاً)
+  procedure_date: z.string().optional().or(z.literal("")),
   diagnosis_id: z.string().optional(),
   doctor_id: z.string().optional(),
   occupation_id: z.string().optional(),
@@ -49,6 +52,10 @@ const endoscopySchema = z.object({
   discharge_department_id: z.string().optional().or(z.literal("")),
   discharge_diagnosis_id: z.string().optional().or(z.literal("")),
   discharge_doctor_id: z.string().optional().or(z.literal("")),
+
+  // تبسيط حالة الخروج: تحسن (افتراضي) أو أخرى من قائمة قابلة للإدارة
+  discharge_status_mode: z.enum(["تحسن", "أخرى"]).optional(),
+  discharge_status_other: z.string().trim().optional().or(z.literal("")),
 });
 
 export type EndoscopyFormValues = z.infer<typeof endoscopySchema>;
@@ -59,6 +66,7 @@ type Props = {
   departments: Option[];
   /** Full departments list for إدارة القوائم (حتى لو الحقل نفسه فلتر) */
   manageDepartments?: Option[];
+  exitStatuses: Option[];
   doctors: Option[];
   diagnoses: Option[];
   occupations: Option[];
@@ -74,6 +82,7 @@ export default function EndoscopyForm({
   defaultValues,
   departments,
   manageDepartments,
+  exitStatuses,
   doctors,
   diagnoses,
   occupations,
@@ -108,6 +117,9 @@ export default function EndoscopyForm({
       discharge_department_id: "",
       discharge_diagnosis_id: "",
       discharge_doctor_id: "",
+
+      discharge_status_mode: "تحسن",
+      discharge_status_other: "",
       ...defaultValues,
     },
   });
@@ -154,9 +166,41 @@ export default function EndoscopyForm({
       station: stations,
       district: districts,
       hospital: [],
+      exit_status: exitStatuses,
     };
     return map;
-  }, [departments, diagnoses, doctors, districts, governorates, manageDepartments, occupations, stations]);
+  }, [departments, diagnoses, doctors, districts, exitStatuses, governorates, manageDepartments, occupations, stations]);
+
+  // السن تلقائي من الرقم القومي
+  const nationalId = form.watch("national_id") || "";
+  useEffect(() => {
+    const age = getAgeFromEgyptNationalId(nationalId);
+    if (typeof age === "number") {
+      form.setValue("age", age, { shouldDirty: true });
+    }
+    // لو الرقم غير صحيح لا نلمس السن (عشان ممكن يكون مكتوب يدوي)
+  }, [form, nationalId]);
+
+  // تثبيت المحطة = عيادة المناظير (لو القائمة فيها خيار واحد)
+  useEffect(() => {
+    if (stations?.length === 1) {
+      const only = stations[0];
+      if (only?.id && form.getValues("station_id") !== only.id) {
+        form.setValue("station_id", only.id, { shouldDirty: true });
+      }
+    }
+  }, [form, stations]);
+
+  // حالة الخروج الافتراضية = تحسن، ولو (أخرى) نستخدم discharge_status_other
+  const dischargeMode = form.watch("discharge_status_mode") || "تحسن";
+  useEffect(() => {
+    // نحفظ في الحقل enum دائماً "تحسن" كما طلبت
+    form.setValue("discharge_status", "تحسن", { shouldDirty: true });
+    if (dischargeMode !== "أخرى") {
+      const current = form.getValues("discharge_status_other");
+      if (current) form.setValue("discharge_status_other", "", { shouldDirty: true });
+    }
+  }, [dischargeMode, form]);
 
   return (
     <Card className="shadow-lg border-border">
@@ -314,19 +358,7 @@ export default function EndoscopyForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="procedure_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>تاريخ وساعة الإجراء *</FormLabel>
-                    <FormControl>
-                      <Input type="datetime-local" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* تاريخ وساعة الإجراء: مخفي مؤقتاً ويتم تسجيله تلقائياً */}
 
               {/* بيانات الدخول */}
               <FormField
@@ -406,22 +438,19 @@ export default function EndoscopyForm({
 
               <FormField
                 control={form.control}
-                name="discharge_status"
+                name="discharge_status_mode"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>حالة الخروج</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <Select onValueChange={field.onChange} value={field.value || "تحسن"}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="اختر الحالة" />
+                          <SelectValue />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="تحسن">تحسن</SelectItem>
-                        <SelectItem value="تحويل">تحويل</SelectItem>
-                        <SelectItem value="وفاة">وفاة</SelectItem>
-                        <SelectItem value="هروب">هروب</SelectItem>
-                        <SelectItem value="رفض العلاج">رفض العلاج</SelectItem>
+                        <SelectItem value="أخرى">أخرى</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -429,28 +458,32 @@ export default function EndoscopyForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="discharge_department_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>قسم الخروج (مناظير)</FormLabel>
-                    <FormControl>
-                      <div className="pointer-events-none opacity-90">
+              {dischargeMode === "أخرى" && (
+                <FormField
+                  control={form.control}
+                  name="discharge_status_other"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>أخرى (اختر/أضف/احذف)</FormLabel>
+                      <FormControl>
                         <SearchableSelect
                           value={field.value || ""}
                           onValueChange={field.onChange}
-                          options={departments}
-                          placeholder="قسم المناظير"
-                          emptyText="لا توجد أقسام"
-                          allowClear={false}
+                          options={exitStatuses}
+                          placeholder="اختر سبب/حالة أخرى"
+                          emptyText="لا توجد بيانات"
+                          onAddNew={() => setCreateType("exit_status")}
+                          onManage={() => setManageType("exit_status")}
+                          addNewLabel="إضافة حالة خروج"
                         />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* قسم الخروج: ثابت ومخفي */}
 
               <FormField
                 control={form.control}
@@ -567,28 +600,7 @@ export default function EndoscopyForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="station_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المحطة</FormLabel>
-                    <FormControl>
-                      <SearchableSelect
-                        value={field.value || ""}
-                        onValueChange={field.onChange}
-                        options={stations}
-                        placeholder="اختر المحطة"
-                        emptyText="لا توجد بيانات"
-                        onAddNew={() => setCreateType("station")}
-                        onManage={() => setManageType("station")}
-                        addNewLabel="إضافة محطة"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* المحطة: ثابتة = عيادة المناظير */}
 
               <FormField
                 control={form.control}
