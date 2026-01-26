@@ -504,14 +504,18 @@ export default function Records() {
                             {dischargesLoading ? (
                               <span className="text-sm text-muted-foreground">...</span>
                             ) : unifiedExitFlag.get(admission.unified_number) ? (
-                              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold bg-status-discharged text-status-discharged">
-                                <span className="h-2.5 w-2.5 rounded-full bg-status-discharged" />
-                                خرج
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-discharged text-status-discharged font-extrabold text-base">
+                                  خرج
+                                </span>
+                                <span className="text-sm font-semibold text-foreground">خرج</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold bg-status-active text-status-active">
-                                <span className="h-2.5 w-2.5 rounded-full bg-status-active" />
-                                محجوز
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-status-active text-status-active font-extrabold text-base">
+                                  محجوز
+                                </span>
+                                <span className="text-sm font-semibold text-foreground">محجوز</span>
                               </span>
                             )}
                           </TableCell>
