@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,111 +8,12 @@ import {
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format } from "date-fns";
-import { ar } from "date-fns/locale";
-import RowDetailsDialog from "@/components/RowDetailsDialog";
+import UnifiedHistorySummary from "@/components/UnifiedHistory/UnifiedHistorySummary";
+import UnifiedHistorySection from "@/components/UnifiedHistory/UnifiedHistorySection";
+import type { ColumnDef, UnifiedHistoryPayload } from "@/components/UnifiedHistory/types";
 
-type AnyRow = Record<string, any>;
-
-function fmtDate(v: any) {
-  if (!v) return "-";
-  try {
-    return format(new Date(v), "dd/MM/yyyy HH:mm", { locale: ar });
-  } catch {
-    return String(v);
-  }
-}
-
-function renderValue(v: any) {
-  if (v === null || v === undefined || v === "") return "-";
-  if (typeof v === "boolean") return v ? "نعم" : "لا";
-  return String(v);
-}
-
-function Section({
-  title,
-  rows,
-  columns,
-  emptyMessage = "لا يوجد",
-}: {
-  title: string;
-  rows: AnyRow[];
-  columns: { key: string; label: string; isDate?: boolean }[];
-  emptyMessage?: string;
-}) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [detailsRow, setDetailsRow] = useState<AnyRow | null>(null);
-
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <h3 className="text-lg font-bold text-primary">{title}</h3>
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-sm font-semibold text-muted-foreground">({rows.length})</span>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-lg border bg-muted/30 px-6 py-8 text-center">
-          <p className="text-muted-foreground font-medium">{emptyMessage}</p>
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-card">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {columns.map((c) => (
-                    <TableHead key={c.key} className="font-bold">
-                      {c.label}
-                    </TableHead>
-                  ))}
-                  <TableHead className="w-[140px] font-bold">الإجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r, idx) => (
-                  <TableRow key={r.id ?? idx} className="hover:bg-accent/50">
-                    {columns.map((c) => (
-                      <TableCell key={c.key} className={c.key.includes("number") ? "font-mono" : undefined}>
-                        {c.isDate ? fmtDate(r[c.key]) : renderValue(r[c.key])}
-                      </TableCell>
-                    ))}
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDetailsRow(r);
-                          setDetailsOpen(true);
-                        }}
-                      >
-                        عرض التفاصيل
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <RowDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} row={detailsRow} title="تفاصيل السجل" />
-        </div>
-      )}
-    </section>
-  );
-}
-
-export type UnifiedHistoryPayload = {
-  unified_number: string;
-  admissions: AnyRow[];
-  discharges: AnyRow[];
-  emergencies: AnyRow[];
-  endoscopies: AnyRow[];
-  procedures: AnyRow[];
-  loans: AnyRow[];
-};
+// Backward-compatible re-export (used in Layout / UnifiedDatabase)
+export type { UnifiedHistoryPayload } from "@/components/UnifiedHistory/types";
 
 export default function UnifiedPatientHistoryDialog({
   open,
@@ -170,6 +70,15 @@ export default function UnifiedPatientHistoryDialog({
     } as const;
   }, []);
 
+  const sectionColumns: Record<keyof Omit<UnifiedHistoryPayload, "unified_number">, ColumnDef[]> = {
+    admissions: [...columns.admissions],
+    emergencies: [...columns.emergencies],
+    endoscopies: [...columns.endoscopies],
+    procedures: [...columns.procedures],
+    discharges: [...columns.discharges],
+    loans: [...columns.loans],
+  };
+
   const p = payload;
   const totalRecords =
     (p?.admissions.length ?? 0) +
@@ -183,29 +92,60 @@ export default function UnifiedPatientHistoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle className="text-2xl">تفاصيل السجل</DialogTitle>
-          <DialogDescription className="text-base">
-            الرقم الموحد: <span className="font-bold text-foreground">{p?.unified_number ?? "-"}</span>
-            {" • "}
-            إجمالي السجلات: <span className="font-bold text-foreground">{totalRecords}</span>
+          <DialogTitle className="text-2xl text-center">تفاصيل السجل</DialogTitle>
+          <DialogDescription className="text-base text-center">
+            سجل شامل ومُرتّب لكل الأحداث الطبية المرتبطة بالرقم الموحد
           </DialogDescription>
         </DialogHeader>
 
         <Separator />
 
         <ScrollArea className="max-h-[calc(90vh-180px)] px-1">
-          <div className="space-y-6 pb-4">
-            <Section title="سجلات الدخول" rows={p?.admissions ?? []} columns={[...columns.admissions]} emptyMessage="تفاصيل الدخول: لا يوجد" />
-            <Section title="سجلات الطوارئ" rows={p?.emergencies ?? []} columns={[...columns.emergencies]} emptyMessage="تفاصيل الطوارئ: لا يوجد" />
-            <Section title="سجلات المناظير" rows={p?.endoscopies ?? []} columns={[...columns.endoscopies]} emptyMessage="تفاصيل المناظير: لا يوجد" />
-            <Section
+          <div className="space-y-6 pb-6">
+            <UnifiedHistorySummary unifiedNumber={p?.unified_number ?? "-"} totalRecords={totalRecords} />
+
+            <UnifiedHistorySection
+              title="سجلات الدخول"
+              tone="green"
+              rows={p?.admissions ?? []}
+              columns={sectionColumns.admissions}
+              emptyMessage="تفاصيل الدخول: لا يوجد"
+            />
+            <UnifiedHistorySection
+              title="سجلات الطوارئ"
+              tone="orange"
+              rows={p?.emergencies ?? []}
+              columns={sectionColumns.emergencies}
+              emptyMessage="تفاصيل الطوارئ: لا يوجد"
+            />
+            <UnifiedHistorySection
+              title="سجلات المناظير"
+              tone="cyan"
+              rows={p?.endoscopies ?? []}
+              columns={sectionColumns.endoscopies}
+              emptyMessage="تفاصيل المناظير: لا يوجد"
+            />
+            <UnifiedHistorySection
               title="سجلات الإجراءات (بذل / استقبال / كلي)"
+              tone="purple"
               rows={p?.procedures ?? []}
-              columns={[...columns.procedures]}
+              columns={sectionColumns.procedures}
               emptyMessage="تفاصيل الإجراءات: لا يوجد"
             />
-            <Section title="سجلات الخروج" rows={p?.discharges ?? []} columns={[...columns.discharges]} emptyMessage="تفاصيل الخروج: لا يوجد" />
-            <Section title="سجلات الاستعارات" rows={p?.loans ?? []} columns={[...columns.loans]} emptyMessage="تفاصيل الاستعارات: لا يوجد" />
+            <UnifiedHistorySection
+              title="سجلات الخروج"
+              tone="pink"
+              rows={p?.discharges ?? []}
+              columns={sectionColumns.discharges}
+              emptyMessage="تفاصيل الخروج: لا يوجد"
+            />
+            <UnifiedHistorySection
+              title="سجلات الاستعارات"
+              tone="primary"
+              rows={p?.loans ?? []}
+              columns={sectionColumns.loans}
+              emptyMessage="تفاصيل الاستعارات: لا يوجد"
+            />
           </div>
         </ScrollArea>
       </DialogContent>
