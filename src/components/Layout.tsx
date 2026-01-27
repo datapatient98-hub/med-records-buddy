@@ -35,7 +35,7 @@ const navigation = [
   { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
   { name: "الإجراءات الطبية", href: "/medical-procedures", icon: Microscope },
   { name: "الاستعارات", href: "/loans", icon: FileArchive },
- { name: "بحث عن مريض", href: "/patient-search", icon: Search },
+  { name: "مراجعة الملفات", href: "/patient-search", icon: AlertTriangle },
   { name: "سجل المرضى", href: "/records", icon: Users },
   { name: "قاعدة البيانات الموحدة", href: "/unified-database", icon: Database },
   { name: "التقارير", href: "/reports", icon: FileText },
@@ -53,8 +53,8 @@ export default function Layout({ children }: LayoutProps) {
   const [noResultQuery, setNoResultQuery] = useState("");
 
   const shouldShowHeaderSearch = useMemo(() => {
-    // Hide on the dedicated Patient Search page (it already has a full search UI)
-    return location.pathname !== "/patient-search";
+    // Keep header search visible everywhere (it is the primary navigation tool).
+    return true;
   }, [location.pathname]);
 
   const runTopSearch = async (qRaw: string) => {
