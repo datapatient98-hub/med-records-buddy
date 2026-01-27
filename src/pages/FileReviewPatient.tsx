@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import Layout from "@/components/Layout";
@@ -13,6 +13,7 @@ import { findUnifiedNumberForTopSearch } from "@/lib/topSearch";
 
 export default function FileReviewPatient() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const raw = (params.get("q") ?? "").trim();
 
@@ -73,7 +74,12 @@ export default function FileReviewPatient() {
     <Layout>
       <div className="space-y-6">
         <header className="space-y-1">
-          <h2 className="text-2xl font-bold text-foreground">بيانات الدخول والخروج (الأحدث)</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-2xl font-bold text-foreground">بيانات الدخول والخروج (الأحدث)</h2>
+            <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
+              رجوع
+            </Button>
+          </div>
           <p className="text-sm text-muted-foreground">
             البحث: <span className="font-mono">{raw || "-"}</span>
           </p>

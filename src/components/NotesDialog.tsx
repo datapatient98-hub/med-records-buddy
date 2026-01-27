@@ -1,4 +1,4 @@
-import { useState } from "react";
+import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import { MessageSquare, Pencil, Plus, Trash2, X, Save } from "lucide-react";
 
 interface NotesDialogProps {
   admissionId: string | null;
@@ -30,8 +30,11 @@ export default function NotesDialog({
 }: NotesDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [noteText, setNoteText] = useState("");
-  const [createdBy, setCreatedBy] = useState("");
+  const [noteText, setNoteText] = React.useState("");
+  const [createdBy, setCreatedBy] = React.useState("");
+
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingText, setEditingText] = React.useState("");
 
   // Fetch notes for this admission
   const { data: notes, isLoading } = useQuery({
@@ -74,6 +77,28 @@ export default function NotesDialog({
       toast({
         title: "خطأ",
         description: error.message || "فشل حفظ الملاحظة",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({ noteId, noteText }: { noteId: string; noteText: string }) => {
+      const text = (noteText ?? "").trim();
+      if (!text) throw new Error("لا يمكن حفظ ملاحظة فارغة");
+      const { error } = await supabase.from("notes").update({ note_text: text }).eq("id", noteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes", admissionId] });
+      setEditingId(null);
+      setEditingText("");
+      toast({ title: "تم الحفظ", description: "تم تعديل الملاحظة" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "خطأ",
+        description: error.message || "فشل تعديل الملاحظة",
         variant: "destructive",
       });
     },
@@ -167,19 +192,67 @@ export default function NotesDialog({
                           {format(new Date(note.created_at), "yyyy-MM-dd HH:mm")}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteNoteMutation.mutate(note.id)}
-                        disabled={deleteNoteMutation.isPending}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {editingId !== note.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditingId(note.id);
+                              setEditingText(String(note.note_text ?? ""));
+                            }}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteNoteMutation.mutate(note.id)}
+                          disabled={deleteNoteMutation.isPending}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">
-                      {note.note_text}
-                    </p>
+
+                    {editingId === note.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          rows={3}
+                          className="resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            className="flex-1"
+                            onClick={() => updateNoteMutation.mutate({ noteId: note.id, noteText: editingText })}
+                            disabled={updateNoteMutation.isPending}
+                          >
+                            <Save className="ml-2 h-4 w-4" />
+                            حفظ التعديل
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => {
+                              setEditingId(null);
+                              setEditingText("");
+                            }}
+                          >
+                            <X className="ml-2 h-4 w-4" />
+                            إلغاء
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
+                    )}
                   </CardContent>
                 </Card>
               ))
