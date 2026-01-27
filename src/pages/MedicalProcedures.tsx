@@ -21,24 +21,26 @@ import { useNavigate } from "react-router-dom";
  import { Database } from "@/integrations/supabase/types";
  import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EndoscopyForm, { type EndoscopyFormValues } from "@/components/MedicalProcedures/EndoscopyForm";
+import { useFieldConfig } from "@/components/FieldConfigProvider";
  
   type ProcedureType = "procedure" | "reception" | "kidney" | "endoscopy";
  
- const procedureSchema = z.object({
-   procedure_date: z.string().min(1, "تاريخ الإجراء مطلوب"),
-   diagnosis_id: z.string().optional(),
-   doctor_id: z.string().optional(),
-  discharge_department_id: z.string().optional(),
-  procedure_status: z.string().optional(),
-  hospital_id: z.string().optional(),
-  transferred_from_department_id: z.string().optional(),
- });
+const procedureSchema = z.object({
+  procedure_date: z.string().optional().or(z.literal("")),
+  diagnosis_id: z.string().optional().or(z.literal("")),
+  doctor_id: z.string().optional().or(z.literal("")),
+  discharge_department_id: z.string().optional().or(z.literal("")),
+  procedure_status: z.string().optional().or(z.literal("")),
+  hospital_id: z.string().optional().or(z.literal("")),
+  transferred_from_department_id: z.string().optional().or(z.literal("")),
+});
  
  type ProcedureFormValues = z.infer<typeof procedureSchema>;
  type AdmissionData = Database["public"]["Tables"]["admissions"]["Row"];
 type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
  
  export default function MedicalProcedures() {
+  const { getRule } = useFieldConfig();
   const navigate = useNavigate();
    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState<ProcedureType>("procedure");
@@ -107,6 +109,21 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
       return data || [];
     },
   });
+
+  const showField = (key: keyof ProcedureFormValues) => getRule("procedures", String(key)).visible;
+  const isRequired = (key: keyof ProcedureFormValues) => getRule("procedures", String(key)).required;
+
+  const validateRequired = (values: ProcedureFormValues) => {
+    const requiredKeys: Array<keyof ProcedureFormValues> = ["procedure_date"];
+    const isFilled = (v: unknown) => (typeof v === "string" ? v.trim().length > 0 : v != null);
+    for (const k of requiredKeys) {
+      if (!isRequired(k)) continue;
+      if (!showField(k)) continue;
+      const v = (values as any)[k];
+      if (!isFilled(v)) return k;
+    }
+    return null;
+  };
 
    const { data: departments } = useQuery({
      queryKey: ["departments"],
@@ -656,6 +673,11 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
     });
  
    const onSubmit = (data: ProcedureFormValues) => {
+     const missing = validateRequired(data);
+     if (missing) {
+       form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
+       return;
+     }
      mutation.mutate(data);
    };
  
@@ -1009,108 +1031,120 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                         </FormControl>
                       </FormItem>
 
-                     <FormField
-                       control={form.control}
-                       name="diagnosis_id"
-                       render={({ field }) => (
-                         <FormItem>
-                           <FormLabel>التشخيص</FormLabel>
-                           <FormControl>
-                             <SearchableSelect
-                               value={field.value}
-                               onValueChange={field.onChange}
-                               options={diagnoses || []}
-                               placeholder="اختر التشخيص"
-                               onAddNew={() => setShowDiagnosisDialog(true)}
-                               onManage={() => setShowDiagnosisManage(true)}
-                             />
-                           </FormControl>
-                           <FormMessage />
-                         </FormItem>
-                       )}
-                     />
+                      {showField("diagnosis_id") && (
+                        <FormField
+                          control={form.control}
+                          name="diagnosis_id"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>التشخيص</FormLabel>
+                              <FormControl>
+                                <SearchableSelect
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  options={diagnoses || []}
+                                  placeholder="اختر التشخيص"
+                                  onAddNew={() => setShowDiagnosisDialog(true)}
+                                  onManage={() => setShowDiagnosisManage(true)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
  
-                     <FormField
-                       control={form.control}
-                       name="doctor_id"
-                       render={({ field }) => (
-                         <FormItem>
-                           <FormLabel>الطبيب</FormLabel>
-                           <FormControl>
-                             <SearchableSelect
-                               value={field.value}
-                               onValueChange={field.onChange}
-                               options={doctors || []}
-                               placeholder="اختر الطبيب"
-                               onAddNew={() => setShowDoctorDialog(true)}
-                               onManage={() => setShowDoctorManage(true)}
-                             />
-                           </FormControl>
-                           <FormMessage />
-                         </FormItem>
-                       )}
-                     />
+                      {showField("doctor_id") && (
+                        <FormField
+                          control={form.control}
+                          name="doctor_id"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>الطبيب</FormLabel>
+                              <FormControl>
+                                <SearchableSelect
+                                  value={field.value}
+                                  onValueChange={field.onChange}
+                                  options={doctors || []}
+                                  placeholder="اختر الطبيب"
+                                  onAddNew={() => setShowDoctorDialog(true)}
+                                  onManage={() => setShowDoctorManage(true)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
  
-                     <FormField
-                       control={form.control}
-                       name="procedure_date"
-                       render={({ field }) => (
-                          <FormItem>
-                           <FormLabel>تاريخ وساعة الإجراء *</FormLabel>
-                           <FormControl>
-                             <Input type="datetime-local" {...field} />
-                           </FormControl>
-                           <FormMessage />
-                         </FormItem>
+                      {showField("procedure_date") && (
+                        <FormField
+                          control={form.control}
+                          name="procedure_date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                تاريخ وساعة الإجراء {isRequired("procedure_date") ? "*" : ""}
+                              </FormLabel>
+                              <FormControl>
+                                <Input type="datetime-local" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                       {showField("discharge_department_id") && (
+                         <FormField
+                           control={form.control}
+                           name="discharge_department_id"
+                           render={({ field }) => (
+                             <FormItem>
+                               <FormLabel>قسم الخروج</FormLabel>
+                               <FormControl>
+                                 <SearchableSelect
+                                   value={field.value || ""}
+                                   onValueChange={field.onChange}
+                                   options={dischargeDepartments || []}
+                                   placeholder="اختر قسم الخروج"
+                                   emptyText="لا توجد أقسام"
+                                 />
+                               </FormControl>
+                               <FormMessage />
+                             </FormItem>
+                           )}
+                         />
                        )}
-                     />
 
-                      <FormField
-                        control={form.control}
-                        name="discharge_department_id"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>قسم الخروج</FormLabel>
-                            <FormControl>
-                              <SearchableSelect
-                                value={field.value || ""}
-                                onValueChange={field.onChange}
-                                options={dischargeDepartments || []}
-                                placeholder="اختر قسم الخروج"
-                                emptyText="لا توجد أقسام"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="procedure_status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>حالة الخروج</FormLabel>
-                            <FormControl>
-                              <SearchableSelect
-                                value={field.value || ""}
-                                onValueChange={field.onChange}
-                                options={statusOptions}
-                                placeholder="اختر الحالة"
-                                emptyText="لا توجد حالات"
-                                onAddNew={() => setShowExitStatusDialog(true)}
-                                onManage={() => setShowExitStatusManage(true)}
-                                addNewLabel="إضافة حالة خروج"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                       {showField("procedure_status") && (
+                         <FormField
+                           control={form.control}
+                           name="procedure_status"
+                           render={({ field }) => (
+                             <FormItem>
+                               <FormLabel>حالة الخروج</FormLabel>
+                               <FormControl>
+                                 <SearchableSelect
+                                   value={field.value || ""}
+                                   onValueChange={field.onChange}
+                                   options={statusOptions}
+                                   placeholder="اختر الحالة"
+                                   emptyText="لا توجد حالات"
+                                   onAddNew={() => setShowExitStatusDialog(true)}
+                                   onManage={() => setShowExitStatusManage(true)}
+                                   addNewLabel="إضافة حالة خروج"
+                                 />
+                               </FormControl>
+                               <FormMessage />
+                             </FormItem>
+                           )}
+                         />
+                       )}
 
                       {/* تم إزالة تحويل/وفاة/هروب/حسب الطلب من حالات الخروج حسب طلبك */}
 
-                      {selectedAdmission?.admission_source === "طوارئ" && (
+                       {selectedAdmission?.admission_source === "طوارئ" && showField("transferred_from_department_id") && (
                         <FormField
                           control={form.control}
                           name="transferred_from_department_id"

@@ -20,21 +20,23 @@ import SearchableSelect from "@/components/SearchableSelect";
 import LookupCreateDialog from "@/components/LookupCreateDialog";
 import LookupManageDialog from "@/components/LookupManageDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useFieldConfig } from "@/components/FieldConfigProvider";
 
 const dischargeSchema = z.object({
-  discharge_date: z.string().min(1, "تاريخ الخروج مطلوب"),
-  discharge_department_id: z.string().optional(),
-  discharge_diagnosis_id: z.string().optional(),
-  discharge_doctor_id: z.string().optional(),
-  discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]),
-  hospital_id: z.string().optional(),
-  finance_source: z.enum(["تأمين صحي", "علاج على نفقة الدولة", "خاص"]).optional(),
-  child_national_id: z.string().optional(),
+  discharge_date: z.string().optional().or(z.literal("")),
+  discharge_department_id: z.string().optional().or(z.literal("")),
+  discharge_diagnosis_id: z.string().optional().or(z.literal("")),
+  discharge_doctor_id: z.string().optional().or(z.literal("")),
+  discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]).optional().or(z.literal("")),
+  hospital_id: z.string().optional().or(z.literal("")),
+  finance_source: z.enum(["تأمين صحي", "علاج على نفقة الدولة", "خاص"]).optional().or(z.literal("")),
+  child_national_id: z.string().optional().or(z.literal("")),
 });
 
 type DischargeFormValues = z.infer<typeof dischargeSchema>;
 
 export default function Discharge() {
+  const { getRule } = useFieldConfig();
   const queryClient = useQueryClient();
   const [unifiedNumber, setUnifiedNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
@@ -90,6 +92,21 @@ export default function Discharge() {
   });
 
   const dischargeStatus = form.watch("discharge_status");
+
+  const showField = (key: keyof DischargeFormValues) => getRule("discharge", String(key)).visible;
+  const isRequired = (key: keyof DischargeFormValues) => getRule("discharge", String(key)).required;
+
+  const validateRequired = (values: DischargeFormValues) => {
+    const requiredKeys: Array<keyof DischargeFormValues> = ["discharge_date", "discharge_status", "finance_source"];
+    const isFilled = (v: unknown) => (typeof v === "string" ? v.trim().length > 0 : v != null);
+    for (const k of requiredKeys) {
+      if (!isRequired(k)) continue;
+      if (!showField(k)) continue;
+      const v = (values as any)[k];
+      if (!isFilled(v)) return k;
+    }
+    return null;
+  };
 
   // Fetch lookup data
   const { data: departments } = useQuery({
@@ -380,6 +397,11 @@ export default function Discharge() {
   });
 
   const onSubmit = (data: DischargeFormValues) => {
+    const missing = validateRequired(data);
+    if (missing) {
+      form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
+      return;
+    }
     mutation.mutate(data);
   };
 
@@ -577,46 +599,54 @@ export default function Discharge() {
                     </FormControl>
                   </FormItem>
 
-                  <FormField
-                    control={form.control}
-                    name="discharge_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>تاريخ وساعة الخروج *</FormLabel>
-                        <FormControl>
-                          <Input type="datetime-local" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="discharge_status"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>حالة الخروج *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  {showField("discharge_date") && (
+                    <FormField
+                      control={form.control}
+                      name="discharge_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            تاريخ وساعة الخروج {isRequired("discharge_date") ? "*" : ""}
+                          </FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر حالة الخروج" />
-                            </SelectTrigger>
+                            <Input type="datetime-local" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="تحسن">تحسن</SelectItem>
-                            <SelectItem value="تحويل">تحويل</SelectItem>
-                            <SelectItem value="وفاة">وفاة</SelectItem>
-                            <SelectItem value="هروب">هروب</SelectItem>
-                            <SelectItem value="رفض العلاج">رفض العلاج حسب الطلب</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  {dischargeStatus === "تحويل" && (
+                  {showField("discharge_status") && (
+                    <FormField
+                      control={form.control}
+                      name="discharge_status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            حالة الخروج {isRequired("discharge_status") ? "*" : ""}
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر حالة الخروج" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="تحسن">تحسن</SelectItem>
+                              <SelectItem value="تحويل">تحويل</SelectItem>
+                              <SelectItem value="وفاة">وفاة</SelectItem>
+                              <SelectItem value="هروب">هروب</SelectItem>
+                              <SelectItem value="رفض العلاج">رفض العلاج حسب الطلب</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {dischargeStatus === "تحويل" && showField("hospital_id") && (
                     <FormField
                       control={form.control}
                       name="hospital_id"
@@ -641,108 +671,120 @@ export default function Discharge() {
                     />
                   )}
 
-                  <FormField
-                    control={form.control}
-                    name="discharge_department_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>قسم الخروج</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
-                            placeholder="اختر أو ابحث عن قسم"
-                            emptyText="لا توجد أقسام"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="discharge_diagnosis_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>تشخيص الخروج</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            options={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
-                            placeholder="اختر أو ابحث عن تشخيص"
-                            emptyText="لا توجد تشخيصات"
-                            onAddNew={() => setShowDiagnosisDialog(true)}
-                            onManage={() => setShowDiagnosisManage(true)}
-                            addNewLabel="إضافة تشخيص"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="discharge_doctor_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>طبيب الخروج</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            value={field.value || ""}
-                            onValueChange={field.onChange}
-                            options={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
-                            placeholder="اختر أو ابحث عن طبيب"
-                            emptyText="لا يوجد أطباء"
-                            onAddNew={() => setShowDoctorDialog(true)}
-                            onManage={() => setShowDoctorManage(true)}
-                            addNewLabel="إضافة طبيب"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="finance_source"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>الوعاء المالي</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  {showField("discharge_department_id") && (
+                    <FormField
+                      control={form.control}
+                      name="discharge_department_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>قسم الخروج</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر الوعاء المالي" />
-                            </SelectTrigger>
+                            <SearchableSelect
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              options={departments?.map((d) => ({ id: d.id, name: d.name })) || []}
+                              placeholder="اختر أو ابحث عن قسم"
+                              emptyText="لا توجد أقسام"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="تأمين صحي">تأمين صحي</SelectItem>
-                            <SelectItem value="علاج على نفقة الدولة">علاج على نفقة الدولة</SelectItem>
-                            <SelectItem value="خاص">خاص</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  <FormField
-                    control={form.control}
-                    name="child_national_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>الرقم القومي للطفل (إن وجد)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="14 رقم" maxLength={14} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {showField("discharge_diagnosis_id") && (
+                    <FormField
+                      control={form.control}
+                      name="discharge_diagnosis_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>تشخيص الخروج</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              options={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
+                              placeholder="اختر أو ابحث عن تشخيص"
+                              emptyText="لا توجد تشخيصات"
+                              onAddNew={() => setShowDiagnosisDialog(true)}
+                              onManage={() => setShowDiagnosisManage(true)}
+                              addNewLabel="إضافة تشخيص"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {showField("discharge_doctor_id") && (
+                    <FormField
+                      control={form.control}
+                      name="discharge_doctor_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>طبيب الخروج</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                              options={doctors?.map((d) => ({ id: d.id, name: d.name })) || []}
+                              placeholder="اختر أو ابحث عن طبيب"
+                              emptyText="لا يوجد أطباء"
+                              onAddNew={() => setShowDoctorDialog(true)}
+                              onManage={() => setShowDoctorManage(true)}
+                              addNewLabel="إضافة طبيب"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {showField("finance_source") && (
+                    <FormField
+                      control={form.control}
+                      name="finance_source"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            الوعاء المالي {isRequired("finance_source") ? "*" : ""}
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر الوعاء المالي" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="تأمين صحي">تأمين صحي</SelectItem>
+                              <SelectItem value="علاج على نفقة الدولة">علاج على نفقة الدولة</SelectItem>
+                              <SelectItem value="خاص">خاص</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {showField("child_national_id") && (
+                    <FormField
+                      control={form.control}
+                      name="child_national_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الرقم القومي للطفل (إن وجد)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="14 رقم" maxLength={14} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2">
