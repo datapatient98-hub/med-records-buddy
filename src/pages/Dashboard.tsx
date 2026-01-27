@@ -7,9 +7,14 @@ import KPICard from "@/components/KPICard";
 import LoanAlertNotification from "@/components/LoanAlertNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import DashboardExportDialog from "@/components/DashboardExportDialog";
 import {
   TrendingUp,
   FileDown,
@@ -41,7 +46,6 @@ import {
   Legend,
 } from "recharts";
 import { format, subDays, startOfWeek, startOfMonth, startOfYear } from "date-fns";
-import * as XLSX from "xlsx";
 
 const COLORS = {
   primary: "hsl(var(--chart-1))",
@@ -53,15 +57,12 @@ const COLORS = {
 };
 
 type PeriodType = "today" | "week" | "month" | "quarter" | "year";
-type ExportType = "all" | "admissions" | "discharges" | "emergencies" | "endoscopies" | "procedures";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<PeriodType>("month");
-  const [exportStartDate, setExportStartDate] = useState("");
-  const [exportEndDate, setExportEndDate] = useState("");
-  const [exportType, setExportType] = useState<ExportType>("all");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
   
   // Chart visibility toggles - merged procedures (بذل) into emergencies
   const [visibleSeries, setVisibleSeries] = useState({
@@ -339,112 +340,7 @@ export default function Dashboard() {
     };
   });
 
-  // Export to Excel
-  const handleExport = () => {
-    const wb = XLSX.utils.book_new();
-
-    // Admissions sheet
-    const admissionsSheet = XLSX.utils.json_to_sheet(admissionsData || []);
-    XLSX.utils.book_append_sheet(wb, admissionsSheet, "الدخول");
-
-    // Discharges sheet
-    const dischargesSheet = XLSX.utils.json_to_sheet(dischargesData || []);
-    XLSX.utils.book_append_sheet(wb, dischargesSheet, "الخروج");
-
-    // Emergencies sheet
-    const emergenciesSheet = XLSX.utils.json_to_sheet(emergenciesData || []);
-    XLSX.utils.book_append_sheet(wb, emergenciesSheet, "الطوارئ");
-
-    // Endoscopies sheet
-    const endoscopiesSheet = XLSX.utils.json_to_sheet(endoscopiesData || []);
-    XLSX.utils.book_append_sheet(wb, endoscopiesSheet, "المناظير");
-
-    // Procedures sheet
-    const proceduresSheet = XLSX.utils.json_to_sheet(proceduresData || []);
-    XLSX.utils.book_append_sheet(wb, proceduresSheet, "البذل");
-
-    XLSX.writeFile(wb, `تقرير_${dateRange.label}_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-  };
-
-  // Export function with filters
-  const handleExportWithFilters = async () => {
-    if (!exportStartDate || !exportEndDate) {
-      alert("الرجاء تحديد التاريخ من و إلى");
-      return;
-    }
-
-    const results: any = {};
-
-    if (exportType === "all" || exportType === "admissions") {
-      const { data } = await supabase
-        .from("admissions")
-        .select("*")
-        .gte("created_at", exportStartDate)
-        .lte("created_at", exportEndDate);
-      results.admissions = data || [];
-    }
-
-    if (exportType === "all" || exportType === "discharges") {
-      const { data } = await supabase
-        .from("discharges")
-        .select("*, admission:admissions(*)")
-        .gte("created_at", exportStartDate)
-        .lte("created_at", exportEndDate);
-      results.discharges = data || [];
-    }
-
-    if (exportType === "all" || exportType === "emergencies") {
-      const { data } = await supabase
-        .from("emergencies")
-        .select("*")
-        .gte("created_at", exportStartDate)
-        .lte("created_at", exportEndDate);
-      results.emergencies = data || [];
-    }
-
-    if (exportType === "all" || exportType === "endoscopies") {
-      const { data } = await supabase
-        .from("endoscopies")
-        .select("*")
-        .gte("created_at", exportStartDate)
-        .lte("created_at", exportEndDate);
-      results.endoscopies = data || [];
-    }
-
-    if (exportType === "all" || exportType === "procedures") {
-      const { data } = await supabase
-        .from("procedures")
-        .select("*")
-        .gte("created_at", exportStartDate)
-        .lte("created_at", exportEndDate);
-      results.procedures = data || [];
-    }
-
-    const wb = XLSX.utils.book_new();
-
-    if (results.admissions?.length) {
-      const ws = XLSX.utils.json_to_sheet(results.admissions);
-      XLSX.utils.book_append_sheet(wb, ws, "الدخول");
-    }
-    if (results.discharges?.length) {
-      const ws = XLSX.utils.json_to_sheet(results.discharges);
-      XLSX.utils.book_append_sheet(wb, ws, "الخروج");
-    }
-    if (results.emergencies?.length) {
-      const ws = XLSX.utils.json_to_sheet(results.emergencies);
-      XLSX.utils.book_append_sheet(wb, ws, "الطوارئ");
-    }
-    if (results.endoscopies?.length) {
-      const ws = XLSX.utils.json_to_sheet(results.endoscopies);
-      XLSX.utils.book_append_sheet(wb, ws, "المناظير");
-    }
-    if (results.procedures?.length) {
-      const ws = XLSX.utils.json_to_sheet(results.procedures);
-      XLSX.utils.book_append_sheet(wb, ws, "البذل");
-    }
-
-    XLSX.writeFile(wb, `تقرير_${exportType}_${exportStartDate}_${exportEndDate}.xlsx`);
-  };
+  // Export is handled via DashboardExportDialog (dropdown in header)
 
   return (
     <Layout>
@@ -474,6 +370,21 @@ export default function Dashboard() {
             >
               {autoRefresh ? "إيقاف التحديث التلقائي" : "تشغيل التحديث التلقائي"}
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuItem onSelect={() => setExportOpen(true)}>
+                  <FileDown className="ml-2 h-4 w-4" />
+                  تصدير Excel (يوم محدد)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {[
               { key: "today", label: "اليوم" },
               { key: "week", label: "الأسبوع" },
@@ -493,61 +404,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Export Section */}
-      <Card className="bg-card/50 backdrop-blur">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            تصدير البيانات
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">من تاريخ</label>
-              <Input
-                type="date"
-                value={exportStartDate}
-                onChange={(e) => setExportStartDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">إلى تاريخ</label>
-              <Input
-                type="date"
-                value={exportEndDate}
-                onChange={(e) => setExportEndDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">نوع السجل</label>
-              <Select value={exportType} onValueChange={(v) => setExportType(v as ExportType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">الكل</SelectItem>
-                  <SelectItem value="admissions">الدخول</SelectItem>
-                  <SelectItem value="discharges">الخروج</SelectItem>
-                  <SelectItem value="emergencies">الطوارئ</SelectItem>
-                  <SelectItem value="endoscopies">المناظير</SelectItem>
-                  <SelectItem value="procedures">البذل</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button
-                onClick={handleExportWithFilters}
-                className="w-full"
-                disabled={!exportStartDate || !exportEndDate}
-              >
-                <FileDown className="ml-2 h-4 w-4" />
-                تصدير Excel
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
+      <DashboardExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       {/* Priority Stats - Deaths, Active, Emergencies, Unreturned Loans */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
