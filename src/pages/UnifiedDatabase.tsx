@@ -359,14 +359,8 @@ export default function UnifiedDatabase() {
               <div className="flex gap-2 flex-wrap">
                 <Link to="/field-settings">
                   <Button variant="outline" size="sm">
-                    <FileText className="ml-2 h-4 w-4" />
-                    إدارة الحقول
-                  </Button>
-                </Link>
-                <Link to="/master-data">
-                  <Button variant="outline" size="sm">
-                    <Database className="ml-2 h-4 w-4" />
-                    إدارة البيانات الأساسية
+                    <Settings className="ml-2 h-4 w-4" />
+                    إدارة الحقول والبيانات الأساسية
                   </Button>
                 </Link>
               </div>
