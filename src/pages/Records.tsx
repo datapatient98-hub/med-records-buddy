@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import ExitHistoryDialog, { type ExitHistoryPayload } from "@/components/ExitHistoryDialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { toast as sonnerToast } from "@/components/ui/sonner";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -72,8 +73,27 @@ function normalizeForExcel(v: any) {
   return String(v);
 }
 
+function normalizeForSearch(v: any) {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function rowMatchesSearch(row: any, needle: string) {
+  const q = (needle ?? "").trim();
+  if (!q) return true;
+  try {
+    const text = normalizeForSearch(row).toLowerCase();
+    return text.includes(q.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 export default function Records() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [draftSearch, setDraftSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [activeTab, setActiveTab] = useState(
     "admissions_internal" as
       | "admissions_internal"
@@ -102,7 +122,7 @@ export default function Records() {
 
   // Fetch admissions
   const { data: admissions, isLoading: admissionsLoading } = useQuery({
-    queryKey: ["admissions", searchTerm],
+    queryKey: ["admissions"],
     queryFn: async () => {
       let query = supabase
         .from("admissions")
@@ -117,10 +137,6 @@ export default function Records() {
           occupation:occupations(name)
         `)
         .order("created_at", { ascending: false });
-
-      if (searchTerm) {
-        query = query.or(`patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%,internal_number.eq.${searchTerm}`);
-      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -148,7 +164,7 @@ export default function Records() {
 
   // Fetch endoscopies
   const { data: endoscopies, isLoading: endoscopiesLoading } = useQuery({
-    queryKey: ["endoscopies", searchTerm],
+    queryKey: ["endoscopies"],
     queryFn: async () => {
       let query = supabase
         .from("endoscopies")
@@ -162,10 +178,6 @@ export default function Records() {
         `)
         .order("created_at", { ascending: false });
 
-      if (searchTerm) {
-        query = query.or(`patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%`);
-      }
-
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -174,7 +186,7 @@ export default function Records() {
 
   // Fetch procedures
   const { data: procedures, isLoading: proceduresLoading } = useQuery({
-    queryKey: ["procedures", searchTerm],
+    queryKey: ["procedures"],
     queryFn: async () => {
       let query = supabase
         .from("procedures")
@@ -188,10 +200,6 @@ export default function Records() {
         `)
         .order("created_at", { ascending: false });
 
-      if (searchTerm) {
-        query = query.or(`patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%`);
-      }
-
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -200,7 +208,7 @@ export default function Records() {
 
   // Fetch loans
   const { data: loans, isLoading: loansLoading } = useQuery({
-    queryKey: ["loans", searchTerm],
+    queryKey: ["loans"],
     queryFn: async () => {
       let query = supabase
         .from("file_loans")
@@ -209,10 +217,6 @@ export default function Records() {
           admission:admissions(patient_name)
         `)
         .order("created_at", { ascending: false });
-
-      if (searchTerm) {
-        query = query.or(`unified_number.ilike.%${searchTerm}%,borrowed_by.ilike.%${searchTerm}%,borrowed_to_department.ilike.%${searchTerm}%`);
-      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -378,6 +382,33 @@ export default function Records() {
     [advancedPredicate, deptPredicate, loansList],
   );
 
+  const searchNeedle = useMemo(() => appliedSearch.trim(), [appliedSearch]);
+
+  const admissionsInternalSearched = useMemo(
+    () => admissionsInternalFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [admissionsInternalFiltered, searchNeedle],
+  );
+  const endoscopiesSearched = useMemo(
+    () => endoscopiesFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [endoscopiesFiltered, searchNeedle],
+  );
+  const receptionSearched = useMemo(
+    () => receptionFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [receptionFiltered, searchNeedle],
+  );
+  const dialysisSearched = useMemo(
+    () => dialysisFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [dialysisFiltered, searchNeedle],
+  );
+  const paracentesisSearched = useMemo(
+    () => paracentesisFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [paracentesisFiltered, searchNeedle],
+  );
+  const loansSearched = useMemo(
+    () => loansFiltered.filter((r: any) => rowMatchesSearch(r, searchNeedle)),
+    [loansFiltered, searchNeedle],
+  );
+
   const hasPendingFilterChanges = useMemo(() => {
     return JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters);
   }, [appliedFilters, draftFilters]);
@@ -386,32 +417,59 @@ export default function Records() {
     setAppliedFilters(draftFilters);
   };
 
+  const applySearch = () => {
+    const needle = draftSearch.trim();
+    setAppliedSearch(needle);
+
+    if (!needle) return;
+
+    const total =
+      admissionsInternalFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length +
+      endoscopiesFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length +
+      receptionFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length +
+      dialysisFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length +
+      paracentesisFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length +
+      loansFiltered.filter((r: any) => rowMatchesSearch(r, needle)).length;
+
+    if (total > 0) {
+      sonnerToast.success("تم العثور على بيانات", {
+        description: `عدد النتائج: ${total}`,
+        duration: 5000,
+      });
+    } else {
+      sonnerToast.error("لا توجد بيانات بهذا الرقم/النص", {
+        description: "تأكد من البيانات المدخلة",
+        duration: 6000,
+      });
+    }
+  };
+
   const exportCurrentTabToExcel = () => {
     let rows: any[] = [];
     let sheetName = "records";
     switch (activeTab) {
       case "admissions_internal":
-        rows = admissionsInternalFiltered;
+        rows = admissionsInternalSearched;
         sheetName = "الحجز_الداخلي";
         break;
       case "endoscopies":
-        rows = endoscopiesFiltered;
+        rows = endoscopiesSearched;
         sheetName = "المناظير";
         break;
       case "reception":
-        rows = receptionFiltered;
+        rows = receptionSearched;
         sheetName = "الاستقبال";
         break;
       case "dialysis":
-        rows = dialysisFiltered;
+        rows = dialysisSearched;
         sheetName = "الغسيل_الكلوي";
         break;
       case "paracentesis":
-        rows = paracentesisFiltered;
+        rows = paracentesisSearched;
         sheetName = "البذل";
         break;
       case "loans":
-        rows = loansFiltered;
+        rows = loansSearched;
         sheetName = "الاستعارات";
         break;
       default:
@@ -613,14 +671,20 @@ export default function Records() {
           </Button>
         </div>
 
-        <div className="relative">
-          <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="بحث بالاسم أو الرقم الموحد أو الرقم الداخلي..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pr-10"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="بحث في كل الحقول (اسم/رقم موحد/قومي/هاتف/قسم/طبيب/تشخيص...)"
+              value={draftSearch}
+              onChange={(e) => setDraftSearch(e.target.value)}
+              onBlur={applySearch}
+              className="pr-10"
+            />
+          </div>
+          <Button type="button" onClick={applySearch}>
+            بحث
+          </Button>
         </div>
 
         <Tabs
@@ -664,8 +728,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={12} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : admissionsInternalFiltered.length > 0 ? (
-                      admissionsInternalFiltered.map((admission: any) => (
+                    ) : admissionsInternalSearched.length > 0 ? (
+                      admissionsInternalSearched.map((admission: any) => (
                         <TableRow key={admission.id}>
                           <TableCell>{admission.unified_number}</TableCell>
                           <TableCell>{admission.internal_number}</TableCell>
@@ -732,8 +796,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : endoscopiesFiltered.length > 0 ? (
-                      endoscopiesFiltered.map((endoscopy: any) => (
+                    ) : endoscopiesSearched.length > 0 ? (
+                      endoscopiesSearched.map((endoscopy: any) => (
                         <TableRow key={endoscopy.id}>
                           <TableCell>{endoscopy.unified_number}</TableCell>
                           <TableCell>{endoscopy.patient_name}</TableCell>
@@ -779,8 +843,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : receptionFiltered.length > 0 ? (
-                      receptionFiltered.map((procedure: any) => (
+                    ) : receptionSearched.length > 0 ? (
+                      receptionSearched.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -826,8 +890,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : dialysisFiltered.length > 0 ? (
-                      dialysisFiltered.map((procedure: any) => (
+                    ) : dialysisSearched.length > 0 ? (
+                      dialysisSearched.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -873,8 +937,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={9} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : paracentesisFiltered.length > 0 ? (
-                      paracentesisFiltered.map((procedure: any) => (
+                    ) : paracentesisSearched.length > 0 ? (
+                      paracentesisSearched.map((procedure: any) => (
                         <TableRow key={procedure.id}>
                           <TableCell>{procedure.unified_number}</TableCell>
                           <TableCell>{procedure.patient_name}</TableCell>
@@ -919,8 +983,8 @@ export default function Records() {
                       <TableRow>
                         <TableCell colSpan={8} className="text-center">جاري التحميل...</TableCell>
                       </TableRow>
-                    ) : loansFiltered.length > 0 ? (
-                      loansFiltered.map((loan: any) => (
+                    ) : loansSearched.length > 0 ? (
+                      loansSearched.map((loan: any) => (
                         <TableRow key={loan.id}>
                           <TableCell>{loan.unified_number}</TableCell>
                           <TableCell>{loan.internal_number}</TableCell>
