@@ -54,8 +54,10 @@ function fullJourneyHeaders() {
     "نوع الإجراء (procedure_type)",
     "حالة الإجراء (procedure_status)",
     "قسم الإجراء (procedure_department)",
+    "قسم التحويل من (transferred_from_department)",
     "تشخيص الإجراء (procedure_diagnosis)",
     "طبيب الإجراء (procedure_doctor)",
+    "مستشفى التحويل (procedure_hospital)",
     "رقم داخلي للإجراء (procedure_internal_number)",
 
     // endoscopy
@@ -66,11 +68,13 @@ function fullJourneyHeaders() {
     "رقم داخلي للمنظار (endoscopy_internal_number)",
     "تاريخ ووقت خروج المنظار (endoscopy_discharge_date)",
     "حالة خروج المنظار (endoscopy_discharge_status)",
+    "حالة خروج المنظار الأخرى (endoscopy_discharge_status_other)",
 
     // loans
     "تاريخ ووقت الاستعارة (loan_date)",
     "اسم المستعير (borrowed_by)",
     "الجهة المستعارة إليها (borrowed_to_department)",
+    "سبب الاستعارة (loan_reason)",
     "تم الإرجاع؟ (is_returned)",
     "تاريخ ووقت الإرجاع (return_date)",
     "رقم داخلي للاستعارة (loan_internal_number)",
@@ -89,6 +93,13 @@ function fullJourneyHeaders() {
     // system meta
     "تاريخ الإنشاء (created_at)",
     "آخر تحديث (updated_at)",
+
+    // append-only module meta (optional)
+    "تاريخ تسجيل الطوارئ (emergency_created_at)",
+    "تاريخ تسجيل الإجراء (procedure_created_at)",
+    "تاريخ تسجيل المنظار (endoscopy_created_at)",
+    "تاريخ تسجيل الاستعارة (loan_created_at)",
+    "تاريخ تسجيل الخروج (discharge_created_at)",
   ];
 }
 
@@ -102,6 +113,19 @@ export default function ExcelFullJourneyTemplateCard({ className }: { className?
     const worksheet = XLSX.utils.aoa_to_sheet([fullJourneyHeaders()]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "journey");
+
+    const notes: (string | number)[][] = [
+      ["ملاحظات"],
+      [],
+      ["- هذا القالب للمراجعة فقط وليس للاستيراد."],
+      ["- سياسة التحديث: يتم إضافة أي حقول جديدة في نهاية الأعمدة لتفادي كسر ملفات قديمة."],
+      ["- يمكنك إبقاء الأعمدة غير المتوفرة فارغة، الهدف هو كشف النواقص."],
+      [],
+      ["آخر تحديث للقالب:", new Date().toLocaleString("ar-EG")],
+    ];
+    const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+    XLSX.utils.book_append_sheet(workbook, wsNotes, "ملاحظات");
+
     XLSX.writeFile(workbook, fileName);
   };
 

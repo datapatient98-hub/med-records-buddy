@@ -42,8 +42,23 @@ export function downloadFileReviewServicesExcel(args: {
   emergencies: any[];
   endoscopies: any[];
   procedures: any[];
+  loans: any[];
 }) {
   const wb = XLSX.utils.book_new();
+
+  const notesAoA: (string | number)[][] = [
+    ["ملاحظات"],
+    [],
+    ["- هذا الملف للتدقيق/المراجعة ويحتوي على شيتات منفصلة لكل نوع."],
+    ["- تم تصميم الأعمدة لتكون (Non‑breaking): أي أعمدة جديدة تُضاف في نهاية الشيت."],
+    ["- التواريخ يتم عرضها بتنسيق قابل للقراءة، وقد تُعرض القيمة الأصلية إذا كانت غير قابلة للتحويل لتاريخ."],
+    [],
+    ["آخر تحديث للقالب:", format(args.exportedAt, "yyyy-MM-dd HH:mm")],
+  ];
+  const wsNotes = XLSX.utils.aoa_to_sheet(notesAoA);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (wsNotes as any)["!cols"] = [{ wch: 90 }];
+  XLSX.utils.book_append_sheet(wb, wsNotes, "ملاحظات");
 
   const summaryAoA: (string | number)[][] = [
     ["مراجعة الملفات - ملف الخدمات"],
@@ -55,8 +70,9 @@ export function downloadFileReviewServicesExcel(args: {
     ["الطوارئ", args.emergencies.length],
     ["المناظير", args.endoscopies.length],
     ["الإجراءات", args.procedures.length],
+    ["الاستعارات", args.loans.length],
     [],
-    ["الإجمالي", args.emergencies.length + args.endoscopies.length + args.procedures.length],
+    ["الإجمالي", args.emergencies.length + args.endoscopies.length + args.procedures.length + args.loans.length],
   ];
   const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoA);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -84,6 +100,18 @@ export function downloadFileReviewServicesExcel(args: {
     ...mapCommon(r),
     "نوع الإجراء": r.procedure_type ?? "",
     "تاريخ الإجراء": toDisplayDate(r.procedure_date),
+    // Non-breaking append-only columns
+    "سبب/حالة/ملاحظات": r.procedure_status ?? "",
+  }));
+
+  const loans = (args.loans ?? []).map((r) => ({
+    ...mapCommon(r),
+    "تاريخ الاستعارة": toDisplayDate(r.loan_date),
+    "المستعير": r.borrowed_by ?? "",
+    "إلى قسم": r.borrowed_to_department ?? "",
+    "سبب الاستعارة": r.loan_reason ?? "",
+    "تم الإرجاع": r.is_returned ?? "",
+    "تاريخ الإرجاع": toDisplayDate(r.return_date),
   }));
 
   const wsE = XLSX.utils.json_to_sheet(emergencies);
@@ -97,6 +125,10 @@ export function downloadFileReviewServicesExcel(args: {
   const wsP = XLSX.utils.json_to_sheet(procedures);
   autoWidth(wsP, procedures);
   XLSX.utils.book_append_sheet(wb, wsP, "الإجراءات");
+
+  const wsL = XLSX.utils.json_to_sheet(loans);
+  autoWidth(wsL, loans);
+  XLSX.utils.book_append_sheet(wb, wsL, "الاستعارات");
 
   XLSX.writeFile(wb, args.fileName);
 }
