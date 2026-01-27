@@ -260,22 +260,8 @@ export default function FileReview() {
             <div className="space-y-1">
               <AdmissionDischargeSearchBar />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">بحث سريع (يفتح السجل من بحث الهيدر)</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={patientSearch}
-                    onChange={(e) => setPatientSearch(e.target.value)}
-                    placeholder="اسم / رقم موحد / قومي / هاتف"
-                    className="pl-10"
-                  />
-                </div>
-                <Button type="button" variant="secondary" onClick={() => setPatientSearch("")}>مسح</Button>
-              </div>
-              {quickSearchHint && <p className="text-xs text-muted-foreground">تم التعرف: {quickSearchHint}</p>}
-            </div>
+            {/* NOTE: removed old quick-search input to avoid confusion with the header search.
+               The primary search for opening unified history remains in the header bar. */}
           </CardContent>
         </Card>
 
