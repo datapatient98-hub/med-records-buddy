@@ -1,8 +1,11 @@
+import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { PersistedExcelSourceKey, usePersistentExcelSource } from "@/hooks/usePersistentExcelSource";
 import { cn } from "@/lib/utils";
-import { FileSpreadsheet, Trash2 } from "lucide-react";
+import { Download, FileSpreadsheet, Trash2 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 type Props = {
   title: string;
@@ -18,6 +21,61 @@ export default function ExcelSourcePicker({
   className,
 }: Props) {
   const source = usePersistentExcelSource(sourceKey);
+  const [localTitle, setLocalTitle] = React.useState("");
+
+  React.useEffect(() => {
+    setLocalTitle(source.meta.customTitle ?? "");
+  }, [source.meta.customTitle]);
+
+  const defaultTemplateHeaders = (required: string) => {
+    if (required === "admissions.xlsx") {
+      return [
+        "unified_number",
+        "patient_name",
+        "department",
+        "admission_date",
+        "national_id",
+        "phone",
+        "gender",
+        "age",
+      ];
+    }
+    if (required === "discharges.xlsx") {
+      return [
+        "unified_number",
+        "discharge_date",
+        "discharge_status",
+        "finance_source",
+        "department",
+        "doctor",
+        "diagnosis",
+        "internal_number",
+      ];
+    }
+    // services.xlsx
+    return ["type", "unified_number", "patient_name", "department", "date", "internal_number"];
+  };
+
+  const normalizeFileName = (name: string) => {
+    const base = name
+      .trim()
+      .replace(/[\\/:*?\"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .slice(0, 80);
+    if (!base) return "template.xlsx";
+    return base.toLowerCase().endsWith(".xlsx") ? base : `${base}.xlsx`;
+  };
+
+  const downloadTemplate = () => {
+    const title = (source.meta.customTitle ?? "").trim();
+    const fileName = normalizeFileName(title || requiredFileName.replace(/\.xlsx$/i, ""));
+    const headers = defaultTemplateHeaders(requiredFileName);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "data");
+    XLSX.writeFile(workbook, fileName);
+  };
 
   return (
     <Card className={cn("p-4", className)}>
@@ -30,6 +88,18 @@ export default function ExcelSourcePicker({
           <p className="text-xs text-muted-foreground">
             اسم الملف المطلوب: <span className="font-mono">{requiredFileName}</span>
           </p>
+
+          <div className="pt-2">
+            <div className="text-xs text-muted-foreground mb-1">عنوان مخصص للتحميل (اختياري)</div>
+            <Input
+              value={localTitle}
+              onChange={(e) => setLocalTitle(e.target.value)}
+              onBlur={() => void source.setCustomTitle(localTitle)}
+              placeholder={`مثال: ${title} يناير`}
+              disabled={!source.isReady}
+              className="h-9"
+            />
+          </div>
 
           {source.hasSource ? (
             <div className="pt-1 text-xs">
@@ -52,6 +122,10 @@ export default function ExcelSourcePicker({
         </div>
 
         <div className="flex flex-col gap-2">
+          <Button type="button" variant="secondary" onClick={downloadTemplate} disabled={!source.isReady}>
+            <Download className="ml-2 h-4 w-4" />
+            تحميل قالب
+          </Button>
           <Button
             type="button"
             variant="outline"
