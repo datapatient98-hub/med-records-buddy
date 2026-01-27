@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   UserPlus,
   LogOut,
@@ -174,6 +174,7 @@ export default function Layout({ children }: LayoutProps) {
         <DialogContent className="max-w-xl" dir="rtl">
           <DialogHeader>
             <DialogTitle>نتيجة البحث</DialogTitle>
+            <DialogDescription>إشعار بنتيجة البحث في النظام.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <p className="text-foreground font-semibold">لا توجد بيانات لهذا الرقم/النص</p>
