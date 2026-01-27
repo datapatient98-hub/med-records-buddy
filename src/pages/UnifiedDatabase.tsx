@@ -5,12 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Settings, Trash2 } from "lucide-react";
+import { Search, Settings, Trash2, Database, FileText } from "lucide-react";
 import { format } from "date-fns";
 import ExcelSourcePicker from "@/components/ExcelSourcePicker";
 import UnifiedPatientHistoryDialog, { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import UnifiedDatabaseGate from "@/components/UnifiedDatabaseGate";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
