@@ -8,6 +8,7 @@ import Admission from "./pages/Admission";
 import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
 import FileReview from "./pages/FileReview";
+import FileReviewPatient from "./pages/FileReviewPatient";
 import Loans from "./pages/Loans";
 import Records from "./pages/Records";
 import UnifiedDatabase from "./pages/UnifiedDatabase";
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/field-settings" element={<FieldSettings />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/patient-search" element={<FileReview />} />
+              <Route path="/file-review/patient" element={<FileReviewPatient />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
