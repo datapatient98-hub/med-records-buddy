@@ -21,7 +21,31 @@ function renderValue(v: any) {
   return String(v);
 }
 
-function SimpleTable({ rows, columns }: { rows: AnyRow[]; columns: { key: string; label: string; isDate?: boolean }[] }) {
+function RowDetails({ row }: { row: AnyRow }) {
+  const keys = Object.keys(row ?? {}).sort();
+  return (
+    <div className="rounded-md border bg-card p-3">
+      <div className="grid gap-2 md:grid-cols-2">
+        {keys.map((k) => (
+          <div key={k} className="flex items-start justify-between gap-3">
+            <div className="text-sm text-muted-foreground break-all">{k}</div>
+            <div className="text-sm font-medium text-foreground break-all text-right">
+              {k.toLowerCase().includes("date") || k.toLowerCase().includes("_at") ? fmtDate(row[k]) : renderValue(row[k])}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SimpleTable({
+  rows,
+  columns,
+}: {
+  rows: AnyRow[];
+  columns: { key: string; label: string; isDate?: boolean }[];
+}) {
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
@@ -31,6 +55,7 @@ function SimpleTable({ rows, columns }: { rows: AnyRow[]; columns: { key: string
               {columns.map((c) => (
                 <TableHead key={c.key}>{c.label}</TableHead>
               ))}
+              <TableHead className="w-[160px]">التفاصيل</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -42,11 +67,21 @@ function SimpleTable({ rows, columns }: { rows: AnyRow[]; columns: { key: string
                       {c.isDate ? fmtDate(r[c.key]) : renderValue(r[c.key])}
                     </TableCell>
                   ))}
+                  <TableCell>
+                    <details className="group">
+                      <summary className="cursor-pointer select-none text-sm font-medium text-foreground underline-offset-4 group-open:underline">
+                        عرض التفاصيل
+                      </summary>
+                      <div className="mt-2">
+                        <RowDetails row={r} />
+                      </div>
+                    </details>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center text-muted-foreground">
+                <TableCell colSpan={columns.length + 1} className="text-center text-muted-foreground">
                   لا توجد بيانات
                 </TableCell>
               </TableRow>
