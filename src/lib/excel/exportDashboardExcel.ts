@@ -89,14 +89,26 @@ export function buildDashboardExportWorkbook(args: {
   // raw table rows keyed by type
   dataByType: Record<DashboardExportType, any[]>;
   lookups: LookupMaps;
+  range?: {
+    from: Date;
+    to: Date;
+    /** Arabic label describing how the range was interpreted (e.g. حسب تاريخ الحدث) */
+    modeLabel?: string;
+  };
 }) {
-  const { selectedDate, exportAt, selectedTypes, dataByType, lookups } = args;
+  const { selectedDate, exportAt, selectedTypes, dataByType, lookups, range } = args;
   const wb = XLSX.utils.book_new();
 
   const summaryRows: (string | number)[][] = [
     ["تقرير لوحة التحكم - ملخص البيانات"],
     [],
-    ["اليوم:", format(selectedDate, "yyyy-MM-dd")],
+    range
+      ? [
+          "الفترة:",
+          `${format(range.from, "yyyy-MM-dd")} → ${format(range.to, "yyyy-MM-dd")}`,
+        ]
+      : ["اليوم:", format(selectedDate, "yyyy-MM-dd")],
+    ...(range?.modeLabel ? [["طريقة التصفية:", range.modeLabel]] : []),
     ["تاريخ التصدير:", format(exportAt, "yyyy-MM-dd HH:mm")],
     [],
     ["نوع البيانات", "العدد"],
