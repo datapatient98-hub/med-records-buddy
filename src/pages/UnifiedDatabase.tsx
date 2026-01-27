@@ -356,12 +356,20 @@ export default function UnifiedDatabase() {
           <header className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-3xl font-bold">قاعدة البيانات الموحدة</h1>
-              <Button variant="outline" onClick={() => navigate("/field-settings")}
-                className="whitespace-nowrap"
-              >
-                <Settings className="ml-2 h-4 w-4" />
-                إدارة الحقول
-              </Button>
+              <div className="flex gap-2 flex-wrap">
+                <Link to="/field-settings">
+                  <Button variant="outline" size="sm">
+                    <FileText className="ml-2 h-4 w-4" />
+                    إدارة الحقول
+                  </Button>
+                </Link>
+                <Link to="/master-data">
+                  <Button variant="outline" size="sm">
+                    <Database className="ml-2 h-4 w-4" />
+                    إدارة البيانات الأساسية
+                  </Button>
+                </Link>
+              </div>
             </div>
             <p className="text-sm text-muted-foreground">
               صف واحد لكل رقم موحد (آخر دخول/خروج/طوارئ/مناظير/بذل/استعارات) مع زر لعرض كل التواريخ.
