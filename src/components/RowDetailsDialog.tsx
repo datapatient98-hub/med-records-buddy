@@ -180,22 +180,32 @@ export default function RowDetailsDialog({
   title: string;
   description?: string;
 }) {
+  const header = useMemo(() => {
+    if (!row) return null;
+    const r = transformRowData(row);
+    return {
+      patient_name: r.patient_name,
+      unified_number: r.unified_number,
+      national_id: r.national_id,
+      phone: r.phone,
+      internal_number: r.internal_number,
+    };
+  }, [row]);
+
   const groupedData = useMemo(() => {
     if (!row) return [];
     
     const transformedRow = transformRowData(row);
-    const groups: Array<{ title: string; fields: Array<[string, any]> }> = [];
+    const groups: Array<{ title: string; fields: Array<{ key: string; label: string; value: any }> }> = [];
     
     // تجميع الحقول حسب الأقسام
     Object.entries(FIELD_GROUPS).forEach(([groupKey, group]) => {
-      const fields: Array<[string, any]> = [];
+      const fields: Array<{ key: string; label: string; value: any }> = [];
       
       group.fields.forEach((fieldKey) => {
         if (transformedRow.hasOwnProperty(fieldKey)) {
           const label = toArabicLabel(fieldKey);
-          if (label) {
-            fields.push([label, transformedRow[fieldKey]]);
-          }
+          if (label) fields.push({ key: fieldKey, label, value: transformedRow[fieldKey] });
         }
       });
       
@@ -211,8 +221,8 @@ export default function RowDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">{title}</DialogTitle>
-          <DialogDescription>{description ?? "عرض كامل لجميع بيانات السجل"}</DialogDescription>
+          <DialogTitle className="text-2xl font-extrabold text-center">{title}</DialogTitle>
+          <DialogDescription className="text-center">{description ?? "عرض كامل لجميع بيانات السجل"}</DialogDescription>
         </DialogHeader>
 
         <div className="max-h-[65vh] overflow-auto rounded-lg border bg-card p-4">
@@ -222,6 +232,27 @@ export default function RowDetailsDialog({
             </div>
           ) : (
             <div className="space-y-6">
+              {header && (
+                <div className="rounded-xl border bg-muted/20 p-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {[
+                      { key: "patient_name", label: "اسم المريض", value: header.patient_name },
+                      { key: "unified_number", label: "الرقم الموحد", value: header.unified_number },
+                      { key: "national_id", label: "الرقم القومي", value: header.national_id },
+                      { key: "phone", label: "رقم الهاتف", value: header.phone },
+                      { key: "internal_number", label: "الرقم الداخلي", value: header.internal_number },
+                    ].map((f, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 rounded-lg bg-background/60 px-4 py-3 border border-border/60">
+                        <div className="text-sm font-semibold text-muted-foreground">{f.label}</div>
+                        <div className="text-sm font-extrabold text-foreground text-center break-words">
+                          {defaultFormatValue(f.key, f.value)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {groupedData.map((group, idx) => (
                 <div key={idx} className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -229,16 +260,16 @@ export default function RowDetailsDialog({
                     <div className="flex-1 h-px bg-border" />
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
-                    {group.fields.map(([label, value], fieldIdx) => (
+                    {group.fields.map((f, fieldIdx) => (
                       <div 
                         key={fieldIdx} 
                         className="flex items-start justify-between gap-3 rounded-lg bg-secondary/20 hover:bg-secondary/30 transition-colors px-4 py-3 border border-border/50"
                       >
                         <div className="text-sm font-medium text-muted-foreground min-w-[120px]">
-                          {label}
+                          {f.label}
                         </div>
                         <div className="text-sm font-semibold text-foreground text-right break-words flex-1">
-                          {defaultFormatValue(label, value)}
+                          {defaultFormatValue(f.key, f.value)}
                         </div>
                       </div>
                     ))}

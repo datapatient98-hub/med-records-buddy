@@ -56,6 +56,28 @@ export default function UnifiedHistorySection({
   const [detailsRow, setDetailsRow] = useState<AnyRow | null>(null);
   const t = toneClasses[tone];
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const getSortTime = (r: AnyRow) => {
+      const candidates = [
+        r.discharge_date,
+        r.procedure_date,
+        r.visit_date,
+        r.admission_date,
+        r.loan_date,
+        r.created_at,
+        r.updated_at,
+      ];
+      for (const v of candidates) {
+        if (!v) continue;
+        const t = new Date(v).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      return 0;
+    };
+
+    return getSortTime(b) - getSortTime(a);
+  });
+
   return (
     <section className="space-y-3">
       <div className={`rounded-lg border p-4 ${t.wrap}`}>
@@ -66,7 +88,7 @@ export default function UnifiedHistorySection({
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {sortedRows.length === 0 ? (
         <Card className="border">
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground font-semibold">{emptyMessage}</p>
@@ -74,7 +96,7 @@ export default function UnifiedHistorySection({
         </Card>
       ) : (
         <div className="grid gap-3">
-          {rows.map((r, idx) => (
+          {sortedRows.map((r, idx) => (
             <UnifiedHistoryRecordCard
               key={r.id ?? idx}
               row={r}
@@ -86,7 +108,12 @@ export default function UnifiedHistorySection({
             />
           ))}
 
-          <RowDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} row={detailsRow} title="تفاصيل السجل" />
+          <RowDetailsDialog
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            row={detailsRow}
+            title={`تفاصيل: ${title}`}
+          />
         </div>
       )}
     </section>

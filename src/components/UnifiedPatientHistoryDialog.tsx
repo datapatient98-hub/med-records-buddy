@@ -105,26 +105,13 @@ export default function UnifiedPatientHistoryDialog({
             <UnifiedHistorySummary unifiedNumber={p?.unified_number ?? "-"} totalRecords={totalRecords} />
 
             <UnifiedHistorySection
-              title="سجلات الدخول"
-              tone="green"
-              rows={p?.admissions ?? []}
-              columns={sectionColumns.admissions}
-              emptyMessage="تفاصيل الدخول: لا يوجد"
+              title="سجلات الخروج"
+              tone="pink"
+              rows={p?.discharges ?? []}
+              columns={sectionColumns.discharges}
+              emptyMessage="تفاصيل الخروج: لا يوجد"
             />
-            <UnifiedHistorySection
-              title="سجلات الطوارئ"
-              tone="orange"
-              rows={p?.emergencies ?? []}
-              columns={sectionColumns.emergencies}
-              emptyMessage="تفاصيل الطوارئ: لا يوجد"
-            />
-            <UnifiedHistorySection
-              title="سجلات المناظير"
-              tone="cyan"
-              rows={p?.endoscopies ?? []}
-              columns={sectionColumns.endoscopies}
-              emptyMessage="تفاصيل المناظير: لا يوجد"
-            />
+
             <UnifiedHistorySection
               title="سجلات الإجراءات (بذل / استقبال / كلي)"
               tone="purple"
@@ -132,13 +119,31 @@ export default function UnifiedPatientHistoryDialog({
               columns={sectionColumns.procedures}
               emptyMessage="تفاصيل الإجراءات: لا يوجد"
             />
+
             <UnifiedHistorySection
-              title="سجلات الخروج"
-              tone="pink"
-              rows={p?.discharges ?? []}
-              columns={sectionColumns.discharges}
-              emptyMessage="تفاصيل الخروج: لا يوجد"
+              title="سجلات المناظير"
+              tone="cyan"
+              rows={p?.endoscopies ?? []}
+              columns={sectionColumns.endoscopies}
+              emptyMessage="تفاصيل المناظير: لا يوجد"
             />
+
+            <UnifiedHistorySection
+              title="سجلات الطوارئ"
+              tone="orange"
+              rows={p?.emergencies ?? []}
+              columns={sectionColumns.emergencies}
+              emptyMessage="تفاصيل الطوارئ: لا يوجد"
+            />
+
+            <UnifiedHistorySection
+              title="سجلات الدخول"
+              tone="green"
+              rows={p?.admissions ?? []}
+              columns={sectionColumns.admissions}
+              emptyMessage="تفاصيل الدخول: لا يوجد"
+            />
+
             <UnifiedHistorySection
               title="سجلات الاستعارات"
               tone="primary"
