@@ -13,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
 import LoanSuggestInput from "@/components/LoanSuggestInput";
@@ -717,6 +717,7 @@ export default function Loans() {
           <DialogContent dir="rtl">
             <DialogHeader>
               <DialogTitle>تعديل بيانات الاستعارة</DialogTitle>
+              <DialogDescription>تعديل اسم المستعير/القسم/السبب فقط.</DialogDescription>
             </DialogHeader>
 
             {loanToEdit && (
@@ -854,6 +855,7 @@ export default function Loans() {
           <DialogContent dir="rtl">
             <DialogHeader>
               <DialogTitle>تسجيل الإرجاع</DialogTitle>
+              <DialogDescription>حدد تاريخ وساعة الإرجاع لتحديث الحالة إلى تم الإرجاع.</DialogDescription>
             </DialogHeader>
 
             {loanToReturn && (
