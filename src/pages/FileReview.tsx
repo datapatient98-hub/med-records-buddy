@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Building2, FileArchive, ShieldCheck, Search } from "lucide-react";
+import { AdmissionDischargeSearchBar } from "@/components/fileReview/AdmissionDischargeSearchBar";
 
 type DateRange = {
   from: string; // YYYY-MM-DD
@@ -65,7 +66,7 @@ export default function FileReview() {
   const [range, setRange] = useState<DateRange>(() => defaultLast30Days());
   const [patientSearch, setPatientSearch] = useState("");
   const [auditSearch, setAuditSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"quality" | "departments" | "loans" | "anomalies" | "audit">("quality");
+  const [activeTab, setActiveTab] = useState<"quality" | "departments" | "loans" | "anomalies" | "audit" | "errors">("quality");
 
   // Scope: keep this page fast by default (last 30 days + capped size).
   // If data grows huge later, we will move heavy anomaly detection into backend functions + indexes.
@@ -257,6 +258,9 @@ export default function FileReview() {
               <Input type="date" value={range.to} onChange={(e) => setRange((p) => ({ ...p, to: e.target.value }))} />
             </div>
             <div className="space-y-1">
+              <AdmissionDischargeSearchBar />
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">بحث سريع (يفتح السجل من بحث الهيدر)</label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -315,12 +319,13 @@ export default function FileReview() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="quality">جودة البيانات</TabsTrigger>
                 <TabsTrigger value="departments">الأقسام</TabsTrigger>
                 <TabsTrigger value="loans">الاستعارات</TabsTrigger>
                 <TabsTrigger value="anomalies">الشذوذ</TabsTrigger>
-              <TabsTrigger value="audit">سجل التعديلات</TabsTrigger>
+                <TabsTrigger value="audit">سجل التعديلات</TabsTrigger>
+                <TabsTrigger value="errors">أخطاء الملفات</TabsTrigger>
               </TabsList>
 
               <TabsContent value="quality" className="mt-4 space-y-4">
@@ -350,16 +355,28 @@ export default function FileReview() {
                       return (
                         <TableRow key={d.dept}>
                           <TableCell className="font-medium">{d.dept}</TableCell>
-                          <TableCell className="text-center font-mono">{d.total}</TableCell>
+                          <TableCell className="text-center tabular-nums">{d.total}</TableCell>
                           <TableCell className="text-center">
                             <Badge variant={d.missingCore > 0 ? "destructive" : "secondary"}>{d.missingCore}</Badge>
                           </TableCell>
-                          <TableCell className="text-center font-mono">{pct}%</TableCell>
+                          <TableCell className="text-center tabular-nums">{pct}%</TableCell>
                         </TableRow>
                       );
                     })}
                   </TableBody>
                 </Table>
+              </TabsContent>
+
+              <TabsContent value="errors" className="mt-4 space-y-4">
+                <SectionTitle
+                  title="أخطاء الملفات"
+                  desc="قائمة أخطاء جودة البيانات (ضمن النطاق المحمّل فقط)."
+                />
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <QualityList title="اسم غير رباعي" rows={quality.invalidName} badge="اسم" />
+                  <QualityList title="رقم قومي غير صحيح" rows={quality.invalidNationalId} badge="قومي" />
+                  <QualityList title="هاتف غير صحيح" rows={quality.invalidPhone} badge="هاتف" />
+                </div>
               </TabsContent>
 
               <TabsContent value="loans" className="mt-4 space-y-4">
