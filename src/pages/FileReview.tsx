@@ -10,6 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertTriangle, Building2, FileArchive, ShieldCheck, Search } from "lucide-react";
 import { AdmissionDischargeSearchBar } from "@/components/fileReview/AdmissionDischargeSearchBar";
+import { downloadFileReviewServicesExcel } from "@/lib/excel/exportFileReviewServicesExcel";
+import { useToast } from "@/hooks/use-toast";
 
 type DateRange = {
   from: string; // YYYY-MM-DD
@@ -63,10 +65,13 @@ function isLikelyIncompleteName(name: any) {
 }
 
 export default function FileReview() {
+  const { toast } = useToast();
   const [range, setRange] = useState<DateRange>(() => defaultLast30Days());
   const [patientSearch, setPatientSearch] = useState("");
   const [auditSearch, setAuditSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"quality" | "departments" | "loans" | "anomalies" | "audit" | "errors">("quality");
+
+  const [exportingServices, setExportingServices] = useState(false);
 
   // Scope: keep this page fast by default (last 30 days + capped size).
   // If data grows huge later, we will move heavy anomaly detection into backend functions + indexes.
@@ -245,8 +250,65 @@ export default function FileReview() {
         {/* Controls */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">نطاق المراجعة</CardTitle>
-            <CardDescription>افتراضيًا آخر 30 يوم (للحفاظ على السرعة).</CardDescription>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">نطاق المراجعة</CardTitle>
+                <CardDescription>افتراضيًا آخر 30 يوم (للحفاظ على السرعة).</CardDescription>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                disabled={exportingServices}
+                onClick={async () => {
+                  setExportingServices(true);
+                  try {
+                    const [em, en, pr] = await Promise.all([
+                      supabase
+                        .from("emergencies")
+                        .select("id, unified_number, patient_name, national_id, phone, internal_number, visit_date, created_at")
+                        .gte("created_at", ymdToStart(range.from))
+                        .lte("created_at", ymdToEnd(range.to))
+                        .order("created_at", { ascending: false })
+                        .limit(1000),
+                      supabase
+                        .from("endoscopies")
+                        .select("id, unified_number, patient_name, national_id, phone, internal_number, procedure_date, created_at")
+                        .gte("created_at", ymdToStart(range.from))
+                        .lte("created_at", ymdToEnd(range.to))
+                        .order("created_at", { ascending: false })
+                        .limit(1000),
+                      supabase
+                        .from("procedures")
+                        .select("id, unified_number, patient_name, national_id, phone, internal_number, procedure_type, procedure_date, created_at")
+                        .gte("created_at", ymdToStart(range.from))
+                        .lte("created_at", ymdToEnd(range.to))
+                        .order("created_at", { ascending: false })
+                        .limit(1000),
+                    ]);
+
+                    if (em.error) throw em.error;
+                    if (en.error) throw en.error;
+                    if (pr.error) throw pr.error;
+
+                    downloadFileReviewServicesExcel({
+                      range,
+                      exportedAt: new Date(),
+                      fileName: `services_${range.from}_to_${range.to}.xlsx`,
+                      emergencies: em.data ?? [],
+                      endoscopies: en.data ?? [],
+                      procedures: pr.data ?? [],
+                    });
+                  } catch (e: any) {
+                    toast({ title: "خطأ", description: e?.message || "فشل تصدير ملف الخدمات", variant: "destructive" });
+                  } finally {
+                    setExportingServices(false);
+                  }
+                }}
+              >
+                {exportingServices ? "جاري التصدير..." : "تصدير ملف الخدمات"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             <div className="space-y-1">
