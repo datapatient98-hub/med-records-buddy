@@ -21,6 +21,7 @@ import LookupCreateDialog from "@/components/LookupCreateDialog";
 import LookupManageDialog from "@/components/LookupManageDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useFieldConfig } from "@/components/FieldConfigProvider";
+import { getAuditActorLabel } from "@/lib/auditActor";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().optional().or(z.literal("")),
@@ -263,6 +264,7 @@ export default function Discharge() {
           diagnosis_id: values.diagnosis_id || null,
           doctor_id: values.doctor_id || null,
           admission_date: values.admission_date,
+          last_updated_by: getAuditActorLabel() || null,
         })
         .eq("id", selectedAdmission.id);
 
@@ -328,7 +330,7 @@ export default function Discharge() {
       // Update admission status
       const { error: updateError } = await supabase
         .from("admissions")
-        .update({ admission_status: "خروج" as any })
+        .update({ admission_status: "خروج" as any, last_updated_by: getAuditActorLabel() || null })
         .eq("id", selectedAdmission.id);
 
       if (updateError) throw updateError;

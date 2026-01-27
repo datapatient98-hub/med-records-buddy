@@ -64,7 +64,8 @@ function isLikelyIncompleteName(name: any) {
 export default function FileReview() {
   const [range, setRange] = useState<DateRange>(() => defaultLast30Days());
   const [patientSearch, setPatientSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"quality" | "departments" | "loans" | "anomalies">("quality");
+  const [auditSearch, setAuditSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<"quality" | "departments" | "loans" | "anomalies" | "audit">("quality");
 
   // Scope: keep this page fast by default (last 30 days + capped size).
   // If data grows huge later, we will move heavy anomaly detection into backend functions + indexes.
@@ -95,6 +96,22 @@ export default function FileReview() {
         .lte("created_at", ymdToEnd(range.to))
         .order("loan_date", { ascending: false })
         .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const auditQuery = useMemo(() => auditSearch.trim(), [auditSearch]);
+  const { data: auditRows, isLoading: auditLoading } = useQuery({
+    queryKey: ["file-review", "admissions-audit", auditQuery],
+    enabled: auditQuery.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("admissions_audit")
+        .select("id, unified_number, admission_id, changed_at, changed_by, changed_fields")
+        .eq("unified_number", auditQuery)
+        .order("changed_at", { ascending: false })
+        .limit(100);
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -292,11 +309,12 @@ export default function FileReview() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="quality">جودة البيانات</TabsTrigger>
                 <TabsTrigger value="departments">الأقسام</TabsTrigger>
                 <TabsTrigger value="loans">الاستعارات</TabsTrigger>
                 <TabsTrigger value="anomalies">الشذوذ</TabsTrigger>
+              <TabsTrigger value="audit">سجل التعديلات</TabsTrigger>
               </TabsList>
 
               <TabsContent value="quality" className="mt-4 space-y-4">
@@ -431,6 +449,83 @@ export default function FileReview() {
                   </Table>
                 </div>
               </TabsContent>
+
+            <TabsContent value="audit" className="mt-4 space-y-4">
+              <SectionTitle
+                title="سجل تعديل بيانات الدخول"
+                desc="ابحث بالرقم الموحد لمعرفة: الرقم القومي القديم والجديد + بقية التغييرات + اسم الموظف/الجهاز." 
+              />
+
+              <Card>
+                <CardContent className="pt-6 space-y-3">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="md:col-span-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={auditSearch}
+                          onChange={(e) => setAuditSearch(e.target.value)}
+                          placeholder="اكتب الرقم الموحد..."
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <Button type="button" variant="secondary" onClick={() => setAuditSearch("")}>
+                      مسح
+                    </Button>
+                  </div>
+
+                  {auditQuery ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>التاريخ</TableHead>
+                          <TableHead>المُعدِّل</TableHead>
+                          <TableHead>الرقم القومي (قديم → جديد)</TableHead>
+                          <TableHead>ملخص التغيير</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(auditRows ?? []).map((r) => {
+                          const fields = (r.changed_fields ?? {}) as Record<string, { old: any; new: any }>;
+                          const nid = fields.national_id;
+                          const changedKeys = Object.keys(fields).filter((k) => k !== "updated_at");
+                          const summary = changedKeys.slice(0, 6).join("، ");
+                          return (
+                            <TableRow key={r.id}>
+                              <TableCell>{r.changed_at ? new Date(r.changed_at).toLocaleString("ar-EG") : "-"}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{r.changed_by || "غير محدد"}</Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-sm">
+                                {nid ? `${String(nid.old ?? "-")} → ${String(nid.new ?? "-")}` : "(لم يتغير)"}
+                              </TableCell>
+                              <TableCell className="text-sm">{summary || "-"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        {auditLoading && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                              جاري التحميل...
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {!auditLoading && (auditRows ?? []).length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                              لا يوجد سجل تعديلات لهذا الرقم الموحد (أو لم يحدث تعديل بعد).
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">اكتب الرقم الموحد لعرض سجل التعديلات.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

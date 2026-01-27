@@ -33,6 +33,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id: string | null
           id: string
+          last_updated_by: string | null
           marital_status: Database["public"]["Enums"]["marital_status"] | null
           national_id: string | null
           occupation_id: string | null
@@ -60,6 +61,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
+          last_updated_by?: string | null
           marital_status?: Database["public"]["Enums"]["marital_status"] | null
           national_id?: string | null
           occupation_id?: string | null
@@ -87,6 +89,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
+          last_updated_by?: string | null
           marital_status?: Database["public"]["Enums"]["marital_status"] | null
           national_id?: string | null
           occupation_id?: string | null
@@ -147,6 +150,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      admissions_audit: {
+        Row: {
+          admission_id: string
+          changed_at: string
+          changed_by: string | null
+          changed_fields: Json
+          id: string
+          operation: string
+          unified_number: string
+        }
+        Insert: {
+          admission_id: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: Json
+          id?: string
+          operation?: string
+          unified_number: string
+        }
+        Update: {
+          admission_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_fields?: Json
+          id?: string
+          operation?: string
+          unified_number?: string
+        }
+        Relationships: []
       }
       departments: {
         Row: {

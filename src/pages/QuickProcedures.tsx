@@ -14,6 +14,7 @@
  import SearchableSelect from "@/components/SearchableSelect";
  import { Search, Zap } from "lucide-react";
  import { format } from "date-fns";
+import { getAuditActorLabel } from "@/lib/auditActor";
  
  const quickProcedureSchema = z.object({
    unified_number: z.string().min(1, "الرقم الموحد مطلوب"),
@@ -249,6 +250,7 @@
              doctor_id: values.doctor_id || null,
              admission_date: values.admission_date,
              updated_at: new Date().toISOString(),
+              last_updated_by: getAuditActorLabel() || null,
            })
            .eq("id", foundAdmission.id);
  
@@ -275,6 +277,7 @@
              diagnosis_id: values.diagnosis_id || null,
              doctor_id: values.doctor_id || null,
              admission_date: values.admission_date,
+              last_updated_by: getAuditActorLabel() || null,
            });
  
          if (error) throw error;
