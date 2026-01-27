@@ -176,8 +176,18 @@ export default function DashboardExportForm(props: {
     <div className={cn("w-full", compact ? "space-y-3" : "space-y-4")}> 
       <Tabs value={mode} onValueChange={(v) => setMode(v as ExportMode)} dir="rtl" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="day">اليوم المطلوب</TabsTrigger>
-          <TabsTrigger value="range">من ... إلى</TabsTrigger>
+          <TabsTrigger
+            value="day"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            اليوم المطلوب
+          </TabsTrigger>
+          <TabsTrigger
+            value="range"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+          >
+            من ... إلى
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="day" className={cn(compact ? "pt-3" : "pt-4")}>
