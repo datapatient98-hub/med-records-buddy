@@ -4,10 +4,7 @@ import { idbGet, idbSet, idbDel } from "@/lib/persistence/indexedDb";
 export type PersistedExcelSourceKey =
   | "excel_source_admissions"
   | "excel_source_discharges"
-  | "excel_source_emergencies"
-  | "excel_source_endoscopies"
-  | "excel_source_procedures"
-  | "excel_source_file_loans";
+  | "excel_source_services";
 
 type PersistedMeta = {
   fileName?: string;

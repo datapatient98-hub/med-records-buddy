@@ -9,7 +9,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UnifiedHistorySummary from "@/components/UnifiedHistory/UnifiedHistorySummary";
-import UnifiedHistorySection from "@/components/UnifiedHistory/UnifiedHistorySection";
+import UnifiedHistoryVisits from "@/components/UnifiedHistory/UnifiedHistoryVisits";
 import { fmtDate } from "@/components/UnifiedHistory/format";
 import type { ColumnDef, UnifiedHistoryPayload } from "@/components/UnifiedHistory/types";
 
@@ -187,53 +187,7 @@ export default function UnifiedPatientHistoryDialog({
           <div className="space-y-6 pb-6">
             <UnifiedHistorySummary unifiedNumber={p?.unified_number ?? "-"} totalRecords={totalRecords} />
 
-            <UnifiedHistorySection
-              title="سجلات الدخول"
-              tone="green"
-              rows={p?.admissions ?? []}
-              columns={sectionColumns.admissions}
-              emptyMessage="تفاصيل الدخول: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات الطوارئ"
-              tone="orange"
-              rows={p?.emergencies ?? []}
-              columns={sectionColumns.emergencies}
-              emptyMessage="تفاصيل الطوارئ: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات الإجراءات (بذل / استقبال / كلي)"
-              tone="purple"
-              rows={p?.procedures ?? []}
-              columns={sectionColumns.procedures}
-              emptyMessage="تفاصيل الإجراءات: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات المناظير"
-              tone="cyan"
-              rows={p?.endoscopies ?? []}
-              columns={sectionColumns.endoscopies}
-              emptyMessage="تفاصيل المناظير: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات الاستعارات"
-              tone="primary"
-              rows={p?.loans ?? []}
-              columns={sectionColumns.loans}
-              emptyMessage="تفاصيل الاستعارات: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات الخروج"
-              tone="pink"
-              rows={p?.discharges ?? []}
-              columns={sectionColumns.discharges}
-              emptyMessage="تفاصيل الخروج: لا يوجد"
-            />
+            {p ? <UnifiedHistoryVisits payload={p} columns={sectionColumns} /> : null}
           </div>
         </ScrollArea>
       </DialogContent>
