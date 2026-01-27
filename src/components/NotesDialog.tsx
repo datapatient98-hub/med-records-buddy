@@ -7,13 +7,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
-import { MessageSquare, Pencil, Plus, Trash2, X, Save } from "lucide-react";
+import { MessageSquare } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+import { AddNoteForm } from "@/components/notes/AddNoteForm";
+import { NoteCard } from "@/components/notes/NoteCard";
+import { createNoteSchema, updateNoteSchema } from "@/lib/notes/noteValidation";
 
 interface NotesDialogProps {
   admissionId: string | null;
@@ -36,16 +35,19 @@ export default function NotesDialog({
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingText, setEditingText] = React.useState("");
 
+  type NoteRow = Tables<"notes">;
+
   // Fetch notes for this admission
   const { data: notes, isLoading } = useQuery({
     queryKey: ["notes", admissionId],
     queryFn: async () => {
       if (!admissionId) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("notes")
         .select("*")
         .eq("admission_id", admissionId)
         .order("created_at", { ascending: false });
+      if (error) throw error;
       return data || [];
     },
     enabled: !!admissionId && open,
@@ -54,15 +56,19 @@ export default function NotesDialog({
   // Add note mutation
   const addNoteMutation = useMutation({
     mutationFn: async () => {
-      if (!admissionId || !noteText.trim() || !createdBy.trim()) {
-        throw new Error("يرجى ملء جميع الحقول");
-      }
+      if (!admissionId) throw new Error("لا يوجد سجل دخول مرتبط");
+
+      const parsed = createNoteSchema.safeParse({
+        createdBy,
+        noteText,
+      });
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "يرجى التحقق من المدخلات");
 
       const { error } = await supabase.from("notes").insert([
         {
           admission_id: admissionId,
-          note_text: noteText.trim(),
-          created_by: createdBy.trim(),
+          note_text: parsed.data.noteText,
+          created_by: parsed.data.createdBy,
         },
       ]);
 
@@ -84,9 +90,16 @@ export default function NotesDialog({
 
   const updateNoteMutation = useMutation({
     mutationFn: async ({ noteId, noteText }: { noteId: string; noteText: string }) => {
-      const text = (noteText ?? "").trim();
-      if (!text) throw new Error("لا يمكن حفظ ملاحظة فارغة");
-      const { error } = await supabase.from("notes").update({ note_text: text }).eq("id", noteId);
+      const parsed = updateNoteSchema.safeParse({ noteText });
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "يرجى التحقق من المدخلات");
+
+      const { error } = await supabase
+        .from("notes")
+        .update({
+          note_text: parsed.data.noteText,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", noteId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -135,41 +148,15 @@ export default function NotesDialog({
 
         <div className="space-y-4 overflow-y-auto max-h-[60vh] px-1">
           {/* Add New Note Form */}
-          <Card className="bg-muted/30 border-primary/20">
-            <CardContent className="p-4 space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">الملاحظة</label>
-                <Textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="اكتب الملاحظة هنا..."
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">اسم المُدخل</label>
-                  <Input
-                    value={createdBy}
-                    onChange={(e) => setCreatedBy(e.target.value)}
-                    placeholder="اسمك"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    onClick={() => addNoteMutation.mutate()}
-                    disabled={addNoteMutation.isPending || !noteText.trim() || !createdBy.trim()}
-                    className="w-full"
-                  >
-                    <Plus className="ml-2 h-4 w-4" />
-                    إضافة ملاحظة
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <AddNoteForm
+            noteText={noteText}
+            createdBy={createdBy}
+            onNoteTextChange={setNoteText}
+            onCreatedByChange={setCreatedBy}
+            onSubmit={() => addNoteMutation.mutate()}
+            isSubmitting={addNoteMutation.isPending}
+            disabled={!admissionId || addNoteMutation.isPending || !noteText.trim() || !createdBy.trim()}
+          />
 
           {/* Notes List */}
           <div className="space-y-3">
@@ -180,81 +167,28 @@ export default function NotesDialog({
             {isLoading ? (
               <div className="text-center py-8 text-muted-foreground">جاري التحميل...</div>
             ) : notes && notes.length > 0 ? (
-              notes.map((note: any) => (
-                <Card key={note.id} className="border-border hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {note.created_by}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(note.created_at), "yyyy-MM-dd HH:mm")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {editingId !== note.id && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditingId(note.id);
-                              setEditingText(String(note.note_text ?? ""));
-                            }}
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteNoteMutation.mutate(note.id)}
-                          disabled={deleteNoteMutation.isPending}
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {editingId === note.id ? (
-                      <div className="space-y-2">
-                        <Textarea
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          rows={3}
-                          className="resize-none"
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            className="flex-1"
-                            onClick={() => updateNoteMutation.mutate({ noteId: note.id, noteText: editingText })}
-                            disabled={updateNoteMutation.isPending}
-                          >
-                            <Save className="ml-2 h-4 w-4" />
-                            حفظ التعديل
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditingText("");
-                            }}
-                          >
-                            <X className="ml-2 h-4 w-4" />
-                            إلغاء
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
-                    )}
-                  </CardContent>
-                </Card>
+              (notes as NoteRow[]).map((note) => (
+                <NoteCard
+                  key={note.id}
+                  createdBy={note.created_by}
+                  createdAt={note.created_at}
+                  noteText={note.note_text}
+                  isEditing={editingId === note.id}
+                  editingText={editingId === note.id ? editingText : ""}
+                  onStartEdit={() => {
+                    setEditingId(note.id);
+                    setEditingText(String(note.note_text ?? ""));
+                  }}
+                  onEditingTextChange={setEditingText}
+                  onSaveEdit={() => updateNoteMutation.mutate({ noteId: note.id, noteText: editingText })}
+                  onCancelEdit={() => {
+                    setEditingId(null);
+                    setEditingText("");
+                  }}
+                  onDelete={() => deleteNoteMutation.mutate(note.id)}
+                  disableDelete={deleteNoteMutation.isPending}
+                  disableSave={updateNoteMutation.isPending}
+                />
               ))
             ) : (
               <div className="text-center py-8 text-muted-foreground">
