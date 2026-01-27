@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import DashboardExportDialog from "@/components/DashboardExportDialog";
+import DashboardExportForm from "@/components/DashboardExportForm";
 import {
   TrendingUp,
   FileDown,
@@ -404,8 +405,23 @@ export default function Dashboard() {
         </div>
       </div>
 
+       {/* Export Panel (clear + always visible) */}
+       <Card className="bg-card/50 backdrop-blur border-r-4 border-primary">
+         <CardHeader className="pb-3">
+           <CardTitle className="flex items-center gap-2">
+             <FileSpreadsheet className="h-5 w-5" />
+             تصدير بيانات لوحة التحكم
+           </CardTitle>
+           <p className="text-sm text-muted-foreground">
+             اختر اليوم والأنواع المطلوبة لتصدير ملف Excel (ملخص + تفاصيل) بعناوين عربية.
+           </p>
+         </CardHeader>
+         <CardContent>
+           <DashboardExportForm compact />
+         </CardContent>
+       </Card>
 
-      <DashboardExportDialog open={exportOpen} onOpenChange={setExportOpen} />
+       <DashboardExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
       {/* Priority Stats - Deaths, Active, Emergencies, Unreturned Loans */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
