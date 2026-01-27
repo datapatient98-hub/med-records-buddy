@@ -116,10 +116,10 @@ export default function Layout({ children }: LayoutProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onBlur={() => runTopSearch(searchQuery)}
-                  className="pl-10 bg-secondary/50 border-border"
+                  className="pl-10 bg-background border-border focus-visible:ring-2 focus-visible:ring-primary/40"
                 />
               </div>
-              <Button type="submit" variant="secondary" disabled={topSearchLoading}>
+              <Button type="submit" variant="default" disabled={topSearchLoading}>
                 {topSearchLoading ? "جاري..." : "بحث"}
               </Button>
             </form>
