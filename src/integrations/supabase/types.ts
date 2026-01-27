@@ -637,9 +637,10 @@ export type Database = {
           borrowed_to_department: string
           created_at: string | null
           id: string
-          internal_number: number
+          internal_number: number | null
           is_returned: boolean | null
           loan_date: string
+          loan_reason: string
           return_date: string | null
           unified_number: string
         }
@@ -649,9 +650,10 @@ export type Database = {
           borrowed_to_department: string
           created_at?: string | null
           id?: string
-          internal_number: number
+          internal_number?: number | null
           is_returned?: boolean | null
           loan_date: string
+          loan_reason: string
           return_date?: string | null
           unified_number: string
         }
@@ -661,9 +663,10 @@ export type Database = {
           borrowed_to_department?: string
           created_at?: string | null
           id?: string
-          internal_number?: number
+          internal_number?: number | null
           is_returned?: boolean | null
           loan_date?: string
+          loan_reason?: string
           return_date?: string | null
           unified_number?: string
         }

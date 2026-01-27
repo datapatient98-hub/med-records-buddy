@@ -20,6 +20,7 @@ import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucid
 const loanSchema = z.object({
   borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
   borrowed_to_department: z.string().min(1, "القسم المستعار إليه مطلوب"),
+  loan_reason: z.string().min(1, "سبب الاستعارة مطلوب"),
   loan_date: z.string().min(1, "تاريخ الاستعارة مطلوب"),
 });
 
@@ -30,9 +31,10 @@ type LoanTab = "borrowed" | "returned" | "all";
 type LoanRow = {
   id: string;
   unified_number: string;
-  internal_number: number;
+  internal_number?: number | null;
   borrowed_by: string;
   borrowed_to_department: string;
+  loan_reason: string;
   loan_date: string;
   return_date: string | null;
   is_returned: boolean | null;
@@ -53,6 +55,7 @@ export default function Loans() {
   const [searchNumber, setSearchNumber] = useState("");
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [loansSearch, setLoansSearch] = useState("");
 
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [loanToReturn, setLoanToReturn] = useState<LoanRow | null>(null);
@@ -61,6 +64,9 @@ export default function Loans() {
   const form = useForm<LoanFormValues>({
     resolver: zodResolver(loanSchema),
     defaultValues: {
+      borrowed_by: "",
+      borrowed_to_department: "",
+      loan_reason: "",
       loan_date: new Date().toISOString().slice(0, 16),
     },
   });
@@ -118,9 +124,9 @@ export default function Loans() {
           {
             admission_id: selectedAdmission.id,
             unified_number: selectedAdmission.unified_number,
-            internal_number: selectedAdmission.internal_number,
             borrowed_by: values.borrowed_by,
             borrowed_to_department: values.borrowed_to_department,
+            loan_reason: values.loan_reason,
             loan_date: values.loan_date,
             is_returned: false,
           },
@@ -139,7 +145,12 @@ export default function Loans() {
           ? `تم تسجيل استعارة ملف ${selectedAdmission.patient_name}`
           : "تم تسجيل الاستعارة",
       });
-      form.reset({ loan_date: new Date().toISOString().slice(0, 16) });
+      form.reset({
+        borrowed_by: "",
+        borrowed_to_department: "",
+        loan_reason: "",
+        loan_date: new Date().toISOString().slice(0, 16),
+      });
       setSelectedAdmission(null);
       setSearchNumber("");
       setActiveTab("borrowed");
@@ -188,7 +199,79 @@ export default function Loans() {
 
   const onSubmit = (data: LoanFormValues) => mutation.mutate(data);
 
-  const loansForTab = activeTab === "borrowed" ? borrowedLoans : activeTab === "returned" ? returnedLoans : loans || [];
+  const loansForTabRaw = activeTab === "borrowed" ? borrowedLoans : activeTab === "returned" ? returnedLoans : loans || [];
+
+  const loansForTab = useMemo(() => {
+    const q = loansSearch.trim().toLowerCase();
+    if (!q) return loansForTabRaw;
+    return loansForTabRaw.filter((l) => {
+      const patient = (l.admissions?.patient_name ?? "").toLowerCase();
+      const uni = (l.unified_number ?? "").toLowerCase();
+      const by = (l.borrowed_by ?? "").toLowerCase();
+      const dept = (l.borrowed_to_department ?? "").toLowerCase();
+      const reason = (l.loan_reason ?? "").toLowerCase();
+      return [patient, uni, by, dept, reason].some((v) => v.includes(q));
+    });
+  }, [loansForTabRaw, loansSearch]);
+
+  const editLoanSchema = useMemo(
+    () =>
+      z.object({
+        borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
+        borrowed_to_department: z.string().min(1, "القسم المستعار إليه مطلوب"),
+        loan_reason: z.string().min(1, "سبب الاستعارة مطلوب"),
+      }),
+    []
+  );
+
+  type EditLoanValues = z.infer<typeof editLoanSchema>;
+  const editForm = useForm<EditLoanValues>({
+    resolver: zodResolver(editLoanSchema),
+    defaultValues: { borrowed_by: "", borrowed_to_department: "", loan_reason: "" },
+  });
+
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [loanToEdit, setLoanToEdit] = useState<LoanRow | null>(null);
+
+  const openEditDialog = (loan: LoanRow) => {
+    setLoanToEdit(loan);
+    editForm.reset({
+      borrowed_by: loan.borrowed_by ?? "",
+      borrowed_to_department: loan.borrowed_to_department ?? "",
+      loan_reason: loan.loan_reason ?? "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const editMutation = useMutation({
+    mutationFn: async (params: { loanId: string; values: EditLoanValues }) => {
+      const { data, error } = await supabase
+        .from("file_loans")
+        .update({
+          borrowed_by: params.values.borrowed_by,
+          borrowed_to_department: params.values.borrowed_to_department,
+          loan_reason: params.values.loan_reason,
+        })
+        .eq("id", params.loanId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["file_loans"] });
+      setEditDialogOpen(false);
+      setLoanToEdit(null);
+      toast({ title: "تم التعديل", description: "تم تحديث بيانات الاستعارة." });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "تعذر التعديل",
+        description: error?.message ?? "حدث خطأ أثناء التعديل.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const openReturnDialog = (loan: LoanRow) => {
     setLoanToReturn(loan);
@@ -362,6 +445,14 @@ export default function Loans() {
             <CardDescription>حسب التاب المختار بالأعلى</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
+            <div className="mb-4">
+              <Input
+                value={loansSearch}
+                onChange={(e) => setLoansSearch(e.target.value)}
+                placeholder="بحث (اسم المريض / الرقم الموحد / المستعير / القسم / السبب)..."
+              />
+            </div>
+
             {activeTab === "borrowed" && borrowedLoans.length > 0 && (
               <div className="mb-4 rounded-lg border border-border bg-muted/30 p-4">
                 <p className="text-sm text-foreground">
@@ -379,16 +470,18 @@ export default function Loans() {
                       <TableHead className="text-right">الرقم الموحد</TableHead>
                       <TableHead className="text-right">القسم</TableHead>
                       <TableHead className="text-right">المستعير</TableHead>
+                      <TableHead className="text-right">سبب الاستعارة</TableHead>
                       <TableHead className="text-right">تاريخ الاستعارة</TableHead>
                       <TableHead className="text-right">تاريخ الإرجاع</TableHead>
                       <TableHead className="text-right">حالة الرجوع</TableHead>
+                      <TableHead className="text-right">تعديل</TableHead>
                       <TableHead className="text-right">إرجاع</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loansForTab.length === 0 ? (
                       <TableRow>
-                        <TableCell className="text-right text-muted-foreground" colSpan={8}>
+                        <TableCell className="text-right text-muted-foreground" colSpan={10}>
                           لا توجد بيانات.
                         </TableCell>
                       </TableRow>
@@ -399,6 +492,7 @@ export default function Loans() {
                           <TableCell className="text-right">{loan.unified_number}</TableCell>
                           <TableCell className="text-right">{loan.borrowed_to_department}</TableCell>
                           <TableCell className="text-right">{loan.borrowed_by}</TableCell>
+                          <TableCell className="text-right">{loan.loan_reason || "—"}</TableCell>
                           <TableCell className="text-right">{formatDateTime(loan.loan_date)}</TableCell>
                           <TableCell className="text-right">{formatDateTime(loan.return_date)}</TableCell>
                           <TableCell className="text-right">
@@ -407,6 +501,17 @@ export default function Loans() {
                             ) : (
                               <Badge variant="destructive">لم يُرجع</Badge>
                             )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={editMutation.isPending}
+                              onClick={() => openEditDialog(loan)}
+                            >
+                              تعديل
+                            </Button>
                           </TableCell>
                           <TableCell className="text-right">
                             {loan.is_returned ? (
@@ -435,6 +540,99 @@ export default function Loans() {
           </CardContent>
         </Card>
 
+        {/* Edit Dialog */}
+        <Dialog
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setLoanToEdit(null);
+          }}
+        >
+          <DialogContent dir="rtl">
+            <DialogHeader>
+              <DialogTitle>تعديل بيانات الاستعارة</DialogTitle>
+            </DialogHeader>
+
+            {loanToEdit && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">المريض</p>
+                      <p className="font-semibold">{loanToEdit.admissions?.patient_name ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">الرقم الموحد</p>
+                      <p className="font-semibold">{loanToEdit.unified_number}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Form {...editForm}>
+                  <form
+                    onSubmit={editForm.handleSubmit((values) => {
+                      if (!loanToEdit) return;
+                      editMutation.mutate({ loanId: loanToEdit.id, values });
+                    })}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={editForm.control}
+                      name="borrowed_by"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>اسم المستعير *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="اسم الشخص المستعير" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="borrowed_to_department"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>القسم المستعار إليه *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="اسم القسم" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={editForm.control}
+                      name="loan_reason"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>سبب الاستعارة *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="مثال: مراجعة ملف / استكمال بيانات..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <DialogFooter className="gap-2">
+                      <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                        إلغاء
+                      </Button>
+                      <Button type="submit" disabled={editMutation.isPending}>
+                        {editMutation.isPending ? "جاري الحفظ..." : "حفظ التعديل"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         <Dialog
           open={returnDialogOpen}
           onOpenChange={(open) => {
@@ -461,7 +659,7 @@ export default function Loans() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">الرقم الداخلي</p>
-                      <p className="font-semibold">{loanToReturn.internal_number}</p>
+                      <p className="font-semibold">{loanToReturn.internal_number ?? "—"}</p>
                     </div>
                   </div>
                 </div>
