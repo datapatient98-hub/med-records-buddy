@@ -1,8 +1,16 @@
 import { useMemo, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
+import RowDetailsDialog from "@/components/RowDetailsDialog";
 
 type AnyRow = Record<string, any>;
 
@@ -21,24 +29,6 @@ function renderValue(v: any) {
   return String(v);
 }
 
-function RowDetails({ row }: { row: AnyRow }) {
-  const keys = Object.keys(row ?? {}).sort();
-  return (
-    <div className="rounded-md border bg-card p-3">
-      <div className="grid gap-2 md:grid-cols-2">
-        {keys.map((k) => (
-          <div key={k} className="flex items-start justify-between gap-3">
-            <div className="text-sm text-muted-foreground break-all">{k}</div>
-            <div className="text-sm font-medium text-foreground break-all text-right">
-              {k.toLowerCase().includes("date") || k.toLowerCase().includes("_at") ? fmtDate(row[k]) : renderValue(row[k])}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function SimpleTable({
   rows,
   columns,
@@ -46,6 +36,9 @@ function SimpleTable({
   rows: AnyRow[];
   columns: { key: string; label: string; isDate?: boolean }[];
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsRow, setDetailsRow] = useState<AnyRow | null>(null);
+
   return (
     <div className="rounded-lg border bg-card">
       <div className="overflow-x-auto">
@@ -68,14 +61,17 @@ function SimpleTable({
                     </TableCell>
                   ))}
                   <TableCell>
-                    <details className="group">
-                      <summary className="cursor-pointer select-none text-sm font-medium text-foreground underline-offset-4 group-open:underline">
-                        عرض التفاصيل
-                      </summary>
-                      <div className="mt-2">
-                        <RowDetails row={r} />
-                      </div>
-                    </details>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setDetailsRow(r);
+                        setDetailsOpen(true);
+                      }}
+                    >
+                      عرض التفاصيل
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -89,6 +85,8 @@ function SimpleTable({
           </TableBody>
         </Table>
       </div>
+
+      <RowDetailsDialog open={detailsOpen} onOpenChange={setDetailsOpen} row={detailsRow} title="تفاصيل السجل" />
     </div>
   );
 }
@@ -163,6 +161,7 @@ export default function UnifiedPatientHistoryDialog({
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>كل السجلات للرقم الموحد: {p?.unified_number ?? "-"}</DialogTitle>
+          <DialogDescription>اضغط “عرض التفاصيل” لأي صف لعرض كل بياناته بشكل مرتب.</DialogDescription>
         </DialogHeader>
 
           <div className="rounded-md border bg-secondary/40 px-3 py-2 text-sm">
