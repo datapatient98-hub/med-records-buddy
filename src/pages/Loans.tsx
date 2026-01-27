@@ -14,10 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
-import { APPROVED_DEPARTMENT_NAMES } from "@/lib/departments/approvedDepartments";
+import LoanSuggestInput from "@/components/LoanSuggestInput";
+import LoanLookupCreateDialog, { type LoanLookupType } from "@/components/LoanLookupCreateDialog";
+import LoanLookupManageDialog from "@/components/LoanLookupManageDialog";
 
 const loanSchema = z.object({
   borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
@@ -61,6 +62,11 @@ export default function Loans() {
   const [lastAdmissionInternalNumber, setLastAdmissionInternalNumber] = useState<number | null>(null);
   const [activeLoanInfo, setActiveLoanInfo] = useState<LoanRow | null>(null);
 
+  const [loanLookupType, setLoanLookupType] = useState<LoanLookupType>("borrower");
+  const [lookupCreateOpen, setLookupCreateOpen] = useState(false);
+  const [lookupManageOpen, setLookupManageOpen] = useState(false);
+  const [lookupInitialName, setLookupInitialName] = useState<string>("");
+
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [loanToReturn, setLoanToReturn] = useState<LoanRow | null>(null);
   const [returnDateLocal, setReturnDateLocal] = useState(() => new Date().toISOString().slice(0, 16));
@@ -74,6 +80,47 @@ export default function Loans() {
       loan_date: new Date().toISOString().slice(0, 16),
     },
   });
+
+  const { data: borrowersOptions = [] } = useQuery({
+    queryKey: ["loan_borrowers"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("loan_borrowers").select("id, name").order("name");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
+
+  const { data: toDeptOptions = [] } = useQuery({
+    queryKey: ["loan_to_departments"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("loan_to_departments").select("id, name").order("name");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
+
+  const { data: reasonOptions = [] } = useQuery({
+    queryKey: ["loan_reasons"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("loan_reasons").select("id, name").order("name");
+      if (error) throw error;
+      return (data || []) as Array<{ id: string; name: string }>;
+    },
+  });
+
+  const ensureLookupValue = async (type: LoanLookupType, rawName: string) => {
+    const clean = rawName.trim();
+    if (!clean) return;
+    const table = type === "borrower" ? "loan_borrowers" : type === "to_department" ? "loan_to_departments" : "loan_reasons";
+    const { error } = await supabase.from(table as any).insert([{ name: clean }]);
+    if (error) {
+      const msg = (error as any)?.message ?? "";
+      const code = (error as any)?.code;
+      if (code === "23505" || msg.toLowerCase().includes("duplicate")) return;
+      // لا نوقف حفظ الاستعارة لو تحديث القوائم فشل
+      return;
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchNumber.trim()) {
@@ -145,6 +192,12 @@ export default function Loans() {
   const mutation = useMutation({
     mutationFn: async (values: LoanFormValues) => {
       if (!selectedAdmission) return;
+
+       await Promise.all([
+         ensureLookupValue("borrower", values.borrowed_by),
+         ensureLookupValue("to_department", values.borrowed_to_department),
+         ensureLookupValue("reason", values.loan_reason),
+       ]);
 
       const { data, error } = await supabase
         .from("file_loans")
@@ -273,6 +326,12 @@ export default function Loans() {
 
   const editMutation = useMutation({
     mutationFn: async (params: { loanId: string; values: EditLoanValues }) => {
+      await Promise.all([
+        ensureLookupValue("borrower", params.values.borrowed_by),
+        ensureLookupValue("to_department", params.values.borrowed_to_department),
+        ensureLookupValue("reason", params.values.loan_reason),
+      ]);
+
       const { data, error } = await supabase
         .from("file_loans")
         .update({
@@ -424,7 +483,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>اسم المستعير *</FormLabel>
                           <FormControl>
-                            <Input placeholder="اسم الشخص المستعير" {...field} />
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={borrowersOptions.map((o) => o.name)}
+                              placeholder="اسم الشخص المستعير"
+                              listId="loan-borrowers"
+                              onAdd={() => {
+                                setLoanLookupType("borrower");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("borrower");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -438,18 +512,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>القسم المستعار إليه *</FormLabel>
                           <FormControl>
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="اختر القسم..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {APPROVED_DEPARTMENT_NAMES.map((name) => (
-                                  <SelectItem key={name} value={name}>
-                                    {name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={toDeptOptions.map((o) => o.name)}
+                              placeholder="القسم المستعار إليه"
+                              listId="loan-to-depts"
+                              onAdd={() => {
+                                setLoanLookupType("to_department");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("to_department");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -463,7 +541,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>سبب الاستعارة *</FormLabel>
                           <FormControl>
-                            <Input placeholder="سبب الاستعارة" {...field} />
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={reasonOptions.map((o) => o.name)}
+                              placeholder="سبب الاستعارة"
+                              listId="loan-reasons"
+                              onAdd={() => {
+                                setLoanLookupType("reason");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("reason");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -656,7 +749,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>اسم المستعير *</FormLabel>
                           <FormControl>
-                            <Input placeholder="اسم الشخص المستعير" {...field} />
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={borrowersOptions.map((o) => o.name)}
+                              placeholder="اسم الشخص المستعير"
+                              listId="loan-borrowers-edit"
+                              onAdd={() => {
+                                setLoanLookupType("borrower");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("borrower");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -670,18 +778,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>القسم المستعار إليه *</FormLabel>
                           <FormControl>
-                            <Select value={field.value} onValueChange={field.onChange}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="اختر القسم..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {APPROVED_DEPARTMENT_NAMES.map((name) => (
-                                  <SelectItem key={name} value={name}>
-                                    {name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={toDeptOptions.map((o) => o.name)}
+                              placeholder="القسم المستعار إليه"
+                              listId="loan-to-depts-edit"
+                              onAdd={() => {
+                                setLoanLookupType("to_department");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("to_department");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -695,7 +807,22 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>سبب الاستعارة *</FormLabel>
                           <FormControl>
-                            <Input placeholder="مثال: مراجعة ملف / استكمال بيانات..." {...field} />
+                            <LoanSuggestInput
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              suggestions={reasonOptions.map((o) => o.name)}
+                              placeholder="مثال: مراجعة ملف / استكمال بيانات..."
+                              listId="loan-reasons-edit"
+                              onAdd={() => {
+                                setLoanLookupType("reason");
+                                setLookupInitialName(field.value);
+                                setLookupCreateOpen(true);
+                              }}
+                              onManage={() => {
+                                setLoanLookupType("reason");
+                                setLookupManageOpen(true);
+                              }}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -777,6 +904,37 @@ export default function Loans() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Loan Lookups dialogs (Add/Edit list items) */}
+        <LoanLookupCreateDialog
+          open={lookupCreateOpen}
+          type={loanLookupType}
+          initialName={lookupInitialName}
+          onOpenChange={setLookupCreateOpen}
+          onCreated={() => {
+            queryClient.invalidateQueries({ queryKey: ["loan_borrowers"] });
+            queryClient.invalidateQueries({ queryKey: ["loan_to_departments"] });
+            queryClient.invalidateQueries({ queryKey: ["loan_reasons"] });
+          }}
+        />
+
+        <LoanLookupManageDialog
+          open={lookupManageOpen}
+          type={loanLookupType}
+          onOpenChange={setLookupManageOpen}
+          items={
+            loanLookupType === "borrower"
+              ? borrowersOptions
+              : loanLookupType === "to_department"
+                ? toDeptOptions
+                : reasonOptions
+          }
+          onUpdated={() => {
+            queryClient.invalidateQueries({ queryKey: ["loan_borrowers"] });
+            queryClient.invalidateQueries({ queryKey: ["loan_to_departments"] });
+            queryClient.invalidateQueries({ queryKey: ["loan_reasons"] });
+          }}
+        />
       </div>
     </Layout>
   );
