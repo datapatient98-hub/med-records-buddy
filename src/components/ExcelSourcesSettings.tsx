@@ -1,4 +1,5 @@
 import ExcelSourcePicker from "@/components/ExcelSourcePicker";
+import ExcelFullJourneyTemplateCard from "@/components/ExcelFullJourneyTemplateCard";
 
 export default function ExcelSourcesSettings() {
   return (
@@ -31,6 +32,10 @@ export default function ExcelSourcesSettings() {
           sourceKey="excel_source_services"
           className="border border-secondary/40 bg-secondary/20"
         />
+      </div>
+
+      <div className="pt-2">
+        <ExcelFullJourneyTemplateCard className="border bg-muted/10" />
       </div>
 
       <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
