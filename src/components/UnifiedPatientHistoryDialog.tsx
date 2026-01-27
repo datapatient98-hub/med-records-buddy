@@ -130,6 +130,11 @@ export default function UnifiedPatientHistoryDialog({
           <DialogTitle>كل السجلات للرقم الموحد: {p?.unified_number ?? "-"}</DialogTitle>
         </DialogHeader>
 
+          <div className="rounded-md border bg-secondary/40 px-3 py-2 text-sm">
+            <span className="font-semibold text-foreground">تم العثور على البيانات</span>
+            <span className="text-muted-foreground"> — اختر التبويب لعرض تفاصيل الدخول/الخروج/الإجراءات/الاستعارات.</span>
+          </div>
+
         <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="admissions">دخول ({p?.admissions.length ?? 0})</TabsTrigger>
