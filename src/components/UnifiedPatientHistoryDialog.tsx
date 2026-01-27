@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UnifiedHistorySummary from "@/components/UnifiedHistory/UnifiedHistorySummary";
 import UnifiedHistorySection from "@/components/UnifiedHistory/UnifiedHistorySection";
+import { fmtDate } from "@/components/UnifiedHistory/format";
 import type { ColumnDef, UnifiedHistoryPayload } from "@/components/UnifiedHistory/types";
 
 // Backward-compatible re-export (used in Layout / UnifiedDatabase)
@@ -109,6 +110,19 @@ export default function UnifiedPatientHistoryDialog({
       return 0;
     };
 
+    const getLastEventDateRaw = (r: any) => {
+      return (
+        r.discharge_date ??
+        r.procedure_date ??
+        r.visit_date ??
+        r.admission_date ??
+        r.loan_date ??
+        r.created_at ??
+        r.updated_at ??
+        null
+      );
+    };
+
     const allWithInternal = [
       ...(p?.discharges ?? []),
       ...(p?.procedures ?? []),
@@ -120,10 +134,30 @@ export default function UnifiedPatientHistoryDialog({
     allWithInternal.sort((a: any, b: any) => getSortTime(b) - getSortTime(a));
     const internalNumber = allWithInternal[0]?.internal_number ?? "-";
 
+    const allRecords = [
+      ...(p?.admissions ?? []),
+      ...(p?.discharges ?? []),
+      ...(p?.emergencies ?? []),
+      ...(p?.endoscopies ?? []),
+      ...(p?.procedures ?? []),
+      ...(p?.loans ?? []),
+    ];
+    const lastEventRow = [...allRecords].sort((a: any, b: any) => getSortTime(b) - getSortTime(a))[0];
+    const lastEventAt = lastEventRow ? fmtDate(getLastEventDateRaw(lastEventRow)) : "-";
+
+    const lastUpdateRow = [...allRecords].sort((a: any, b: any) => {
+      const ta = new Date(a?.updated_at ?? a?.created_at ?? 0).getTime() || 0;
+      const tb = new Date(b?.updated_at ?? b?.created_at ?? 0).getTime() || 0;
+      return tb - ta;
+    })[0];
+    const lastUpdateAt = lastUpdateRow ? fmtDate(lastUpdateRow?.updated_at ?? lastUpdateRow?.created_at) : "-";
+
     return {
       patientName: pickName(),
       unifiedNumber: p?.unified_number ?? "-",
       internalNumber,
+      lastEventAt,
+      lastUpdateAt,
     };
   }, [p]);
 
@@ -139,6 +173,10 @@ export default function UnifiedPatientHistoryDialog({
               <span className="font-semibold">الرقم الموحد: {headerMeta.unifiedNumber}</span>
               <span className="text-muted-foreground">•</span>
               <span className="font-semibold">الرقم الداخلي: {headerMeta.internalNumber}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">آخر حدث: {headerMeta.lastEventAt}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">آخر تحديث: {headerMeta.lastUpdateAt}</span>
             </div>
           </DialogDescription>
         </DialogHeader>
