@@ -399,6 +399,20 @@ export default function Loans() {
 
                     <FormField
                       control={form.control}
+                      name="loan_reason"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>سبب الاستعارة *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="سبب الاستعارة" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="loan_date"
                       render={({ field }) => (
                         <FormItem>
