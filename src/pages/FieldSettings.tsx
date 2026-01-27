@@ -34,6 +34,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import ExcelSourcesSettings from "@/components/ExcelSourcesSettings";
 
 type LookupItem = {
   id: string;
@@ -487,11 +488,12 @@ export default function FieldSettings() {
         </div>
 
         <Tabs defaultValue="admission" dir="rtl" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
             <TabsTrigger value="admission">الدخول</TabsTrigger>
             <TabsTrigger value="discharge">الخروج</TabsTrigger>
             <TabsTrigger value="endoscopy">المناظير</TabsTrigger>
             <TabsTrigger value="procedures">البذل/الاستقبال/الكلي</TabsTrigger>
+            <TabsTrigger value="excel-sources">مصادر الإكسل</TabsTrigger>
           </TabsList>
 
           <TabsContent value="admission" className="pt-4">
@@ -524,6 +526,10 @@ export default function FieldSettings() {
               title="إعدادات الإجراءات (بذل/استقبال/كلي)" 
               description="إدارة الحقول والبيانات الأساسية لنموذج الإجراءات الطبية" 
             />
+          </TabsContent>
+
+          <TabsContent value="excel-sources" className="pt-4">
+            <ExcelSourcesSettings />
           </TabsContent>
         </Tabs>
       </div>
