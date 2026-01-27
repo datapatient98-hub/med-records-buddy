@@ -1,16 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Layout from "@/components/Layout";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search, Settings, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Settings, Trash2, Database, FileText } from "lucide-react";
-import { format } from "date-fns";
-import ExcelSourcePicker from "@/components/ExcelSourcePicker";
 import UnifiedPatientHistoryDialog, { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import UnifiedDatabaseGate from "@/components/UnifiedDatabaseGate";
-import { useNavigate, Link } from "react-router-dom";
+import UnifiedHistorySummary from "@/components/UnifiedHistory/UnifiedHistorySummary";
+import UnifiedHistorySection from "@/components/UnifiedHistory/UnifiedHistorySection";
+import type { ColumnDef } from "@/components/UnifiedHistory/types";
+import { findUnifiedNumberForTopSearch, fetchUnifiedHistoryPayload } from "@/lib/topSearch";
+import { fmtDate } from "@/components/UnifiedHistory/format";
+import { Link } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,309 +27,136 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-type Lookup = { name: string | null };
+type ProcedureKind = "بذل" | "استقبال" | "كلي";
 
-type UnifiedRow = {
-  unified_number: string;
-  patient_name: string | null;
-  national_id: string | null;
-  phone: string | null;
-  last_activity: string | null; // ISO
-
-  // latest admission snapshot
-  latest_admission_date: string | null;
-  latest_admission_status: string | null;
-
-  // latest discharge (full)
-  latest_discharge_date: string | null;
-  latest_discharge_status: string | null;
-  latest_finance_source: string | null;
-  latest_child_national_id: string | null;
-  latest_discharge_department: string | null;
-  latest_discharge_diagnosis: string | null;
-  latest_discharge_doctor: string | null;
-
-  // latest emergency (full)
-  latest_emergency_date: string | null;
-  latest_emergency_department: string | null;
-  latest_emergency_diagnosis: string | null;
-  latest_emergency_doctor: string | null;
-
-  // latest endoscopy
-  latest_endoscopy_date: string | null;
-  latest_endoscopy_department: string | null;
-  latest_endoscopy_diagnosis: string | null;
-  latest_endoscopy_doctor: string | null;
-
-  // latest procedure
-  latest_procedure_date: string | null;
-  latest_procedure_department: string | null;
-  latest_procedure_diagnosis: string | null;
-  latest_procedure_doctor: string | null;
-
-  // latest loan
-  latest_loan_date: string | null;
-  latest_loan_borrowed_by: string | null;
-  latest_loan_to_department: string | null;
-  latest_loan_is_returned: boolean | null;
-  latest_loan_return_date: string | null;
-
-  counts: {
-    admissions: number;
-    discharges: number;
-    emergencies: number;
-    endoscopies: number;
-    procedures: number;
-    loans: number;
-  };
-};
-
-function maxIso(a?: string | null, b?: string | null) {
-  if (!a) return b ?? null;
-  if (!b) return a ?? null;
-  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+function getInternalNumberFromAnyRow(r: any): number | null {
+  const v = r?.internal_number;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function pickLatest<T extends Record<string, any>>(rows: T[], dateKey: keyof T): T | null {
-  if (!rows.length) return null;
-  return rows.reduce((acc, cur) => {
-    const ta = acc?.[dateKey] ? new Date(acc[dateKey]).getTime() : 0;
-    const tb = cur?.[dateKey] ? new Date(cur[dateKey]).getTime() : 0;
-    return tb > ta ? cur : acc;
-  }, rows[0] as T);
+function computeMostRecentInternalNumber(payload: UnifiedHistoryPayload | null): number | null {
+  if (!payload) return null;
+  const all = [
+    ...(payload?.discharges ?? []),
+    ...(payload?.procedures ?? []),
+    ...(payload?.endoscopies ?? []),
+    ...(payload?.emergencies ?? []),
+    ...(payload?.loans ?? []),
+  ];
+  // prefer the record with latest event date, but fall back to any internal_number found
+  const getSortTime = (row: any) => {
+    const candidates = [row.discharge_date, row.procedure_date, row.visit_date, row.loan_date, row.created_at, row.updated_at];
+    for (const v of candidates) {
+      if (!v) continue;
+      const t = new Date(v).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+    return 0;
+  };
+
+  const sorted = [...all].sort((a, b) => getSortTime(b) - getSortTime(a));
+  for (const r of sorted) {
+    const n = getInternalNumberFromAnyRow(r);
+    if (n !== null) return n;
+  }
+  for (const r of all) {
+    const n = getInternalNumberFromAnyRow(r);
+    if (n !== null) return n;
+  }
+  return null;
 }
 
 export default function UnifiedDatabase() {
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchLoading, setSearchLoading] = useState(false);
+  const lastSearchedRef = useRef<string>("");
+
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPayload, setHistoryPayload] = useState<UnifiedHistoryPayload | null>(null);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["unified-database", searchTerm],
-    queryFn: async (): Promise<UnifiedRow[]> => {
-      let admissionsQuery = supabase
-        .from("admissions")
-        .select(
-          "id, unified_number, patient_name, national_id, phone, admission_date, admission_status"
-        )
-        .order("admission_date", { ascending: false })
-        .limit(500);
+  const mostRecentInternal = useMemo(() => computeMostRecentInternalNumber(historyPayload), [historyPayload]);
 
-      if (searchTerm.trim()) {
-        admissionsQuery = admissionsQuery.or(
-          `patient_name.ilike.%${searchTerm}%,unified_number.ilike.%${searchTerm}%`
-        );
+  const columns = useMemo(() => {
+    return {
+      admissions: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "patient_name", label: "الاسم" },
+        { key: "national_id", label: "الرقم القومي" },
+        { key: "phone", label: "الهاتف" },
+        { key: "admission_status", label: "الحالة" },
+        { key: "admission_date", label: "تاريخ الدخول", isDate: true },
+      ],
+      discharges: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "discharge_status", label: "حالة الخروج" },
+        { key: "finance_source", label: "مصدر التمويل" },
+        { key: "discharge_date", label: "تاريخ الخروج", isDate: true },
+      ],
+      emergencies: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "patient_name", label: "الاسم" },
+        { key: "national_id", label: "الرقم القومي" },
+        { key: "phone", label: "الهاتف" },
+        { key: "visit_date", label: "تاريخ الزيارة", isDate: true },
+      ],
+      endoscopies: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "patient_name", label: "الاسم" },
+        { key: "national_id", label: "الرقم القومي" },
+        { key: "procedure_date", label: "تاريخ المنظار", isDate: true },
+      ],
+      procedures: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "patient_name", label: "الاسم" },
+        { key: "national_id", label: "الرقم القومي" },
+        { key: "procedure_date", label: "تاريخ الإجراء", isDate: true },
+      ],
+      loans: [
+        { key: "internal_number", label: "الرقم الداخلي" },
+        { key: "borrowed_by", label: "المستعار" },
+        { key: "borrowed_to_department", label: "إلى قسم" },
+        { key: "loan_date", label: "تاريخ الاستعارة", isDate: true },
+        { key: "return_date", label: "تاريخ الإرجاع", isDate: true },
+        { key: "is_returned", label: "تم الإرجاع" },
+      ],
+    } as const;
+  }, []);
+
+  const sectionColumns: Record<string, ColumnDef[]> = useMemo(
+    () => ({
+      admissions: [...columns.admissions],
+      emergencies: [...columns.emergencies],
+      endoscopies: [...columns.endoscopies],
+      procedures: [...columns.procedures],
+      discharges: [...columns.discharges],
+      loans: [...columns.loans],
+    }),
+    [columns]
+  );
+
+  const runSearch = async (qRaw: string) => {
+    const q = (qRaw ?? "").trim();
+    if (!q) return;
+    if (lastSearchedRef.current === q) return;
+    lastSearchedRef.current = q;
+
+    setSearchLoading(true);
+    try {
+      const unifiedNumber = await findUnifiedNumberForTopSearch(supabase, q);
+      if (!unifiedNumber) {
+        setHistoryPayload(null);
+        setHistoryOpen(false);
+        return;
       }
+      const payload = await fetchUnifiedHistoryPayload(supabase, unifiedNumber);
+      setHistoryPayload(payload);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
-      const { data: admissions, error: admissionsError } = await admissionsQuery;
-      if (admissionsError) throw admissionsError;
-
-      const unifiedNumbers = Array.from(new Set((admissions ?? []).map((a) => a.unified_number))).filter(Boolean);
-      const admissionIds = (admissions ?? []).map((a) => a.id);
-      if (unifiedNumbers.length === 0) return [];
-
-      const [dischargesRes, emergenciesRes, endoscopiesRes, proceduresRes, loansRes] = await Promise.all([
-        admissionIds.length
-          ? supabase
-              .from("discharges")
-              .select(
-                `id, admission_id, discharge_date, discharge_status, finance_source, child_national_id,
-                 discharge_department:departments(name), discharge_diagnosis:diagnoses(name), discharge_doctor:doctors(name)`
-              )
-              .in("admission_id", admissionIds)
-          : Promise.resolve({ data: [], error: null } as any),
-        supabase
-          .from("emergencies")
-          .select(
-            `id, unified_number, visit_date,
-             department:departments(name), diagnosis:diagnoses(name), doctor:doctors(name)`
-          )
-          .in("unified_number", unifiedNumbers),
-        supabase
-          .from("endoscopies")
-          .select(
-            `id, unified_number, procedure_date,
-             department:departments(name), diagnosis:diagnoses(name), doctor:doctors(name)`
-          )
-          .in("unified_number", unifiedNumbers),
-        supabase
-          .from("procedures")
-          .select(
-            `id, unified_number, procedure_date,
-             department:departments(name), diagnosis:diagnoses(name), doctor:doctors(name)`
-          )
-          .in("unified_number", unifiedNumbers),
-        supabase
-          .from("file_loans")
-          .select("id, unified_number, loan_date, borrowed_by, borrowed_to_department, is_returned, return_date")
-          .in("unified_number", unifiedNumbers),
-      ]);
-
-      if (dischargesRes.error) throw dischargesRes.error;
-      if (emergenciesRes.error) throw emergenciesRes.error;
-      if (endoscopiesRes.error) throw endoscopiesRes.error;
-      if (proceduresRes.error) throw proceduresRes.error;
-      if (loansRes.error) throw loansRes.error;
-
-      const discharges = dischargesRes.data ?? [];
-      const emergencies = emergenciesRes.data ?? [];
-      const endoscopies = endoscopiesRes.data ?? [];
-      const procedures = proceduresRes.data ?? [];
-      const loans = loansRes.data ?? [];
-
-      const admissionsByUnified = new Map<string, typeof admissions>();
-      for (const a of admissions ?? []) {
-        const list = admissionsByUnified.get(a.unified_number) ?? [];
-        list.push(a);
-        admissionsByUnified.set(a.unified_number, list);
-      }
-
-      const dischargesByAdmission = new Map<string, typeof discharges>();
-      for (const d of discharges) {
-        const list = dischargesByAdmission.get(d.admission_id) ?? [];
-        list.push(d);
-        dischargesByAdmission.set(d.admission_id, list);
-      }
-
-      const byUnified = new Map<string, UnifiedRow>();
-
-      for (const un of unifiedNumbers) {
-        const admissionsList = admissionsByUnified.get(un) ?? [];
-        const latestAdmission = pickLatest(admissionsList as any, "admission_date") as any;
-
-        const dischargeList = admissionsList.flatMap((a) => dischargesByAdmission.get(a.id) ?? []);
-        const latestDischarge = pickLatest(dischargeList as any, "discharge_date") as any;
-
-        const emergencyList = emergencies.filter((e) => e.unified_number === un);
-        const latestEmergency = pickLatest(emergencyList as any, "visit_date") as any;
-
-        const endoscopyList = endoscopies.filter((e) => e.unified_number === un);
-        const latestEndoscopy = pickLatest(endoscopyList as any, "procedure_date") as any;
-
-        const procedureList = procedures.filter((p) => p.unified_number === un);
-        const latestProcedure = pickLatest(procedureList as any, "procedure_date") as any;
-
-        const loanList = loans.filter((l) => l.unified_number === un);
-        const latestLoan = pickLatest(loanList as any, "loan_date") as any;
-
-        const lastActivity = [
-          latestAdmission?.admission_date ?? null,
-          latestDischarge?.discharge_date ?? null,
-          latestEmergency?.visit_date ?? null,
-          latestEndoscopy?.procedure_date ?? null,
-          latestProcedure?.procedure_date ?? null,
-          latestLoan?.loan_date ?? null,
-        ].reduce((acc: string | null, cur: string | null) => maxIso(acc, cur), null);
-
-        byUnified.set(un, {
-          unified_number: un,
-          patient_name: latestAdmission?.patient_name ?? null,
-          national_id: latestAdmission?.national_id ?? null,
-          phone: latestAdmission?.phone ?? null,
-          last_activity: lastActivity,
-
-          latest_admission_date: latestAdmission?.admission_date ?? null,
-          latest_admission_status: latestAdmission?.admission_status ?? null,
-
-          latest_discharge_date: latestDischarge?.discharge_date ?? null,
-          latest_discharge_status: latestDischarge?.discharge_status ?? null,
-          latest_finance_source: latestDischarge?.finance_source ?? null,
-          latest_child_national_id: latestDischarge?.child_national_id ?? null,
-          latest_discharge_department: (latestDischarge?.discharge_department as Lookup | undefined)?.name ?? null,
-          latest_discharge_diagnosis: (latestDischarge?.discharge_diagnosis as Lookup | undefined)?.name ?? null,
-          latest_discharge_doctor: (latestDischarge?.discharge_doctor as Lookup | undefined)?.name ?? null,
-
-          latest_emergency_date: latestEmergency?.visit_date ?? null,
-          latest_emergency_department: (latestEmergency?.department as Lookup | undefined)?.name ?? null,
-          latest_emergency_diagnosis: (latestEmergency?.diagnosis as Lookup | undefined)?.name ?? null,
-          latest_emergency_doctor: (latestEmergency?.doctor as Lookup | undefined)?.name ?? null,
-
-          latest_endoscopy_date: latestEndoscopy?.procedure_date ?? null,
-          latest_endoscopy_department: (latestEndoscopy?.department as Lookup | undefined)?.name ?? null,
-          latest_endoscopy_diagnosis: (latestEndoscopy?.diagnosis as Lookup | undefined)?.name ?? null,
-          latest_endoscopy_doctor: (latestEndoscopy?.doctor as Lookup | undefined)?.name ?? null,
-
-          latest_procedure_date: latestProcedure?.procedure_date ?? null,
-          latest_procedure_department: (latestProcedure?.department as Lookup | undefined)?.name ?? null,
-          latest_procedure_diagnosis: (latestProcedure?.diagnosis as Lookup | undefined)?.name ?? null,
-          latest_procedure_doctor: (latestProcedure?.doctor as Lookup | undefined)?.name ?? null,
-
-          latest_loan_date: latestLoan?.loan_date ?? null,
-          latest_loan_borrowed_by: latestLoan?.borrowed_by ?? null,
-          latest_loan_to_department: latestLoan?.borrowed_to_department ?? null,
-          latest_loan_is_returned: latestLoan?.is_returned ?? null,
-          latest_loan_return_date: latestLoan?.return_date ?? null,
-
-          counts: {
-            admissions: admissionsList.length,
-            discharges: dischargeList.length,
-            emergencies: emergencyList.length,
-            endoscopies: endoscopyList.length,
-            procedures: procedureList.length,
-            loans: loanList.length,
-          },
-        });
-      }
-
-      return Array.from(byUnified.values()).sort((a, b) => {
-        const ta = a.last_activity ? new Date(a.last_activity).getTime() : 0;
-        const tb = b.last_activity ? new Date(b.last_activity).getTime() : 0;
-        return tb - ta;
-      });
-    },
-  });
-
-  const rows = useMemo(() => data ?? [], [data]);
-
-  const openHistory = async (unifiedNumber: string) => {
-    const [{ data: admissions }, { data: emergencies }, { data: endoscopies }, { data: procedures }, { data: loans }] =
-      await Promise.all([
-        supabase
-          .from("admissions")
-          .select("id, unified_number, patient_name, national_id, phone, admission_status, admission_date")
-          .eq("unified_number", unifiedNumber)
-          .order("admission_date", { ascending: false }),
-        supabase
-          .from("emergencies")
-          .select("id, unified_number, patient_name, national_id, visit_date")
-          .eq("unified_number", unifiedNumber)
-          .order("visit_date", { ascending: false }),
-        supabase
-          .from("endoscopies")
-          .select("id, unified_number, patient_name, national_id, procedure_date")
-          .eq("unified_number", unifiedNumber)
-          .order("procedure_date", { ascending: false }),
-        supabase
-          .from("procedures")
-          .select("id, unified_number, patient_name, national_id, procedure_date")
-          .eq("unified_number", unifiedNumber)
-          .order("procedure_date", { ascending: false }),
-        supabase
-          .from("file_loans")
-          .select("id, unified_number, internal_number, borrowed_by, borrowed_to_department, loan_date, return_date, is_returned")
-          .eq("unified_number", unifiedNumber)
-          .order("loan_date", { ascending: false }),
-      ]);
-
-    const admissionIds = (admissions ?? []).map((a: any) => a.id);
-    const { data: discharges } = admissionIds.length
-      ? await supabase
-          .from("discharges")
-          .select("id, admission_id, discharge_date, discharge_status, finance_source, child_national_id")
-          .in("admission_id", admissionIds)
-          .order("discharge_date", { ascending: false })
-      : { data: [] as any[] };
-
-    setHistoryPayload({
-      unified_number: unifiedNumber,
-      admissions: (admissions as any[]) ?? [],
-      discharges: (discharges as any[]) ?? [],
-      emergencies: (emergencies as any[]) ?? [],
-      endoscopies: (endoscopies as any[]) ?? [],
-      procedures: (procedures as any[]) ?? [],
-      loans: (loans as any[]) ?? [],
-    });
+  const openDialogForCurrent = () => {
+    if (!historyPayload?.unified_number) return;
     setHistoryOpen(true);
   };
 
@@ -346,8 +177,40 @@ export default function UnifiedDatabase() {
       supabase.from("file_loans").delete().eq("unified_number", unifiedNumber),
     ]);
 
-    await refetch();
+    setHistoryPayload(null);
+    setHistoryOpen(false);
+    setSearchTerm("");
+    lastSearchedRef.current = "";
   };
+
+  const proceduresByType = useMemo(() => {
+    const all = (historyPayload?.procedures ?? []) as any[];
+    const pick = (t: ProcedureKind) => all.filter((r) => (r?.procedure_type ?? "") === t);
+    return {
+      بذل: pick("بذل"),
+      استقبال: pick("استقبال"),
+      كلي: pick("كلي"),
+    };
+  }, [historyPayload]);
+
+  const totalRecords = useMemo(() => {
+    const p = historyPayload;
+    return (
+      (p?.admissions.length ?? 0) +
+      (p?.discharges.length ?? 0) +
+      (p?.emergencies.length ?? 0) +
+      (p?.endoscopies.length ?? 0) +
+      (p?.procedures.length ?? 0) +
+      (p?.loans.length ?? 0)
+    );
+  }, [historyPayload]);
+
+  const patientName =
+    historyPayload?.admissions?.[0]?.patient_name ??
+    historyPayload?.emergencies?.[0]?.patient_name ??
+    historyPayload?.endoscopies?.[0]?.patient_name ??
+    historyPayload?.procedures?.[0]?.patient_name ??
+    "-";
 
   return (
     <Layout>
@@ -366,196 +229,174 @@ export default function UnifiedDatabase() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              صف واحد لكل رقم موحد (آخر دخول/خروج/طوارئ/مناظير/بذل/استعارات) مع زر لعرض كل التواريخ.
+              ابحث بأي بيانات (اسم/رقم موحد/قومي/هاتف/رقم داخلي) وسيظهر Timeline كامل لكل ما حدث للمريض.
             </p>
           </header>
-
-          <section className="grid gap-3 lg:grid-cols-2">
-            <ExcelSourcePicker
-              title="ملف الدخول"
-              requiredFileName="admissions-report.xlsx"
-              sourceKey="excel_source_admissions"
-            />
-            <ExcelSourcePicker
-              title="ملف الخروج"
-              requiredFileName="discharges-report.xlsx"
-              sourceKey="excel_source_discharges"
-            />
-            <ExcelSourcePicker
-              title="ملف الطوارئ"
-              requiredFileName="emergencies-report.xlsx"
-              sourceKey="excel_source_emergencies"
-            />
-            <ExcelSourcePicker
-              title="ملف المناظير"
-              requiredFileName="endoscopies-report.xlsx"
-              sourceKey="excel_source_endoscopies"
-            />
-            <ExcelSourcePicker
-              title="ملف الإجراءات الطبية (البذل)"
-              requiredFileName="procedures-report.xlsx"
-              sourceKey="excel_source_procedures"
-            />
-            <ExcelSourcePicker
-              title="ملف الاستعارات"
-              requiredFileName="file-loans-report.xlsx"
-              sourceKey="excel_source_file_loans"
-            />
-          </section>
 
           <div className="relative">
             <Search className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="بحث بالاسم أو الرقم الموحد أو الرقم الداخلي..."
+              placeholder="الاسم (حرفي) / الرقم الموحد / الداخلي / القومي / الهاتف"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onBlur={() => void runSearch(searchTerm)}
               className="pr-10"
             />
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" onClick={() => void runSearch(searchTerm)} disabled={searchLoading}>
+              {searchLoading ? "جاري البحث..." : "بحث"}
+            </Button>
+            {historyPayload?.unified_number ? (
+              <Button type="button" variant="outline" onClick={openDialogForCurrent}>
+                عرض السجل الكامل (نافذة)
+              </Button>
+            ) : null}
+          </div>
+
           <section className="rounded-lg border bg-card">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>الرقم الموحد</TableHead>
-                    <TableHead>الاسم</TableHead>
-                    <TableHead>الرقم القومي</TableHead>
-                    <TableHead>الهاتف</TableHead>
-                    <TableHead>آخر نشاط</TableHead>
+            <div className="p-4">
+              {!historyPayload ? (
+                <Card className="border">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-muted-foreground font-semibold">ابحث أولاً لعرض Timeline كامل.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-extrabold text-center">Timeline المريض</h2>
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+                      <span className="font-bold text-foreground">{patientName}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="font-semibold">الرقم الموحد: {historyPayload.unified_number}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="font-semibold">الرقم الداخلي الأخير: {mostRecentInternal ?? "-"}</span>
+                      <span className="text-muted-foreground">•</span>
+                      <span className="font-semibold">إجمالي السجلات: {totalRecords}</span>
+                    </div>
+                    <div className="text-center text-xs text-muted-foreground">
+                      آخر تحديث/حدث يتم حسابه داخل نافذة السجل الكامل.
+                    </div>
+                  </div>
 
-                    <TableHead>آخر دخول</TableHead>
-                    <TableHead>حالة الدخول</TableHead>
+                  <Separator className="my-4" />
 
-                    <TableHead>بيانات الخروج (آخر)</TableHead>
-                    <TableHead>بيانات الطوارئ (آخر)</TableHead>
-                    <TableHead>بيانات المناظير (آخر)</TableHead>
-                    <TableHead>بيانات البذل (آخر)</TableHead>
-                    <TableHead>بيانات الاستعارات (آخر)</TableHead>
+                  <ScrollArea className="max-h-[70vh] px-1">
+                    <div className="space-y-6 pb-6">
+                      <UnifiedHistorySummary unifiedNumber={historyPayload.unified_number} totalRecords={totalRecords} />
 
-                    <TableHead className="text-left">إجراءات</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={13} className="text-center">
-                        جاري التحميل...
-                      </TableCell>
-                    </TableRow>
-                  ) : error ? (
-                    <TableRow>
-                      <TableCell colSpan={13} className="text-center text-destructive">
-                        حدث خطأ أثناء تحميل البيانات
-                      </TableCell>
-                    </TableRow>
-                  ) : rows.length ? (
-                    rows.map((r) => (
-                      <TableRow key={r.unified_number}>
-                        <TableCell className="font-mono">{r.unified_number}</TableCell>
-                        <TableCell>{r.patient_name ?? "-"}</TableCell>
-                        <TableCell className="font-mono">{r.national_id ?? "-"}</TableCell>
-                        <TableCell className="font-mono">{r.phone ?? "-"}</TableCell>
-                        <TableCell>{r.last_activity ? format(new Date(r.last_activity), "dd/MM/yyyy HH:mm") : "-"}</TableCell>
+                      <UnifiedHistorySection
+                        title="سجلات الدخول"
+                        tone="green"
+                        rows={historyPayload.admissions ?? []}
+                        columns={sectionColumns.admissions}
+                        emptyMessage="تفاصيل الدخول: لا يوجد"
+                      />
 
-                        <TableCell>
-                          {r.latest_admission_date ? format(new Date(r.latest_admission_date), "dd/MM/yyyy HH:mm") : "-"}
-                        </TableCell>
-                        <TableCell>{r.latest_admission_status ?? "-"}</TableCell>
+                      <UnifiedHistorySection
+                        title="سجلات الطوارئ"
+                        tone="orange"
+                        rows={historyPayload.emergencies ?? []}
+                        columns={sectionColumns.emergencies}
+                        emptyMessage="تفاصيل الطوارئ: لا يوجد"
+                      />
 
-                        <TableCell className="min-w-[280px]">
-                          <div className="space-y-1 text-xs">
-                            <div>تاريخ: {r.latest_discharge_date ? format(new Date(r.latest_discharge_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                            <div>الحالة: {r.latest_discharge_status ?? "-"}</div>
-                            <div>التمويل: {r.latest_finance_source ?? "-"}</div>
-                            <div>القسم: {r.latest_discharge_department ?? "-"}</div>
-                            <div>التشخيص: {r.latest_discharge_diagnosis ?? "-"}</div>
-                            <div>الطبيب: {r.latest_discharge_doctor ?? "-"}</div>
-                            <div>قومي طفل: {r.latest_child_national_id ?? "-"}</div>
+                      <UnifiedHistorySection
+                        title="سجلات البذل"
+                        tone="purple"
+                        rows={proceduresByType["بذل"]}
+                        columns={sectionColumns.procedures}
+                        emptyMessage="تفاصيل البذل: لا يوجد"
+                      />
+
+                      <UnifiedHistorySection
+                        title="سجلات الاستقبال"
+                        tone="purple"
+                        rows={proceduresByType["استقبال"]}
+                        columns={sectionColumns.procedures}
+                        emptyMessage="تفاصيل الاستقبال: لا يوجد"
+                      />
+
+                      <UnifiedHistorySection
+                        title="سجلات الكُلى"
+                        tone="purple"
+                        rows={proceduresByType["كلي"]}
+                        columns={sectionColumns.procedures}
+                        emptyMessage="تفاصيل الكُلى: لا يوجد"
+                      />
+
+                      <UnifiedHistorySection
+                        title="سجلات المناظير"
+                        tone="cyan"
+                        rows={historyPayload.endoscopies ?? []}
+                        columns={sectionColumns.endoscopies}
+                        emptyMessage="تفاصيل المناظير: لا يوجد"
+                      />
+
+                      <UnifiedHistorySection
+                        title="سجلات الاستعارات"
+                        tone="primary"
+                        rows={historyPayload.loans ?? []}
+                        columns={sectionColumns.loans}
+                        emptyMessage="تفاصيل الاستعارات: لا يوجد"
+                      />
+
+                      <UnifiedHistorySection
+                        title="سجلات الخروج"
+                        tone="pink"
+                        rows={historyPayload.discharges ?? []}
+                        columns={sectionColumns.discharges}
+                        emptyMessage="تفاصيل الخروج: لا يوجد"
+                      />
+
+                      <Card className="border">
+                        <CardContent className="p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-sm font-semibold">
+                              آخر رقم داخلي: <span className="font-mono">{mostRecentInternal ?? "-"}</span>
+                              {historyPayload?.procedures?.length ? (
+                                <span className="text-muted-foreground"> (آخر حدث: {fmtDate(historyPayload.procedures?.[0]?.procedure_date)})</span>
+                              ) : null}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" onClick={openDialogForCurrent}>
+                                عرض السجل الكامل
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button type="button" variant="destructive">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>حذف كل بيانات الرقم الموحد؟</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      سيتم حذف الدخول والخروج والطوارئ والمناظير والإجراءات والاستعارات لهذا الرقم الموحد نهائيًا.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => {
+                                        void deleteUnified(historyPayload.unified_number);
+                                      }}
+                                    >
+                                      حذف
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </div>
-                        </TableCell>
-
-                        <TableCell className="min-w-[220px]">
-                          <div className="space-y-1 text-xs">
-                            <div>تاريخ: {r.latest_emergency_date ? format(new Date(r.latest_emergency_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                            <div>القسم: {r.latest_emergency_department ?? "-"}</div>
-                            <div>التشخيص: {r.latest_emergency_diagnosis ?? "-"}</div>
-                            <div>الطبيب: {r.latest_emergency_doctor ?? "-"}</div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="min-w-[220px]">
-                          <div className="space-y-1 text-xs">
-                            <div>تاريخ: {r.latest_endoscopy_date ? format(new Date(r.latest_endoscopy_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                            <div>القسم: {r.latest_endoscopy_department ?? "-"}</div>
-                            <div>التشخيص: {r.latest_endoscopy_diagnosis ?? "-"}</div>
-                            <div>الطبيب: {r.latest_endoscopy_doctor ?? "-"}</div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="min-w-[220px]">
-                          <div className="space-y-1 text-xs">
-                            <div>تاريخ: {r.latest_procedure_date ? format(new Date(r.latest_procedure_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                            <div>القسم: {r.latest_procedure_department ?? "-"}</div>
-                            <div>التشخيص: {r.latest_procedure_diagnosis ?? "-"}</div>
-                            <div>الطبيب: {r.latest_procedure_doctor ?? "-"}</div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="min-w-[240px]">
-                          <div className="space-y-1 text-xs">
-                            <div>تاريخ: {r.latest_loan_date ? format(new Date(r.latest_loan_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                            <div>المستعار: {r.latest_loan_borrowed_by ?? "-"}</div>
-                            <div>إلى قسم: {r.latest_loan_to_department ?? "-"}</div>
-                            <div>تم الإرجاع: {r.latest_loan_is_returned === null ? "-" : r.latest_loan_is_returned ? "نعم" : "لا"}</div>
-                            <div>الإرجاع: {r.latest_loan_return_date ? format(new Date(r.latest_loan_return_date), "dd/MM/yyyy HH:mm") : "-"}</div>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="text-left whitespace-nowrap">
-                          <div className="flex items-center gap-2 justify-end">
-                            <Button type="button" variant="outline" onClick={() => openHistory(r.unified_number)}>
-                              عرض كل التواريخ
-                            </Button>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button type="button" variant="destructive">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>حذف كل بيانات الرقم الموحد؟</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    سيتم حذف الدخول والخروج والطوارئ والمناظير والبذل والاستعارات لهذا الرقم الموحد نهائيًا.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => {
-                                      void deleteUnified(r.unified_number);
-                                    }}
-                                  >
-                                    حذف
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={13} className="text-center text-muted-foreground">
-                        لا توجد بيانات
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </ScrollArea>
+                </>
+              )}
             </div>
           </section>
 
