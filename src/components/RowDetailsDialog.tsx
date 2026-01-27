@@ -34,7 +34,7 @@ const FIELD_GROUPS = {
   },
   loan: {
     title: "بيانات الاستعارة",
-    fields: ["loan_date", "return_date", "is_returned", "borrowed_by", "borrowed_to_department"],
+    fields: ["loan_date", "return_date", "is_returned", "borrowed_by", "borrowed_to_department", "loan_reason"],
   },
   emergency: {
     title: "بيانات الطوارئ",
@@ -72,6 +72,7 @@ const AR_LABELS: Record<string, string> = {
   is_returned: "تم الإرجاع",
   borrowed_by: "المستعير",
   borrowed_to_department: "القسم المستعار إليه",
+  loan_reason: "سبب الاستعارة",
   created_at: "وقت التسجيل",
   updated_at: "تاريخ التعديل",
   // أسماء للحقول المدمجة (بدلاً من IDs)
