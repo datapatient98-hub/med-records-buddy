@@ -6,46 +6,38 @@ export default function ExcelSourcesSettings() {
       <header className="space-y-1">
         <h2 className="text-lg font-bold">إعداد مصادر ملفات الإكسل</h2>
         <p className="text-sm text-muted-foreground">
-          اختر ملف كل قسم مرة واحدة وسيتم تذكّره تلقائيًا على هذا الجهاز (في المتصفحات الداعمة).
+          اختر 3 ملفات فقط (دخول / خروج / خدمات). سيتم تذكّر اختيارك تلقائيًا على هذا الجهاز (في المتصفحات الداعمة).
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <ExcelSourcePicker
           title="ملف الدخول"
           requiredFileName="admissions.xlsx"
           sourceKey="excel_source_admissions"
+          className="border border-primary/20 bg-primary/5"
         />
 
         <ExcelSourcePicker
           title="ملف الخروج"
           requiredFileName="discharges.xlsx"
           sourceKey="excel_source_discharges"
+          className="border border-accent/30 bg-accent/10"
         />
 
         <ExcelSourcePicker
-          title="ملف الطوارئ"
-          requiredFileName="emergencies.xlsx"
-          sourceKey="excel_source_emergencies"
+          title="ملف الخدمات (أحداث)"
+          requiredFileName="services.xlsx"
+          sourceKey="excel_source_services"
+          className="border border-secondary/40 bg-secondary/20"
         />
+      </div>
 
-        <ExcelSourcePicker
-          title="ملف المناظير"
-          requiredFileName="endoscopies.xlsx"
-          sourceKey="excel_source_endoscopies"
-        />
-
-        <ExcelSourcePicker
-          title="ملف الإجراءات (بذل/استقبال/كلي)"
-          requiredFileName="procedures.xlsx"
-          sourceKey="excel_source_procedures"
-        />
-
-        <ExcelSourcePicker
-          title="ملف الاستعارات"
-          requiredFileName="file_loans.xlsx"
-          sourceKey="excel_source_file_loans"
-        />
+      <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground">ملف الخدمات (services.xlsx) — Sheet واحدة</p>
+        <p className="mt-1">
+          يحتوي على كل الأحداث (طوارئ / إجراءات / مناظير / استعارات) في ورقة واحدة، مع عمود <span className="font-mono">type</span> يحدد النوع.
+        </p>
       </div>
     </section>
   );
