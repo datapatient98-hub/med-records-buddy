@@ -93,9 +93,15 @@ export default function ExcelSourcePicker({
       "حالة الإجراء (procedure_status) [للإجراءات]",
       "ملاحظات/تفاصيل (notes) [اختياري]",
 
+      // Non-breaking append-only columns (updates)
+      "قسم التحويل من (transferred_from_department) [للإجراءات][اختياري]",
+      "مستشفى التحويل (hospital) [اختياري]",
+      "حالة خروج المنظار الأخرى (discharge_status_other) [للمناظير][اختياري]",
+
       // loan extras
       "اسم المستعير (borrowed_by) [للاستعارات]",
       "الجهة المستعارة إليها (borrowed_to_department) [للاستعارات]",
+      "سبب الاستعارة (loan_reason) [للاستعارات]",
       "تاريخ ووقت الاستعارة (loan_date) [للاستعارات]",
       "تم الإرجاع؟ (is_returned) [اختياري]",
       "تاريخ ووقت الإرجاع (return_date) [اختياري]",
@@ -117,9 +123,25 @@ export default function ExcelSourcePicker({
     const fileName = normalizeFileName(title || requiredFileName.replace(/\.xlsx$/i, ""));
     const headers = defaultTemplateHeaders(requiredFileName);
 
+    // Keep the data sheet clean (row 1 = headers) so it remains usable for import.
     const worksheet = XLSX.utils.aoa_to_sheet([headers]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "data");
+
+    // Add a notes sheet for guidance without affecting import.
+    const notes: (string | number)[][] = [
+      ["ملاحظات"],
+      [],
+      ["- هذا القالب مخصص كـ (Template) لضمان أسماء أعمدة ثابتة."],
+      ["- سياسة التحديث: أي أعمدة جديدة تُضاف في نهاية الأعمدة لتفادي كسر ملفات قديمة."],
+      ["- في ملف الخدمات: ضع قيمة (type) من: طوارئ / إجراءات / مناظير / استعارات."],
+      ["- اترك الحقول غير الخاصة بالنوع فارغة (مثلاً حقول الاستعارة لا تُستخدم مع الطوارئ)."],
+      [],
+      ["آخر تحديث للقالب:", new Date().toLocaleString("ar-EG")],
+    ];
+    const wsNotes = XLSX.utils.aoa_to_sheet(notes);
+    XLSX.utils.book_append_sheet(workbook, wsNotes, "ملاحظات");
+
     XLSX.writeFile(workbook, fileName);
   };
 

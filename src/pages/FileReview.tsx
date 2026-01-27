@@ -263,7 +263,7 @@ export default function FileReview() {
                 onClick={async () => {
                   setExportingServices(true);
                   try {
-                    const [em, en, pr] = await Promise.all([
+                    const [em, en, pr, lo] = await Promise.all([
                       supabase
                         .from("emergencies")
                         .select("id, unified_number, patient_name, national_id, phone, internal_number, visit_date, created_at")
@@ -285,11 +285,21 @@ export default function FileReview() {
                         .lte("created_at", ymdToEnd(range.to))
                         .order("created_at", { ascending: false })
                         .limit(1000),
+                      supabase
+                        .from("file_loans")
+                        .select(
+                          "id, unified_number, borrowed_by, borrowed_to_department, loan_reason, loan_date, return_date, is_returned, internal_number, created_at",
+                        )
+                        .gte("created_at", ymdToStart(range.from))
+                        .lte("created_at", ymdToEnd(range.to))
+                        .order("created_at", { ascending: false })
+                        .limit(1000),
                     ]);
 
                     if (em.error) throw em.error;
                     if (en.error) throw en.error;
                     if (pr.error) throw pr.error;
+                    if (lo.error) throw lo.error;
 
                     downloadFileReviewServicesExcel({
                       range,
@@ -298,6 +308,7 @@ export default function FileReview() {
                       emergencies: em.data ?? [],
                       endoscopies: en.data ?? [],
                       procedures: pr.data ?? [],
+                      loans: lo.data ?? [],
                     });
                   } catch (e: any) {
                     toast({ title: "خطأ", description: e?.message || "فشل تصدير ملف الخدمات", variant: "destructive" });
