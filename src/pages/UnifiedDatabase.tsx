@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DeleteRecordsDialog } from "@/components/unifiedDatabase/DeleteRecordsDialog";
 
 type ProcedureKind = "بذل" | "استقبال" | "كلي";
 
@@ -81,6 +82,8 @@ export default function UnifiedDatabase() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPayload, setHistoryPayload] = useState<UnifiedHistoryPayload | null>(null);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
@@ -562,6 +565,14 @@ export default function UnifiedDatabase() {
                               <Button type="button" variant="outline" onClick={openDialogForCurrent}>
                                 عرض السجل الكامل
                               </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => setDeleteOpen(true)}
+                                disabled={!historyPayload?.unified_number}
+                              >
+                                إدارة الحذف
+                              </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button type="button" variant="destructive">
@@ -599,6 +610,16 @@ export default function UnifiedDatabase() {
           </section>
 
           <UnifiedPatientHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} payload={historyPayload} />
+
+          <DeleteRecordsDialog
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            payload={historyPayload}
+            onDeleted={() => {
+              if (!historyPayload?.unified_number) return;
+              void openUnifiedNumber(historyPayload.unified_number);
+            }}
+          />
         </div>
       </UnifiedDatabaseGate>
     </Layout>

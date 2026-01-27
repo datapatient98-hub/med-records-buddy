@@ -181,6 +181,45 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_audit: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          internal_number: number | null
+          patient_name: string | null
+          reason: string
+          record_id: string | null
+          record_snapshot: Json
+          table_name: string
+          unified_number: string | null
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          internal_number?: number | null
+          patient_name?: string | null
+          reason: string
+          record_id?: string | null
+          record_snapshot?: Json
+          table_name: string
+          unified_number?: string | null
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          internal_number?: number | null
+          patient_name?: string | null
+          reason?: string
+          record_id?: string | null
+          record_snapshot?: Json
+          table_name?: string
+          unified_number?: string | null
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           created_at: string | null
