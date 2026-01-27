@@ -14,8 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucide-react";
+import { APPROVED_DEPARTMENT_NAMES } from "@/lib/departments/approvedDepartments";
 
 const loanSchema = z.object({
   borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
@@ -56,6 +58,8 @@ export default function Loans() {
   const [selectedAdmission, setSelectedAdmission] = useState<any>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [loansSearch, setLoansSearch] = useState("");
+  const [lastAdmissionInternalNumber, setLastAdmissionInternalNumber] = useState<number | null>(null);
+  const [activeLoanInfo, setActiveLoanInfo] = useState<LoanRow | null>(null);
 
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [loanToReturn, setLoanToReturn] = useState<LoanRow | null>(null);
@@ -84,8 +88,10 @@ export default function Loans() {
     const { data, error } = await supabase
       .from("admissions")
       .select("*")
-      .eq("unified_number", searchNumber)
-      .single();
+      .eq("unified_number", searchNumber.trim())
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error || !data) {
       toast({
@@ -97,6 +103,28 @@ export default function Loans() {
     }
 
     setSelectedAdmission(data);
+
+    // fetch latest internal_number (if discharged) + current active loan (if any)
+    const [lastDischargeRes, activeLoanRes] = await Promise.all([
+      supabase
+        .from("discharges")
+        .select("internal_number, discharge_date")
+        .eq("admission_id", data.id)
+        .order("discharge_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("file_loans")
+        .select("*, admissions(patient_name)")
+        .eq("unified_number", data.unified_number)
+        .eq("is_returned", false)
+        .order("loan_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    setLastAdmissionInternalNumber((lastDischargeRes.data as any)?.internal_number ?? null);
+    setActiveLoanInfo((activeLoanRes.data as any) ?? null);
   };
 
   const { data: loans } = useQuery({
@@ -358,8 +386,28 @@ export default function Loans() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">الرقم الداخلي</p>
-                    <p className="font-semibold">{selectedAdmission.internal_number}</p>
+                    <p className="font-semibold">{lastAdmissionInternalNumber ?? "—"}</p>
                   </div>
+                </div>
+
+                <div className="mt-4 grid gap-2">
+                  {selectedAdmission.admission_status === "محجوز" && (
+                    <div className="text-sm font-semibold text-muted-foreground">
+                      الحالة محجوزة (لم تخرج بعد)
+                    </div>
+                  )}
+                  {activeLoanInfo && (
+                    <div className="rounded-md border border-border bg-muted/30 p-3">
+                      <div className="text-sm font-semibold">تم استعارتها</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        المستعير: <span className="font-medium text-foreground">{activeLoanInfo.borrowed_by}</span>
+                        {"  "}— القسم: <span className="font-medium text-foreground">{activeLoanInfo.borrowed_to_department}</span>
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        السبب: {activeLoanInfo.loan_reason || "—"} — تاريخ الاستعارة: {formatDateTime(activeLoanInfo.loan_date)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -390,7 +438,18 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>القسم المستعار إليه *</FormLabel>
                           <FormControl>
-                            <Input placeholder="اسم القسم" {...field} />
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر القسم..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {APPROVED_DEPARTMENT_NAMES.map((name) => (
+                                  <SelectItem key={name} value={name}>
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -611,7 +670,18 @@ export default function Loans() {
                         <FormItem>
                           <FormLabel>القسم المستعار إليه *</FormLabel>
                           <FormControl>
-                            <Input placeholder="اسم القسم" {...field} />
+                            <Select value={field.value} onValueChange={field.onChange}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر القسم..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {APPROVED_DEPARTMENT_NAMES.map((name) => (
+                                  <SelectItem key={name} value={name}>
+                                    {name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </FormControl>
                           <FormMessage />
                         </FormItem>
