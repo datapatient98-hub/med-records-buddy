@@ -1,19 +1,26 @@
  import * as React from "react";
- import { Button } from "@/components/ui/button";
- import { Calendar } from "@/components/ui/calendar";
- import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
- import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
- import { Checkbox } from "@/components/ui/checkbox";
- import { Label } from "@/components/ui/label";
- import { CalendarIcon, FileSpreadsheet } from "lucide-react";
- import { format } from "date-fns";
- import { ar } from "date-fns/locale";
- import { cn } from "@/lib/utils";
- import { supabase } from "@/integrations/supabase/client";
- import * as XLSX from "xlsx";
- import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { CalendarIcon, FileSpreadsheet } from "lucide-react";
+import { format } from "date-fns";
+import { ar } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { buildDashboardExportWorkbook, type DashboardExportType } from "@/lib/excel/exportDashboardExcel";
  
- type DataType = "admissions" | "discharges" | "emergencies" | "endoscopies" | "procedures" | "file_loans";
+type DataType = DashboardExportType;
  
  interface DashboardExportDialogProps {
    open: boolean;
@@ -21,24 +28,20 @@
  }
  
  export default function DashboardExportDialog({ open, onOpenChange }: DashboardExportDialogProps) {
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
-  const [selectedTypes, setSelectedTypes] = React.useState<DataType[]>([
-     "admissions",
-     "discharges",
-     "emergencies",
-     "endoscopies",
-     "procedures",
-     "file_loans",
-   ]);
+ const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+ const [selectedTypes, setSelectedTypes] = React.useState<DataType[]>([
+   "discharges",
+   "emergencies",
+   "endoscopies",
+   "procedures",
+ ]);
   const [isExporting, setIsExporting] = React.useState(false);
  
    const dataTypeLabels: Record<DataType, string> = {
-     admissions: "الحجوزات (Admissions)",
-     discharges: "الخروج (Discharges)",
-     emergencies: "الطوارئ (Emergencies)",
-     endoscopies: "المناظير (Endoscopies)",
-     procedures: "البذل (Procedures)",
-     file_loans: "الاستعارات (File Loans)",
+      discharges: "الخروج",
+      emergencies: "الطوارئ",
+      endoscopies: "المناظير",
+      procedures: "البذل",
    };
  
    const toggleType = (type: DataType) => {
@@ -59,63 +62,66 @@
  
      setIsExporting(true);
      try {
-       const targetDate = format(selectedDate, "yyyy-MM-dd");
-       const wb = XLSX.utils.book_new();
- 
-       // Summary stats
-       const summary: any = {};
- 
-       // Fetch each type
-       for (const type of selectedTypes) {
-         const { data, error } = await supabase
-          .from(type)
-           .select("*")
-           .gte("created_at", `${targetDate}T00:00:00`)
-           .lt("created_at", `${targetDate}T23:59:59`);
- 
-         if (error) throw error;
-         summary[type] = data?.length || 0;
- 
-         if (data && data.length > 0) {
-           const ws = XLSX.utils.json_to_sheet(data);
-           XLSX.utils.book_append_sheet(wb, ws, dataTypeLabels[type as DataType].split(" ")[0]);
-         }
-       }
- 
-       // Add summary sheet first
-       const summaryData = [
-         ["تقرير لوحة التحكم - ملخص البيانات"],
-         [],
-         ["التاريخ:", format(selectedDate, "dd MMMM yyyy", { locale: ar })],
-         ["تاريخ التصدير:", format(new Date(), "dd MMMM yyyy HH:mm", { locale: ar })],
-         [],
-         ["نوع البيانات", "العدد"],
-       ];
- 
-       selectedTypes.forEach((type) => {
-         summaryData.push([dataTypeLabels[type], summary[type] || 0]);
-       });
- 
-       summaryData.push(
-         [],
-        ["الإجمالي الكلي:", selectedTypes.reduce((acc, type) => acc + (summary[type] || 0), 0)]
-       );
- 
-       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-       
-       // Set column widths
-       wsSummary["!cols"] = [{ wch: 30 }, { wch: 15 }];
-       
-       // Insert summary sheet at the beginning
-       XLSX.utils.book_append_sheet(wb, wsSummary, "الملخص");
- 
-       // Download
-       const fileName = `تقرير_لوحة_التحكم_${format(selectedDate, "yyyy-MM-dd")}.xlsx`;
-       XLSX.writeFile(wb, fileName);
- 
-       toast.success("تم تصدير البيانات بنجاح", {
-        description: `تم تصدير ${selectedTypes.reduce((acc, type) => acc + (summary[type] || 0), 0)} سجل`,
-       });
+        const targetDate = format(selectedDate, "yyyy-MM-dd");
+        const startIso = `${targetDate}T00:00:00`;
+        const endIso = `${targetDate}T23:59:59.999`;
+
+        // Lookups for nicer Arabic exports
+        const [deps, docs, diags, govs, dists, stations, occs, hosps] = await Promise.all([
+          supabase.from("departments").select("id,name"),
+          supabase.from("doctors").select("id,name"),
+          supabase.from("diagnoses").select("id,name"),
+          supabase.from("governorates").select("id,name"),
+          supabase.from("districts").select("id,name"),
+          supabase.from("stations").select("id,name"),
+          supabase.from("occupations").select("id,name"),
+          supabase.from("hospitals").select("id,name"),
+        ]);
+
+        const lookups = {
+          departments: Object.fromEntries((deps.data || []).map((r) => [r.id, r.name])),
+          doctors: Object.fromEntries((docs.data || []).map((r) => [r.id, r.name])),
+          diagnoses: Object.fromEntries((diags.data || []).map((r) => [r.id, r.name])),
+          governorates: Object.fromEntries((govs.data || []).map((r) => [r.id, r.name])),
+          districts: Object.fromEntries((dists.data || []).map((r) => [r.id, r.name])),
+          stations: Object.fromEntries((stations.data || []).map((r) => [r.id, r.name])),
+          occupations: Object.fromEntries((occs.data || []).map((r) => [r.id, r.name])),
+          hospitals: Object.fromEntries((hosps.data || []).map((r) => [r.id, r.name])),
+        };
+
+        // Fetch per type (created_at = “وقت التسجيل” وهو الأنسب لعبارة: اللي اتسجل في اليوم)
+        const dataByType: Record<DataType, any[]> = {
+          discharges: [],
+          emergencies: [],
+          endoscopies: [],
+          procedures: [],
+        };
+
+        for (const type of selectedTypes) {
+          const { data, error } = await supabase
+            .from(type)
+            .select("*")
+            .gte("created_at", startIso)
+            .lte("created_at", endIso);
+          if (error) throw error;
+          dataByType[type] = data || [];
+        }
+
+        const { wb, totalAll } = buildDashboardExportWorkbook({
+          selectedDate,
+          exportAt: new Date(),
+          selectedTypes,
+          dataByType,
+          lookups,
+        });
+
+        const fileName = `تقرير_لوحة_التحكم_${format(selectedDate, "yyyy-MM-dd")}.xlsx`;
+        const XLSX = await import("xlsx");
+        XLSX.writeFile(wb, fileName);
+
+        toast.success("تم تصدير البيانات بنجاح", {
+          description: `تم تصدير ${totalAll} سجل`,
+        });
        onOpenChange(false);
      } catch (error) {
        console.error("Export error:", error);
@@ -167,7 +173,7 @@
                    selected={selectedDate}
                    onSelect={setSelectedDate}
                    initialFocus
-                   className="pointer-events-auto"
+                    className={cn("p-3 pointer-events-auto")}
                    locale={ar}
                  />
                </PopoverContent>
@@ -195,7 +201,7 @@
                ))}
              </div>
              <p className="text-xs text-muted-foreground">
-               اختر نوع بيانات واحد أو أكثر • سيتم إنشاء Sheet منفصل لكل نوع
+                سيتم تصدير كل ما تم تسجيله في اليوم المختار • Sheet ملخص + Sheets تفصيلية
              </p>
            </div>
          </div>
