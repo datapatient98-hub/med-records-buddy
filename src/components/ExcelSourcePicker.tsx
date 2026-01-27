@@ -30,30 +30,76 @@ export default function ExcelSourcePicker({
   const defaultTemplateHeaders = (required: string) => {
     if (required === "admissions.xlsx") {
       return [
-        "unified_number",
-        "patient_name",
-        "department",
-        "admission_date",
-        "national_id",
-        "phone",
-        "gender",
-        "age",
+        "الرقم الموحد (unified_number)",
+        "الاسم رباعي (patient_name)",
+        "الرقم القومي 14 رقم (national_id)",
+        "النوع (gender)",
+        "الهاتف 11 رقم (phone)",
+        "العمر (age)",
+        "الحالة الاجتماعية (marital_status)",
+        "المهنة (occupation)",
+        "المحافظة (governorate)",
+        "المركز/الحي (district)",
+        "المحطة (station)",
+        "العنوان التفصيلي (address_details)",
+        "القسم (department)",
+        "التشخيص (diagnosis)",
+        "الطبيب (doctor)",
+        "نوع الدخول: طوارئ/داخلي (admission_source)",
+        "حالة الدخول: محجوز/خروج/متوفى/تحويل (admission_status)",
+        "تاريخ ووقت الدخول (admission_date)",
       ];
     }
     if (required === "discharges.xlsx") {
       return [
-        "unified_number",
-        "discharge_date",
-        "discharge_status",
-        "finance_source",
-        "department",
-        "doctor",
-        "diagnosis",
-        "internal_number",
+        "الرقم الموحد (unified_number)",
+        "الاسم رباعي (patient_name) [اختياري]",
+        "تاريخ ووقت الخروج (discharge_date)",
+        "حالة الخروج (discharge_status)",
+        "مصدر التمويل (finance_source)",
+        "قسم الخروج (discharge_department)",
+        "تشخيص الخروج (discharge_diagnosis)",
+        "طبيب الخروج (discharge_doctor)",
+        "مستشفى التحويل (hospital) [اختياري]",
+        "رقم قومي طفل (child_national_id) [اختياري]",
+        "الرقم الداخلي (internal_number) [اختياري]",
       ];
     }
     // services.xlsx
-    return ["type", "unified_number", "patient_name", "department", "date", "internal_number"];
+    return [
+      "نوع الحدث (type) — طوارئ/إجراءات/مناظير/استعارات",
+      "الرقم الموحد (unified_number)",
+      "الاسم رباعي (patient_name)",
+      "الرقم القومي 14 رقم (national_id) [اختياري]",
+      "النوع (gender) [اختياري]",
+      "الهاتف 11 رقم (phone) [اختياري]",
+      "العمر (age) [اختياري]",
+      "الحالة الاجتماعية (marital_status) [اختياري]",
+      "المهنة (occupation) [اختياري]",
+      "المحافظة (governorate) [اختياري]",
+      "المركز/الحي (district) [اختياري]",
+      "المحطة (station) [اختياري]",
+      "العنوان التفصيلي (address_details) [اختياري]",
+
+      // common medical/event fields
+      "القسم (department)",
+      "التشخيص (diagnosis) [اختياري]",
+      "الطبيب (doctor) [اختياري]",
+      "تاريخ ووقت الحدث (event_date)",
+      "الرقم الداخلي (internal_number) [اختياري]",
+
+      // procedures/endoscopy extras
+      "نوع الإجراء (procedure_type) [للإجراءات]",
+      "حالة الإجراء (procedure_status) [للإجراءات]",
+      "ملاحظات/تفاصيل (notes) [اختياري]",
+
+      // loan extras
+      "اسم المستعير (borrowed_by) [للاستعارات]",
+      "الجهة المستعارة إليها (borrowed_to_department) [للاستعارات]",
+      "تاريخ ووقت الاستعارة (loan_date) [للاستعارات]",
+      "تم الإرجاع؟ (is_returned) [اختياري]",
+      "تاريخ ووقت الإرجاع (return_date) [اختياري]",
+    ];
   };
 
   const normalizeFileName = (name: string) => {
