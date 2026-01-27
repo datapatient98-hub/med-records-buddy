@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import NotificationBell from "@/components/NotificationBell";
+import { getAuditActorLabel, setAuditActorLabel } from "@/lib/auditActor";
 import UnifiedPatientHistoryDialog, {
   type UnifiedHistoryPayload,
 } from "@/components/UnifiedPatientHistoryDialog";
@@ -51,6 +52,18 @@ export default function Layout({ children }: LayoutProps) {
   const [historyPayload, setHistoryPayload] = useState<UnifiedHistoryPayload | null>(null);
   const [noResultOpen, setNoResultOpen] = useState(false);
   const [noResultQuery, setNoResultQuery] = useState("");
+
+  const [actorOpen, setActorOpen] = useState(false);
+  const [actorLabel, setActorLabelState] = useState("");
+
+  useEffect(() => {
+    const existing = getAuditActorLabel();
+    if (!existing) {
+      setActorOpen(true);
+    } else {
+      setActorLabelState(existing);
+    }
+  }, []);
 
   const shouldShowHeaderSearch = useMemo(() => {
     // Keep header search visible everywhere (it is the primary navigation tool).
@@ -169,6 +182,45 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Top search dialogs */}
       <UnifiedPatientHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} payload={historyPayload} />
+
+      {/* Audit actor (device/staff) label prompt */}
+      <Dialog open={actorOpen} onOpenChange={setActorOpen}>
+        <DialogContent className="max-w-lg" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>تعريف الجهاز / اسم الموظف</DialogTitle>
+            <DialogDescription>
+              اكتب اسم الجهاز أو اسم الموظف ليظهر في سجل التعديلات (مثال: استقبال 1 / تمريض عناية).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={actorLabel}
+              onChange={(e) => setActorLabelState(e.target.value)}
+              placeholder="مثال: استقبال 1"
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={() => {
+                  const saved = setAuditActorLabel(actorLabel);
+                  setActorLabelState(saved);
+                  setActorOpen(false);
+                }}
+              >
+                حفظ
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setActorOpen(false)}>
+                لاحقاً
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              ملاحظة: يمكن تغيير الاسم لاحقاً بمسح بيانات المتصفح أو إضافة زر إعدادات لاحقاً.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={noResultOpen} onOpenChange={setNoResultOpen}>
         <DialogContent className="max-w-xl" dir="rtl">

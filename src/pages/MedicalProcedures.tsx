@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
  import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import EndoscopyForm, { type EndoscopyFormValues } from "@/components/MedicalProcedures/EndoscopyForm";
 import { useFieldConfig } from "@/components/FieldConfigProvider";
+import { getAuditActorLabel } from "@/lib/auditActor";
  
   type ProcedureType = "procedure" | "reception" | "kidney" | "endoscopy";
  
@@ -456,6 +457,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
            diagnosis_id: values.diagnosis_id || null,
            doctor_id: values.doctor_id || null,
            admission_date: values.admission_date,
+            last_updated_by: getAuditActorLabel() || null,
          })
          .eq("id", selectedAdmission.id);
  
