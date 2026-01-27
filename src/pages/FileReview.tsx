@@ -103,15 +103,21 @@ export default function FileReview() {
 
   const auditQuery = useMemo(() => auditSearch.trim(), [auditSearch]);
   const { data: auditRows, isLoading: auditLoading } = useQuery({
-    queryKey: ["file-review", "admissions-audit", auditQuery],
-    enabled: auditQuery.length > 0,
+    queryKey: ["file-review", "admissions-audit", activeTab, auditQuery],
+    // Load automatically when the tab is open; filter only if user provided unified number.
+    enabled: activeTab === "audit",
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("admissions_audit")
         .select("id, unified_number, admission_id, changed_at, changed_by, changed_fields")
-        .eq("unified_number", auditQuery)
         .order("changed_at", { ascending: false })
         .limit(100);
+
+      if (auditQuery.length > 0) {
+        q = q.eq("unified_number", auditQuery);
+      }
+
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -332,10 +338,10 @@ export default function FileReview() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>القسم</TableHead>
-                      <TableHead>إجمالي</TableHead>
-                      <TableHead>نقص بيانات</TableHead>
-                      <TableHead>النسبة</TableHead>
+                      <TableHead className="text-right">القسم</TableHead>
+                      <TableHead className="text-center">إجمالي</TableHead>
+                      <TableHead className="text-center">نقص بيانات</TableHead>
+                      <TableHead className="text-center">النسبة</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -344,11 +350,11 @@ export default function FileReview() {
                       return (
                         <TableRow key={d.dept}>
                           <TableCell className="font-medium">{d.dept}</TableCell>
-                          <TableCell>{d.total}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-center font-mono">{d.total}</TableCell>
+                          <TableCell className="text-center">
                             <Badge variant={d.missingCore > 0 ? "destructive" : "secondary"}>{d.missingCore}</Badge>
                           </TableCell>
-                          <TableCell>{pct}%</TableCell>
+                          <TableCell className="text-center font-mono">{pct}%</TableCell>
                         </TableRow>
                       );
                     })}
@@ -453,7 +459,7 @@ export default function FileReview() {
             <TabsContent value="audit" className="mt-4 space-y-4">
               <SectionTitle
                 title="سجل تعديل بيانات الدخول"
-                desc="ابحث بالرقم الموحد لمعرفة: الرقم القومي القديم والجديد + بقية التغييرات + اسم الموظف/الجهاز." 
+                 desc="يظهر تلقائيًا (آخر التعديلات). ويمكنك فلترة النتائج بكتابة الرقم الموحد لمعرفة: الرقم القومي القديم والجديد + بقية التغييرات + اسم الموظف/الجهاز." 
               />
 
               <Card>
@@ -475,54 +481,54 @@ export default function FileReview() {
                     </Button>
                   </div>
 
-                  {auditQuery ? (
-                    <Table>
-                      <TableHeader>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>التاريخ</TableHead>
+                        <TableHead>المُعدِّل</TableHead>
+                        <TableHead>الرقم الموحد</TableHead>
+                        <TableHead>الرقم القومي (قديم → جديد)</TableHead>
+                        <TableHead>ملخص التغيير</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(auditRows ?? []).map((r) => {
+                        const fields = (r.changed_fields ?? {}) as Record<string, { old: any; new: any }>;
+                        const nid = fields.national_id;
+                        const changedKeys = Object.keys(fields).filter((k) => k !== "updated_at");
+                        const summary = changedKeys.slice(0, 6).join("، ");
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell>{r.changed_at ? new Date(r.changed_at).toLocaleString("ar-EG") : "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{r.changed_by || "غير محدد"}</Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{r.unified_number || "-"}</TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {nid ? `${String(nid.old ?? "-")} → ${String(nid.new ?? "-")}` : "(لم يتغير)"}
+                            </TableCell>
+                            <TableCell className="text-sm">{summary || "-"}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {auditLoading && (
                         <TableRow>
-                          <TableHead>التاريخ</TableHead>
-                          <TableHead>المُعدِّل</TableHead>
-                          <TableHead>الرقم القومي (قديم → جديد)</TableHead>
-                          <TableHead>ملخص التغيير</TableHead>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                            جاري التحميل...
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(auditRows ?? []).map((r) => {
-                          const fields = (r.changed_fields ?? {}) as Record<string, { old: any; new: any }>;
-                          const nid = fields.national_id;
-                          const changedKeys = Object.keys(fields).filter((k) => k !== "updated_at");
-                          const summary = changedKeys.slice(0, 6).join("، ");
-                          return (
-                            <TableRow key={r.id}>
-                              <TableCell>{r.changed_at ? new Date(r.changed_at).toLocaleString("ar-EG") : "-"}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{r.changed_by || "غير محدد"}</Badge>
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {nid ? `${String(nid.old ?? "-")} → ${String(nid.new ?? "-")}` : "(لم يتغير)"}
-                              </TableCell>
-                              <TableCell className="text-sm">{summary || "-"}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                        {auditLoading && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                              جاري التحميل...
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {!auditLoading && (auditRows ?? []).length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                              لا يوجد سجل تعديلات لهذا الرقم الموحد (أو لم يحدث تعديل بعد).
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">اكتب الرقم الموحد لعرض سجل التعديلات.</p>
-                  )}
+                      )}
+                      {!auditLoading && (auditRows ?? []).length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                            {auditQuery
+                              ? "لا يوجد سجل تعديلات لهذا الرقم الموحد (أو لم يحدث تعديل بعد)."
+                              : "لا يوجد تعديلات حديثة ضمن السجل."}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </TabsContent>
