@@ -88,13 +88,58 @@ export default function UnifiedPatientHistoryDialog({
     (p?.procedures.length ?? 0) +
     (p?.loans.length ?? 0);
 
+  const headerMeta = useMemo(() => {
+    const pickName = () => {
+      return (
+        p?.admissions?.[0]?.patient_name ??
+        p?.emergencies?.[0]?.patient_name ??
+        p?.endoscopies?.[0]?.patient_name ??
+        p?.procedures?.[0]?.patient_name ??
+        "-"
+      );
+    };
+
+    const getSortTime = (r: any) => {
+      const candidates = [r.discharge_date, r.procedure_date, r.visit_date, r.admission_date, r.loan_date, r.created_at, r.updated_at];
+      for (const v of candidates) {
+        if (!v) continue;
+        const t = new Date(v).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      return 0;
+    };
+
+    const allWithInternal = [
+      ...(p?.discharges ?? []),
+      ...(p?.procedures ?? []),
+      ...(p?.endoscopies ?? []),
+      ...(p?.emergencies ?? []),
+      ...(p?.loans ?? []),
+    ].filter((r: any) => r?.internal_number !== null && r?.internal_number !== undefined);
+
+    allWithInternal.sort((a: any, b: any) => getSortTime(b) - getSortTime(a));
+    const internalNumber = allWithInternal[0]?.internal_number ?? "-";
+
+    return {
+      patientName: pickName(),
+      unifiedNumber: p?.unified_number ?? "-",
+      internalNumber,
+    };
+  }, [p]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="text-2xl text-center">تفاصيل السجل</DialogTitle>
           <DialogDescription className="text-base text-center">
-            سجل شامل ومُرتّب لكل الأحداث الطبية المرتبطة بالرقم الموحد
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <span className="font-bold text-foreground">{headerMeta.patientName}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">الرقم الموحد: {headerMeta.unifiedNumber}</span>
+              <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">الرقم الداخلي: {headerMeta.internalNumber}</span>
+            </div>
           </DialogDescription>
         </DialogHeader>
 
@@ -105,11 +150,19 @@ export default function UnifiedPatientHistoryDialog({
             <UnifiedHistorySummary unifiedNumber={p?.unified_number ?? "-"} totalRecords={totalRecords} />
 
             <UnifiedHistorySection
-              title="سجلات الخروج"
-              tone="pink"
-              rows={p?.discharges ?? []}
-              columns={sectionColumns.discharges}
-              emptyMessage="تفاصيل الخروج: لا يوجد"
+              title="سجلات الدخول"
+              tone="green"
+              rows={p?.admissions ?? []}
+              columns={sectionColumns.admissions}
+              emptyMessage="تفاصيل الدخول: لا يوجد"
+            />
+
+            <UnifiedHistorySection
+              title="سجلات الطوارئ"
+              tone="orange"
+              rows={p?.emergencies ?? []}
+              columns={sectionColumns.emergencies}
+              emptyMessage="تفاصيل الطوارئ: لا يوجد"
             />
 
             <UnifiedHistorySection
@@ -129,27 +182,19 @@ export default function UnifiedPatientHistoryDialog({
             />
 
             <UnifiedHistorySection
-              title="سجلات الطوارئ"
-              tone="orange"
-              rows={p?.emergencies ?? []}
-              columns={sectionColumns.emergencies}
-              emptyMessage="تفاصيل الطوارئ: لا يوجد"
-            />
-
-            <UnifiedHistorySection
-              title="سجلات الدخول"
-              tone="green"
-              rows={p?.admissions ?? []}
-              columns={sectionColumns.admissions}
-              emptyMessage="تفاصيل الدخول: لا يوجد"
-            />
-
-            <UnifiedHistorySection
               title="سجلات الاستعارات"
               tone="primary"
               rows={p?.loans ?? []}
               columns={sectionColumns.loans}
               emptyMessage="تفاصيل الاستعارات: لا يوجد"
+            />
+
+            <UnifiedHistorySection
+              title="سجلات الخروج"
+              tone="pink"
+              rows={p?.discharges ?? []}
+              columns={sectionColumns.discharges}
+              emptyMessage="تفاصيل الخروج: لا يوجد"
             />
           </div>
         </ScrollArea>
