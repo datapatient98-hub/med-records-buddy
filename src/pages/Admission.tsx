@@ -46,39 +46,50 @@ import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
 import { validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
 import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
+import { useFieldConfig } from "@/components/FieldConfigProvider";
 
 const digitsOnly = (msg: string) => z.string().trim().regex(/^\d+$/, msg);
 
+// ملاحظة: نجعل الـ schema مرن (كل شيء اختياري) ثم نفرض الإلزام حسب إعدادات (إدارة الحقول)
 const admissionSchema = z.object({
-  unified_number: digitsOnly("الرقم الموحد يجب أن يكون أرقام فقط").min(1, "الرقم الموحد مطلوب"),
+  unified_number: z.string().trim().regex(/^\d*$/, "الرقم الموحد يجب أن يكون أرقام فقط"),
   patient_name: z
     .string()
     .trim()
-    .min(1, "اسم المريض مطلوب")
+    .optional()
+    .or(z.literal(""))
     .refine(
-      (v) => v.split(/\s+/).filter(Boolean).length >= 4,
-      "الاسم رباعي مطلوب"
+      (v) => !v || v.split(/\s+/).filter(Boolean).length === 0 || v.split(/\s+/).filter(Boolean).length >= 4,
+      "الاسم رباعي مطلوب",
     ),
-  national_id: digitsOnly("الرقم القومي يجب أن يكون أرقام فقط")
-    .length(14, "الرقم القومي يجب أن يكون 14 رقم"),
-  gender: z.enum(["ذكر", "أنثى"]),
-  occupation_id: z.string().optional(),
-  marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"]),
-  phone: digitsOnly("رقم الهاتف يجب أن يكون أرقام فقط").length(
-    11,
-    "رقم الهاتف يجب أن يكون 11 رقم"
-  ),
-  age: z.coerce.number().min(0, "السن يجب أن يكون رقم موجب"),
-  governorate_id: z.string().min(1, "المحافظة مطلوبة"),
-  district_id: z.string().optional(),
-  address_details: z.string().trim().max(500, "العنوان طويل جداً").optional(),
-  station_id: z.string().optional(),
-  department_id: z.string().min(1, "قسم الحجز مطلوب"),
-  admission_status: z.enum(["محجوز", "خروج", "متوفى", "تحويل"]),
-  admission_source: z.enum(["طوارئ", "داخلي"]),
-  diagnosis_id: z.string().optional(),
-  doctor_id: z.string().optional(),
-  admission_date: z.string().min(1, "تاريخ الحجز مطلوب"),
+  national_id: z
+    .string()
+    .trim()
+    .regex(/^\d*$/, "الرقم القومي يجب أن يكون أرقام فقط")
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || v.length === 14, "الرقم القومي يجب أن يكون 14 رقم"),
+  gender: z.enum(["ذكر", "أنثى"]).optional().or(z.literal("")),
+  occupation_id: z.string().optional().or(z.literal("")),
+  marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"]).optional().or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\d*$/, "رقم الهاتف يجب أن يكون أرقام فقط")
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || v.length === 11, "رقم الهاتف يجب أن يكون 11 رقم"),
+  age: z.coerce.number().min(0, "السن يجب أن يكون رقم موجب").optional(),
+  governorate_id: z.string().optional().or(z.literal("")),
+  district_id: z.string().optional().or(z.literal("")),
+  address_details: z.string().trim().max(500, "العنوان طويل جداً").optional().or(z.literal("")),
+  station_id: z.string().optional().or(z.literal("")),
+  department_id: z.string().optional().or(z.literal("")),
+  admission_status: z.enum(["محجوز", "خروج", "متوفى", "تحويل"]).optional().or(z.literal("")),
+  admission_source: z.enum(["طوارئ", "داخلي"]).optional().or(z.literal("")),
+  diagnosis_id: z.string().optional().or(z.literal("")),
+  doctor_id: z.string().optional().or(z.literal("")),
+  admission_date: z.string().optional().or(z.literal("")),
 });
 
 type AdmissionFormValues = z.infer<typeof admissionSchema>;
@@ -92,19 +103,22 @@ type InlineNoticeState =
       durationMs?: number;
     };
 
-function RequiredLabel({ children }: { children: React.ReactNode }) {
+function RequiredLabel({ children, required }: { children: React.ReactNode; required: boolean }) {
   return (
     <span className="inline-flex items-center gap-2">
       <span>{children}</span>
-      <span className="inline-flex items-center gap-1">
-        <span className="text-destructive font-bold">*</span>
-        <span className="text-destructive text-xs font-semibold">إلزامي</span>
-      </span>
+      {required ? (
+        <span className="inline-flex items-center gap-1">
+          <span className="text-destructive font-bold">*</span>
+          <span className="text-destructive text-xs font-semibold">إلزامي</span>
+        </span>
+      ) : null}
     </span>
   );
 }
 
 export default function Admission() {
+  const { getRule } = useFieldConfig();
   const queryClient = useQueryClient();
   const [showNewItemDialog, setShowNewItemDialog] = useState<LookupCreateType | null>(null);
   const [showManageDialog, setShowManageDialog] = useState<LookupCreateType | null>(null);
@@ -147,6 +161,40 @@ export default function Admission() {
       admission_date: new Date().toISOString().slice(0, 16),
     },
   });
+
+  const showField = (key: keyof AdmissionFormValues) => getRule("admission", String(key)).visible;
+  const isRequired = (key: keyof AdmissionFormValues) => getRule("admission", String(key)).required;
+
+  const validateRequired = (values: AdmissionFormValues) => {
+    const requiredKeys: Array<keyof AdmissionFormValues> = [
+      "unified_number",
+      "patient_name",
+      "national_id",
+      "gender",
+      "marital_status",
+      "phone",
+      "age",
+      "governorate_id",
+      "department_id",
+      "admission_status",
+      "admission_source",
+      "admission_date",
+    ];
+
+    const isFilled = (v: unknown) => {
+      if (typeof v === "string") return v.trim().length > 0;
+      if (typeof v === "number") return Number.isFinite(v);
+      return v != null;
+    };
+
+    for (const k of requiredKeys) {
+      if (!isRequired(k)) continue;
+      if (!showField(k)) continue;
+      const v = (values as any)[k];
+      if (!isFilled(v)) return k;
+    }
+    return null;
+  };
 
   const { data: departments } = useQuery({
     queryKey: ["departments"],
@@ -564,7 +612,20 @@ export default function Admission() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(
-                  (data) => mutation.mutate(data),
+                  (data) => {
+                    const missing = validateRequired(data);
+                    if (missing) {
+                      form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
+                      setNotice({
+                        title: "بيانات غير مكتملة",
+                        description: "يرجى استكمال الحقول الإلزامية.",
+                        variant: "error",
+                        durationMs: 7000,
+                      });
+                      return;
+                    }
+                    mutation.mutate(data);
+                  },
                   (errors) => {
                     const first = Object.values(errors)[0];
                     const msg = (first as any)?.message as string | undefined;
@@ -579,13 +640,14 @@ export default function Admission() {
                 className="space-y-6"
               >
                 <div className="grid gap-4 md:grid-cols-3">
+                  {showField("unified_number") && (
                   <FormField
                     control={form.control}
                     name="unified_number"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>الرقم الموحد</RequiredLabel>
+                          <RequiredLabel required={isRequired("unified_number")}>الرقم الموحد</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -610,14 +672,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("patient_name") && (
                   <FormField
                     control={form.control}
                     name="patient_name"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>اسم المريض (رباعي)</RequiredLabel>
+                          <RequiredLabel required={isRequired("patient_name")}>اسم المريض (رباعي)</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <Input placeholder="الاسم الرباعي الكامل" {...field} />
@@ -626,14 +690,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("national_id") && (
                   <FormField
                     control={form.control}
                     name="national_id"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>الرقم القومي (14 رقم)</RequiredLabel>
+                          <RequiredLabel required={isRequired("national_id")}>الرقم القومي (14 رقم)</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -653,14 +719,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("gender") && (
                   <FormField
                     control={form.control}
                     name="gender"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>النوع</RequiredLabel>
+                          <RequiredLabel required={isRequired("gender")}>النوع</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <SearchableSelect
@@ -677,7 +745,9 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("occupation_id") && (
                   <FormField
                     control={form.control}
                     name="occupation_id"
@@ -705,14 +775,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("marital_status") && (
                   <FormField
                     control={form.control}
                     name="marital_status"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>الحالة الاجتماعية</RequiredLabel>
+                          <RequiredLabel required={isRequired("marital_status")}>الحالة الاجتماعية</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <SearchableSelect
@@ -740,14 +812,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("phone") && (
                   <FormField
                     control={form.control}
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>رقم الهاتف (11 رقم)</RequiredLabel>
+                          <RequiredLabel required={isRequired("phone")}>رقم الهاتف (11 رقم)</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -767,14 +841,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("age") && (
                   <FormField
                     control={form.control}
                     name="age"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>السن</RequiredLabel>
+                          <RequiredLabel required={isRequired("age")}>السن</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -792,14 +868,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("governorate_id") && (
                   <FormField
                     control={form.control}
                     name="governorate_id"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>المحافظة</RequiredLabel>
+                          <RequiredLabel required={isRequired("governorate_id")}>المحافظة</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <SearchableSelect
@@ -826,7 +904,9 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("district_id") && (
                   <FormField
                     control={form.control}
                     name="district_id"
@@ -854,7 +934,9 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("address_details") && (
                   <FormField
                     control={form.control}
                     name="address_details"
@@ -868,7 +950,9 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("station_id") && (
                   <FormField
                     control={form.control}
                     name="station_id"
@@ -896,14 +980,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("department_id") && (
                   <FormField
                     control={form.control}
                     name="department_id"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>قسم الحجز</RequiredLabel>
+                          <RequiredLabel required={isRequired("department_id")}>قسم الحجز</RequiredLabel>
                         </FormLabel>
                         <FormControl>
                           <SearchableSelect
@@ -917,14 +1003,16 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
+                  {showField("admission_status") && (
                   <FormField
                     control={form.control}
                     name="admission_status"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          <RequiredLabel>الحالة</RequiredLabel>
+                          <RequiredLabel required={isRequired("admission_status")}>الحالة</RequiredLabel>
                         </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
@@ -943,105 +1031,112 @@ export default function Admission() {
                       </FormItem>
                     )}
                   />
+                  )}
 
-                  <FormField
-                    control={form.control}
-                    name="admission_source"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          <RequiredLabel>نوع الدخول</RequiredLabel>
-                        </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                  {showField("admission_source") && (
+                    <FormField
+                      control={form.control}
+                      name="admission_source"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            <RequiredLabel required={isRequired("admission_source")}>نوع الدخول</RequiredLabel>
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر نوع الدخول" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="طوارئ">طوارئ</SelectItem>
+                              <SelectItem value="داخلي">داخلي</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {showField("diagnosis_id") && (
+                    <FormField
+                      control={form.control}
+                      name="diagnosis_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>التشخيص</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="اختر نوع الدخول" />
-                            </SelectTrigger>
+                            <SearchableSelect
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              options={diagnoses ?? []}
+                              placeholder="اختر التشخيص"
+                              onManage={() => setShowManageDialog("diagnosis")}
+                              onAddNew={() => {
+                                setDialogContext(undefined);
+                                setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                  field.onChange(item.id);
+                                });
+                                setShowNewItemDialog("diagnosis");
+                              }}
+                              addNewLabel="إضافة تشخيص جديد"
+                            />
                           </FormControl>
-                          <SelectContent>
-                            <SelectItem value="طوارئ">طوارئ</SelectItem>
-                            <SelectItem value="داخلي">داخلي</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  <FormField
-                    control={form.control}
-                    name="diagnosis_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>التشخيص</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            options={diagnoses ?? []}
-                            placeholder="اختر التشخيص"
-                            onManage={() => setShowManageDialog("diagnosis")}
-                            onAddNew={() => {
-                              setDialogContext(undefined);
-                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
-                                field.onChange(item.id);
-                              });
-                              setShowNewItemDialog("diagnosis");
-                            }}
-                            addNewLabel="إضافة تشخيص جديد"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {showField("doctor_id") && (
+                    <FormField
+                      control={form.control}
+                      name="doctor_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>الطبيب</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              value={field.value}
+                              onValueChange={field.onChange}
+                              options={doctors ?? []}
+                              placeholder="اختر الطبيب"
+                              onManage={() => setShowManageDialog("doctor")}
+                              onAddNew={() => {
+                                setDialogContext(undefined);
+                                setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
+                                  field.onChange(item.id);
+                                });
+                                setShowNewItemDialog("doctor");
+                              }}
+                              addNewLabel="إضافة طبيب جديد"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  <FormField
-                    control={form.control}
-                    name="doctor_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>الطبيب</FormLabel>
-                        <FormControl>
-                          <SearchableSelect
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            options={doctors ?? []}
-                            placeholder="اختر الطبيب"
-                            onManage={() => setShowManageDialog("doctor")}
-                            onAddNew={() => {
-                              setDialogContext(undefined);
-                              setOnItemCreatedCallback(() => (item: { id: string; name: string }) => {
-                                field.onChange(item.id);
-                              });
-                              setShowNewItemDialog("doctor");
-                            }}
-                            addNewLabel="إضافة طبيب جديد"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="admission_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          <RequiredLabel>تاريخ وساعة الحجز</RequiredLabel>
-                        </FormLabel>
-                        <FormControl>
-                          <Input type="datetime-local" {...field} />
-                        </FormControl>
-                        <FormDescription className="text-xs text-muted-foreground">
-                          AM صباحاً / PM مساءً
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {showField("admission_date") && (
+                    <FormField
+                      control={form.control}
+                      name="admission_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            <RequiredLabel required={isRequired("admission_date")}>تاريخ وساعة الحجز</RequiredLabel>
+                          </FormLabel>
+                          <FormControl>
+                            <Input type="datetime-local" {...field} />
+                          </FormControl>
+                          <FormDescription className="text-xs text-muted-foreground">AM صباحاً / PM مساءً</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormItem>
                     <FormLabel>تاريخ التعديل</FormLabel>

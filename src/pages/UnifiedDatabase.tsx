@@ -5,11 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Settings, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import ExcelSourcePicker from "@/components/ExcelSourcePicker";
 import UnifiedPatientHistoryDialog, { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import UnifiedDatabaseGate from "@/components/UnifiedDatabaseGate";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +96,7 @@ function pickLatest<T extends Record<string, any>>(rows: T[], dateKey: keyof T):
 }
 
 export default function UnifiedDatabase() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPayload, setHistoryPayload] = useState<UnifiedHistoryPayload | null>(null);
@@ -352,7 +354,15 @@ export default function UnifiedDatabase() {
       <UnifiedDatabaseGate code="db123">
         <div className="space-y-6">
           <header className="space-y-2">
-            <h1 className="text-3xl font-bold">قاعدة البيانات الموحدة</h1>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h1 className="text-3xl font-bold">قاعدة البيانات الموحدة</h1>
+              <Button variant="outline" onClick={() => navigate("/field-settings")}
+                className="whitespace-nowrap"
+              >
+                <Settings className="ml-2 h-4 w-4" />
+                إدارة الحقول
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               صف واحد لكل رقم موحد (آخر دخول/خروج/طوارئ/مناظير/بذل/استعارات) مع زر لعرض كل التواريخ.
             </p>

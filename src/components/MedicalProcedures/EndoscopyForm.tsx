@@ -14,6 +14,7 @@ import SearchableSelect from "@/components/SearchableSelect";
 import { Save } from "lucide-react";
 import LookupCreateDialog, { type LookupCreateType } from "@/components/LookupCreateDialog";
 import LookupManageDialog from "@/components/LookupManageDialog";
+import { useFieldConfig } from "@/components/FieldConfigProvider";
 
 type Option = { id: string; name: string };
 
@@ -32,7 +33,7 @@ const endoscopySchema = z.object({
   gender: z.enum(["ذكر", "أنثى"]).optional(),
   marital_status: z.enum(["أعزب", "متزوج", "مطلق", "أرمل"]).optional(),
   age: z.coerce.number().min(0, "السن يجب أن يكون رقم موجب").optional(),
-  department_id: z.string().min(1, "القسم مطلوب"),
+  department_id: z.string().optional().or(z.literal("")),
   // سيتم تسجيله تلقائياً (مخفي مؤقتاً)
   procedure_date: z.string().optional().or(z.literal("")),
   diagnosis_id: z.string().optional(),
@@ -92,6 +93,7 @@ export default function EndoscopyForm({
   onSubmit,
   isSubmitting,
 }: Props) {
+  const { getRule } = useFieldConfig();
   const form = useForm<EndoscopyFormValues>({
     resolver: zodResolver(endoscopySchema),
     defaultValues: {
@@ -202,6 +204,49 @@ export default function EndoscopyForm({
     }
   }, [dischargeMode, form]);
 
+  const showField = (key: keyof EndoscopyFormValues) => getRule("endoscopy", String(key)).visible;
+  const isRequired = (key: keyof EndoscopyFormValues) => getRule("endoscopy", String(key)).required;
+
+  const validateRequired = (values: EndoscopyFormValues) => {
+    const keys: Array<keyof EndoscopyFormValues> = [
+      "department_id",
+      "patient_name",
+      "national_id",
+      "phone",
+      "gender",
+      "marital_status",
+      "age",
+      "occupation_id",
+      "governorate_id",
+      "district_id",
+      "station_id",
+      "address_details",
+      "admission_date",
+      "diagnosis_id",
+      "doctor_id",
+      "discharge_date",
+      "discharge_status_mode",
+      "discharge_status_other",
+      "discharge_department_id",
+      "discharge_diagnosis_id",
+      "discharge_doctor_id",
+    ];
+
+    const isFilled = (v: unknown) => {
+      if (typeof v === "string") return v.trim().length > 0;
+      if (typeof v === "number") return Number.isFinite(v);
+      return v != null;
+    };
+
+    for (const k of keys) {
+      if (!isRequired(k)) continue;
+      if (!showField(k)) continue;
+      const v = (values as any)[k];
+      if (!isFilled(v)) return k;
+    }
+    return null;
+  };
+
   return (
     <Card className="shadow-lg border-border">
       <CardHeader>
@@ -212,7 +257,17 @@ export default function EndoscopyForm({
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form
+            onSubmit={form.handleSubmit((values) => {
+              const missing = validateRequired(values);
+              if (missing) {
+                form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
+                return;
+              }
+              onSubmit(values);
+            })}
+            className="space-y-6"
+          >
             {/* ملخص سريع (عرض فقط) */}
             <div className="grid gap-3 rounded-lg border bg-card/50 p-4 md:grid-cols-3">
               <div>
@@ -232,6 +287,7 @@ export default function EndoscopyForm({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
+              {showField("patient_name") && (
               <FormField
                 control={form.control}
                 name="patient_name"
@@ -245,6 +301,7 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
               <FormItem>
                 <FormLabel>الرقم الموحد</FormLabel>
@@ -253,6 +310,7 @@ export default function EndoscopyForm({
                 </FormControl>
               </FormItem>
 
+              {showField("national_id") && (
               <FormField
                 control={form.control}
                 name="national_id"
@@ -266,7 +324,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("phone") && (
               <FormField
                 control={form.control}
                 name="phone"
@@ -280,7 +340,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("gender") && (
               <FormField
                 control={form.control}
                 name="gender"
@@ -302,7 +364,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("marital_status") && (
               <FormField
                 control={form.control}
                 name="marital_status"
@@ -326,7 +390,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("age") && (
               <FormField
                 control={form.control}
                 name="age"
@@ -340,7 +406,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("department_id") && (
               <FormField
                 control={form.control}
                 name="department_id"
@@ -363,10 +431,12 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
               {/* تاريخ وساعة الإجراء: مخفي مؤقتاً ويتم تسجيله تلقائياً */}
 
               {/* بيانات الدخول */}
+              {showField("admission_date") && (
               <FormField
                 control={form.control}
                 name="admission_date"
@@ -380,7 +450,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("diagnosis_id") && (
               <FormField
                 control={form.control}
                 name="diagnosis_id"
@@ -403,7 +475,9 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
+              {showField("doctor_id") && (
               <FormField
                 control={form.control}
                 name="doctor_id"
@@ -426,8 +500,10 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
               {/* بيانات الخروج */}
+              {showField("discharge_date") && (
               <FormField
                 control={form.control}
                 name="discharge_date"
@@ -441,6 +517,7 @@ export default function EndoscopyForm({
                   </FormItem>
                 )}
               />
+              )}
 
               <FormField
                 control={form.control}

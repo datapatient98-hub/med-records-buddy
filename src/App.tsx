@@ -12,8 +12,10 @@ import Loans from "./pages/Loans";
 import Records from "./pages/Records";
 import UnifiedDatabase from "./pages/UnifiedDatabase";
 import Reports from "./pages/Reports";
+import FieldSettings from "./pages/FieldSettings";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { FieldConfigProvider } from "@/components/FieldConfigProvider";
 
 const queryClient = new QueryClient();
 
@@ -23,21 +25,24 @@ const App = () => (
       <Toaster />
       <Sonner />
       <ErrorBoundary>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/admission" element={<Admission />} />
-            <Route path="/discharge" element={<Discharge />} />
-            <Route path="/medical-procedures" element={<MedicalProcedures />} />
-            <Route path="/loans" element={<Loans />} />
-            <Route path="/records" element={<Records />} />
-            <Route path="/unified-database" element={<UnifiedDatabase />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/patient-search" element={<PatientSearch />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <FieldConfigProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/admission" element={<Admission />} />
+              <Route path="/discharge" element={<Discharge />} />
+              <Route path="/medical-procedures" element={<MedicalProcedures />} />
+              <Route path="/loans" element={<Loans />} />
+              <Route path="/records" element={<Records />} />
+              <Route path="/unified-database" element={<UnifiedDatabase />} />
+              <Route path="/field-settings" element={<FieldSettings />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/patient-search" element={<PatientSearch />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </FieldConfigProvider>
       </ErrorBoundary>
     </TooltipProvider>
   </QueryClientProvider>
