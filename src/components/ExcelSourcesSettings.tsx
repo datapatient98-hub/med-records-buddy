@@ -2,7 +2,7 @@ import ExcelSourcePicker from "@/components/ExcelSourcePicker";
 
 export default function ExcelSourcesSettings() {
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 mx-auto max-w-6xl py-6">
       <header className="space-y-1">
         <h2 className="text-lg font-bold">إعداد مصادر ملفات الإكسل</h2>
         <p className="text-sm text-muted-foreground">

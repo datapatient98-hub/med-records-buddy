@@ -8,6 +8,7 @@ export type PersistedExcelSourceKey =
 
 type PersistedMeta = {
   fileName?: string;
+  customTitle?: string;
   updatedAt?: string; // ISO
 };
 
@@ -84,6 +85,26 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     setMeta({});
   }, [key]);
 
+  const setCustomTitle = useCallback(
+    async (customTitle: string) => {
+      const payload = await idbGet<PersistedHandlePayload>(key);
+      const nextMeta: PersistedMeta = {
+        ...(payload?.meta ?? {}),
+        customTitle,
+      };
+
+      const nextPayload: PersistedHandlePayload = {
+        handle: payload?.handle,
+        meta: nextMeta,
+      };
+
+      await idbSet(key, nextPayload);
+      setHandle(nextPayload.handle ?? null);
+      setMeta(nextMeta);
+    },
+    [key]
+  );
+
   const readFile = useCallback(async (): Promise<File | null> => {
     if (!handle) return null;
     try {
@@ -101,6 +122,7 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     hasSource: !!meta.fileName,
     pick,
     clear,
+    setCustomTitle,
     readFile,
   };
 }
