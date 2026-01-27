@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -105,6 +106,7 @@ export default function LoanLookupCreateDialog({
       <DialogContent className="sm:max-w-md" dir="rtl">
         <DialogHeader>
           <DialogTitle>{meta.title}</DialogTitle>
+          <DialogDescription>اكتب الاسم واضغط حفظ لإضافته لقائمة الاقتراحات.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">

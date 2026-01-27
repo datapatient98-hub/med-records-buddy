@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -87,6 +88,7 @@ export default function LoanLookupManageDialog({
       <DialogContent className="sm:max-w-2xl" dir="rtl">
         <DialogHeader>
           <DialogTitle>{meta.title}</DialogTitle>
+          <DialogDescription>يمكنك البحث وتعديل العناصر، ولا يوجد حذف حسب الإعداد الحالي.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
