@@ -32,6 +32,39 @@ import * as XLSX from "xlsx";
 type ProcedureType = "بذل" | "استقبال" | "كلي" | "مناظير";
 type DeptFilterType = "entry" | "procedure";
 
+type AppliedFilters = {
+  statusFilter: string[];
+  deptFilterType: DeptFilterType;
+  selectedDepartments: string[];
+  doctorId: string | "all";
+  diagnosisId: string | "all";
+  dateFrom: string; // YYYY-MM-DD
+  dateTo: string; // YYYY-MM-DD
+};
+
+function ymdToDate(s: string): Date | null {
+  if (!s) return null;
+  const d = new Date(`${s}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function getRowDateForTab(tab: string, row: any): Date | null {
+  switch (tab) {
+    case "admissions_internal":
+      return row?.admission_date ? new Date(row.admission_date) : row?.created_at ? new Date(row.created_at) : null;
+    case "endoscopies":
+      return row?.procedure_date ? new Date(row.procedure_date) : row?.created_at ? new Date(row.created_at) : null;
+    case "reception":
+    case "dialysis":
+    case "paracentesis":
+      return row?.procedure_date ? new Date(row.procedure_date) : row?.created_at ? new Date(row.created_at) : null;
+    case "loans":
+      return row?.loan_date ? new Date(row.loan_date) : row?.created_at ? new Date(row.created_at) : null;
+    default:
+      return row?.created_at ? new Date(row.created_at) : null;
+  }
+}
+
 function normalizeForExcel(v: any) {
   if (v === null || v === undefined) return "";
   if (v instanceof Date) return v.toISOString();
@@ -51,10 +84,17 @@ export default function Records() {
       | "loans",
   );
 
-  // Header filters
-  const [statusFilter, setStatusFilter] = useState<string[]>(["reserved", "exited"]);
-  const [deptFilterType, setDeptFilterType] = useState<DeptFilterType>("entry");
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  // Header filters (draft + applied)
+  const [draftFilters, setDraftFilters] = useState<AppliedFilters>({
+    statusFilter: ["reserved", "exited"],
+    deptFilterType: "entry",
+    selectedDepartments: [],
+    doctorId: "all",
+    diagnosisId: "all",
+    dateFrom: "",
+    dateTo: "",
+  });
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>(draftFilters);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
@@ -85,6 +125,24 @@ export default function Records() {
       const { data, error } = await query;
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: doctors } = useQuery({
+    queryKey: ["doctors"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("doctors").select("id, name").order("name", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: diagnoses } = useQuery({
+    queryKey: ["diagnoses"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("diagnoses").select("id, name").order("name", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
@@ -198,22 +256,22 @@ export default function Records() {
   const loansList = useMemo(() => (loans as any[]) ?? [], [loans]);
   const endoscopiesList = useMemo(() => (endoscopies as any[]) ?? [], [endoscopies]);
 
-  const isDeptSelected = (name: string) => selectedDepartments.includes(name);
+  const isDeptSelected = (name: string) => draftFilters.selectedDepartments.includes(name);
   const toggleDept = (name: string, checked: boolean) => {
-    setSelectedDepartments((prev) => {
-      const s = new Set(prev);
+    setDraftFilters((prev) => {
+      const s = new Set(prev.selectedDepartments);
       if (checked) s.add(name);
       else s.delete(name);
-      return Array.from(s);
+      return { ...prev, selectedDepartments: Array.from(s) };
     });
   };
 
   const deptPredicate = useMemo(() => {
-    if (selectedDepartments.length === 0) return (_row: any) => true;
-    const set = new Set(selectedDepartments);
+    if (appliedFilters.selectedDepartments.length === 0) return (_row: any) => true;
+    const set = new Set(appliedFilters.selectedDepartments);
 
     return (row: any) => {
-      if (deptFilterType === "entry") {
+      if (appliedFilters.deptFilterType === "entry") {
         const deptName = row?.department?.name ?? row?.department_name ?? "";
         return set.has(deptName);
       }
@@ -222,7 +280,35 @@ export default function Records() {
       const loanDept = row?.borrowed_to_department ?? "";
       return set.has(deptName) || set.has(loanDept);
     };
-  }, [deptFilterType, selectedDepartments]);
+  }, [appliedFilters.deptFilterType, appliedFilters.selectedDepartments]);
+
+  const advancedPredicate = useMemo(() => {
+    const from = ymdToDate(appliedFilters.dateFrom);
+    const to = ymdToDate(appliedFilters.dateTo);
+
+    return (row: any, tab: string) => {
+      // Doctor/Diagnosis (not applicable to loans)
+      if (tab !== "loans") {
+        if (appliedFilters.doctorId !== "all" && row?.doctor_id !== appliedFilters.doctorId) return false;
+        if (appliedFilters.diagnosisId !== "all" && row?.diagnosis_id !== appliedFilters.diagnosisId) return false;
+      }
+
+      // Date range (per tab)
+      if (from || to) {
+        const d = getRowDateForTab(tab, row);
+        if (!d) return false;
+        if (from && d < from) return false;
+        if (to) {
+          // include end of day
+          const toEnd = new Date(to);
+          toEnd.setHours(23, 59, 59, 999);
+          if (d > toEnd) return false;
+        }
+      }
+
+      return true;
+    };
+  }, [appliedFilters.dateFrom, appliedFilters.dateTo, appliedFilters.diagnosisId, appliedFilters.doctorId]);
 
   const tabCounts = useMemo(() => {
     return {
@@ -257,33 +343,48 @@ export default function Records() {
   }, [admissionsInternal, discharges, endoscopies, procedures]);
 
   const admissionsInternalFiltered = useMemo(() => {
-    const showReserved = statusFilter.includes("reserved");
-    const showExited = statusFilter.includes("exited");
+    const showReserved = appliedFilters.statusFilter.includes("reserved");
+    const showExited = appliedFilters.statusFilter.includes("exited");
 
     return admissionsInternal
       .filter((a: any) => deptPredicate(a))
+      .filter((a: any) => advancedPredicate(a, "admissions_internal"))
       .filter((a: any) => {
         const exited = unifiedExitFlag.get(a.unified_number) === true;
         if (exited && showExited) return true;
         if (!exited && showReserved) return true;
         return false;
       });
-  }, [admissionsInternal, deptPredicate, statusFilter, unifiedExitFlag]);
+  }, [admissionsInternal, advancedPredicate, appliedFilters.statusFilter, deptPredicate, unifiedExitFlag]);
 
-  const endoscopiesFiltered = useMemo(() => endoscopiesList.filter(deptPredicate), [deptPredicate, endoscopiesList]);
+  const endoscopiesFiltered = useMemo(
+    () => endoscopiesList.filter(deptPredicate).filter((r: any) => advancedPredicate(r, "endoscopies")),
+    [advancedPredicate, deptPredicate, endoscopiesList],
+  );
   const receptionFiltered = useMemo(
-    () => proceduresOfType.reception.filter(deptPredicate),
-    [deptPredicate, proceduresOfType.reception],
+    () => proceduresOfType.reception.filter(deptPredicate).filter((r: any) => advancedPredicate(r, "reception")),
+    [advancedPredicate, deptPredicate, proceduresOfType.reception],
   );
   const dialysisFiltered = useMemo(
-    () => proceduresOfType.dialysis.filter(deptPredicate),
-    [deptPredicate, proceduresOfType.dialysis],
+    () => proceduresOfType.dialysis.filter(deptPredicate).filter((r: any) => advancedPredicate(r, "dialysis")),
+    [advancedPredicate, deptPredicate, proceduresOfType.dialysis],
   );
   const paracentesisFiltered = useMemo(
-    () => proceduresOfType.paracentesis.filter(deptPredicate),
-    [deptPredicate, proceduresOfType.paracentesis],
+    () => proceduresOfType.paracentesis.filter(deptPredicate).filter((r: any) => advancedPredicate(r, "paracentesis")),
+    [advancedPredicate, deptPredicate, proceduresOfType.paracentesis],
   );
-  const loansFiltered = useMemo(() => loansList.filter(deptPredicate), [deptPredicate, loansList]);
+  const loansFiltered = useMemo(
+    () => loansList.filter(deptPredicate).filter((r: any) => advancedPredicate(r, "loans")),
+    [advancedPredicate, deptPredicate, loansList],
+  );
+
+  const hasPendingFilterChanges = useMemo(() => {
+    return JSON.stringify(draftFilters) !== JSON.stringify(appliedFilters);
+  }, [appliedFilters, draftFilters]);
+
+  const applyFilters = () => {
+    setAppliedFilters(draftFilters);
+  };
 
   const exportCurrentTabToExcel = () => {
     let rows: any[] = [];
@@ -382,8 +483,10 @@ export default function Records() {
 
             <ToggleGroup
               type="multiple"
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v.length ? v : ["reserved", "exited"])}
+              value={draftFilters.statusFilter}
+              onValueChange={(v) =>
+                setDraftFilters((prev) => ({ ...prev, statusFilter: v.length ? v : ["reserved", "exited"] }))
+              }
               className="flex-wrap"
             >
               <ToggleGroupItem
@@ -395,14 +498,17 @@ export default function Records() {
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="exited"
-                aria-label="خرج"
+                aria-label="خروج"
                 className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-extrabold text-foreground hover:bg-muted hover:text-foreground data-[state=on]:border-transparent data-[state=on]:bg-status-discharged data-[state=on]:text-primary-foreground"
               >
-                خرج
+                خروج
               </ToggleGroupItem>
             </ToggleGroup>
 
-            <Select value={deptFilterType} onValueChange={(v) => setDeptFilterType(v as DeptFilterType)}>
+            <Select
+              value={draftFilters.deptFilterType}
+              onValueChange={(v) => setDraftFilters((prev) => ({ ...prev, deptFilterType: v as DeptFilterType }))}
+            >
               <SelectTrigger className="h-10 w-[180px]">
                 <SelectValue placeholder="نوع القسم" />
               </SelectTrigger>
@@ -412,19 +518,71 @@ export default function Records() {
               </SelectContent>
             </Select>
 
+            <Select
+              value={draftFilters.doctorId}
+              onValueChange={(v) => setDraftFilters((prev) => ({ ...prev, doctorId: v as any }))}
+            >
+              <SelectTrigger className="h-10 w-[190px]">
+                <SelectValue placeholder="الطبيب" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل الأطباء</SelectItem>
+                {(doctors as any[] | undefined)?.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={draftFilters.diagnosisId}
+              onValueChange={(v) => setDraftFilters((prev) => ({ ...prev, diagnosisId: v as any }))}
+            >
+              <SelectTrigger className="h-10 w-[200px]">
+                <SelectValue placeholder="التشخيص" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">كل التشخيصات</SelectItem>
+                {(diagnoses as any[] | undefined)?.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={draftFilters.dateFrom}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, dateFrom: e.target.value }))}
+                className="h-10 w-[150px]"
+                aria-label="من تاريخ"
+              />
+              <span className="text-muted-foreground">—</span>
+              <Input
+                type="date"
+                value={draftFilters.dateTo}
+                onChange={(e) => setDraftFilters((prev) => ({ ...prev, dateTo: e.target.value }))}
+                className="h-10 w-[150px]"
+                aria-label="إلى تاريخ"
+              />
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button type="button" variant="outline">
-                  الأقسام ({selectedDepartments.length || "الكل"})
+                  الأقسام ({draftFilters.selectedDepartments.length || "الكل"})
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-72">
                 <DropdownMenuLabel>اختيار الأقسام</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem
-                  checked={selectedDepartments.length === 0}
+                  checked={draftFilters.selectedDepartments.length === 0}
                   onCheckedChange={(v) => {
-                    if (v) setSelectedDepartments([]);
+                    if (v) setDraftFilters((prev) => ({ ...prev, selectedDepartments: [] }));
                   }}
                 >
                   كل الأقسام
@@ -441,6 +599,10 @@ export default function Records() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <Button type="button" onClick={applyFilters} disabled={!hasPendingFilterChanges}>
+              تطبيق التصفيات
+            </Button>
 
             <Button type="button" variant="outline" onClick={exportCurrentTabToExcel}>
               تصدير Excel
