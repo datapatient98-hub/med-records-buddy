@@ -29,6 +29,14 @@ import {
 
 type ProcedureKind = "بذل" | "استقبال" | "كلي";
 
+type RecentItem = {
+  unified_number: string;
+  patient_name?: string | null;
+  last_event_type: string;
+  last_event_at: string; // ISO
+  last_internal_number?: number | null;
+};
+
 function getInternalNumberFromAnyRow(r: any): number | null {
   const v = r?.internal_number;
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -73,6 +81,9 @@ export default function UnifiedDatabase() {
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPayload, setHistoryPayload] = useState<UnifiedHistoryPayload | null>(null);
+
+  const [recentLoading, setRecentLoading] = useState(false);
+  const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
 
   const mostRecentInternal = useMemo(() => computeMostRecentInternalNumber(historyPayload), [historyPayload]);
 
@@ -152,6 +163,143 @@ export default function UnifiedDatabase() {
       setHistoryPayload(payload);
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  const openUnifiedNumber = async (unifiedNumber: string) => {
+    if (!unifiedNumber) return;
+    setSearchLoading(true);
+    try {
+      const payload = await fetchUnifiedHistoryPayload(supabase, unifiedNumber);
+      setHistoryPayload(payload);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const loadRecent = async () => {
+    setRecentLoading(true);
+    try {
+      const [admissionsRes, dischargesRes, endoscopiesRes, proceduresRes, loansRes] = await Promise.all([
+        supabase
+          .from("admissions")
+          .select("unified_number, patient_name, updated_at, admission_date")
+          .order("updated_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("discharges")
+          .select("internal_number, discharge_date, admissions(patient_name, unified_number)")
+          .order("discharge_date", { ascending: false })
+          .limit(50),
+        supabase
+          .from("endoscopies")
+          .select("unified_number, patient_name, internal_number, procedure_date")
+          .order("procedure_date", { ascending: false })
+          .limit(50),
+        supabase
+          .from("procedures")
+          .select("unified_number, patient_name, internal_number, procedure_date, procedure_type")
+          .order("procedure_date", { ascending: false })
+          .limit(50),
+        supabase
+          .from("file_loans")
+          .select("unified_number, internal_number, loan_date, admissions(patient_name)")
+          .order("loan_date", { ascending: false })
+          .limit(50),
+      ]);
+
+      const items: RecentItem[] = [];
+
+      for (const r of admissionsRes.data ?? []) {
+        const date = (r as any)?.updated_at ?? (r as any)?.admission_date;
+        if (!date) continue;
+        items.push({
+          unified_number: (r as any).unified_number,
+          patient_name: (r as any).patient_name,
+          last_event_type: "دخول",
+          last_event_at: new Date(date).toISOString(),
+        });
+      }
+
+      for (const r of dischargesRes.data ?? []) {
+        const a = (r as any).admissions;
+        const unified = a?.unified_number;
+        const date = (r as any).discharge_date;
+        if (!unified || !date) continue;
+        items.push({
+          unified_number: unified,
+          patient_name: a?.patient_name,
+          last_event_type: "خروج",
+          last_event_at: new Date(date).toISOString(),
+          last_internal_number: (r as any).internal_number ?? null,
+        });
+      }
+
+      for (const r of endoscopiesRes.data ?? []) {
+        const date = (r as any).procedure_date;
+        if (!(r as any).unified_number || !date) continue;
+        items.push({
+          unified_number: (r as any).unified_number,
+          patient_name: (r as any).patient_name,
+          last_event_type: "مناظير",
+          last_event_at: new Date(date).toISOString(),
+          last_internal_number: (r as any).internal_number ?? null,
+        });
+      }
+
+      for (const r of proceduresRes.data ?? []) {
+        const date = (r as any).procedure_date;
+        if (!(r as any).unified_number || !date) continue;
+        const t = (r as any).procedure_type ? `إجراء (${(r as any).procedure_type})` : "إجراء";
+        items.push({
+          unified_number: (r as any).unified_number,
+          patient_name: (r as any).patient_name,
+          last_event_type: t,
+          last_event_at: new Date(date).toISOString(),
+          last_internal_number: (r as any).internal_number ?? null,
+        });
+      }
+
+      for (const r of loansRes.data ?? []) {
+        const date = (r as any).loan_date;
+        if (!(r as any).unified_number || !date) continue;
+        const a = (r as any).admissions;
+        items.push({
+          unified_number: (r as any).unified_number,
+          patient_name: a?.patient_name ?? null,
+          last_event_type: "استعارة",
+          last_event_at: new Date(date).toISOString(),
+          last_internal_number: (r as any).internal_number ?? null,
+        });
+      }
+
+      const map = new Map<string, RecentItem>();
+      for (const it of items) {
+        const prev = map.get(it.unified_number);
+        if (!prev) {
+          map.set(it.unified_number, it);
+          continue;
+        }
+        const prevTime = new Date(prev.last_event_at).getTime();
+        const nextTime = new Date(it.last_event_at).getTime();
+        const merged: RecentItem = {
+          unified_number: it.unified_number,
+          patient_name: it.patient_name ?? prev.patient_name,
+          last_event_type: nextTime >= prevTime ? it.last_event_type : prev.last_event_type,
+          last_event_at: nextTime >= prevTime ? it.last_event_at : prev.last_event_at,
+          last_internal_number:
+            (nextTime >= prevTime ? it.last_internal_number : prev.last_internal_number) ??
+            it.last_internal_number ??
+            prev.last_internal_number ??
+            null,
+        };
+        map.set(it.unified_number, merged);
+      }
+
+      const sorted = [...map.values()].sort((a, b) => new Date(b.last_event_at).getTime() - new Date(a.last_event_at).getTime());
+      setRecentItems(sorted.slice(0, 50));
+    } finally {
+      setRecentLoading(false);
     }
   };
 
@@ -248,12 +396,62 @@ export default function UnifiedDatabase() {
             <Button type="button" onClick={() => void runSearch(searchTerm)} disabled={searchLoading}>
               {searchLoading ? "جاري البحث..." : "بحث"}
             </Button>
+            <Button type="button" variant="outline" onClick={() => void loadRecent()} disabled={recentLoading}>
+              {recentLoading ? "جاري التحميل..." : "تحميل آخر بيانات"}
+            </Button>
             {historyPayload?.unified_number ? (
               <Button type="button" variant="outline" onClick={openDialogForCurrent}>
                 عرض السجل الكامل (نافذة)
               </Button>
             ) : null}
           </div>
+
+          {recentItems.length ? (
+            <section className="rounded-lg border bg-card">
+              <div className="p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-bold">آخر بيانات (ملخص سريع)</h2>
+                  <div className="text-xs text-muted-foreground">اضغط تفاصيل لفتح Timeline للمريض</div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {recentItems.map((it) => (
+                    <Card key={it.unified_number} className="border">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold truncate">{it.patient_name || "-"}</div>
+                            <div className="text-xs text-muted-foreground">
+                              الرقم الموحد: <span className="font-mono">{it.unified_number}</span>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSearchTerm(it.unified_number);
+                              lastSearchedRef.current = "";
+                              void openUnifiedNumber(it.unified_number);
+                            }}
+                          >
+                            تفاصيل
+                          </Button>
+                        </div>
+
+                        <div className="text-xs text-muted-foreground">
+                          آخر نشاط: <span className="text-foreground font-semibold">{it.last_event_type}</span> — {fmtDate(it.last_event_at)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          الرقم الداخلي الأخير: <span className="font-mono text-foreground">{it.last_internal_number ?? "-"}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-lg border bg-card">
             <div className="p-4">
