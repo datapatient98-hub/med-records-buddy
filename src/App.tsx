@@ -13,7 +13,6 @@ import Records from "./pages/Records";
 import UnifiedDatabase from "./pages/UnifiedDatabase";
 import Reports from "./pages/Reports";
 import FieldSettings from "./pages/FieldSettings";
-import MasterDataManagement from "./pages/MasterDataManagement";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { FieldConfigProvider } from "@/components/FieldConfigProvider";
@@ -37,7 +36,6 @@ const App = () => (
               <Route path="/records" element={<Records />} />
               <Route path="/unified-database" element={<UnifiedDatabase />} />
               <Route path="/field-settings" element={<FieldSettings />} />
-      <Route path="/master-data" element={<MasterDataManagement />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/patient-search" element={<PatientSearch />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
