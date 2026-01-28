@@ -11,6 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast as sonnerToast } from "@/components/ui/sonner";
+import { useNavigate } from "react-router-dom";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
 import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit } from "lucide-react";
@@ -37,6 +38,7 @@ const dischargeSchema = z.object({
 type DischargeFormValues = z.infer<typeof dischargeSchema>;
 
 export default function Discharge() {
+  const navigate = useNavigate();
   const { getRule } = useFieldConfig();
   const queryClient = useQueryClient();
   const [unifiedNumber, setUnifiedNumber] = useState("");
@@ -311,6 +313,29 @@ export default function Discharge() {
     },
   });
 
+  // Success sound effect (simple beep)
+  const playSuccessSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800; // High-pitched beep
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+      console.log('Audio not supported');
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: async (values: DischargeFormValues) => {
       if (!selectedAdmission) return;
@@ -353,40 +378,58 @@ export default function Discharge() {
       queryClient.invalidateQueries({ queryKey: ["discharges"] });
       queryClient.invalidateQueries({ queryKey: ["discharges-counts"] });
 
-      // Professional top-left notification with bold patient details
-      sonnerToast.success(
-        <div dir="rtl" className="space-y-3 text-right">
-          <div>
-            <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
-            <div className="text-sm opacity-90 mt-1">تم تسجيل خروج الحالة بنجاح</div>
-          </div>
-          <div className="grid gap-2.5 rounded-lg border-2 bg-card/50 p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">اسم المريض</span>
-              <span className="font-extrabold text-base truncate max-w-[200px]">{data?.admission?.patient_name}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4 pb-2 border-b">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الموحد</span>
-              <span className="font-bold text-base tabular-nums" dir="ltr">{data?.admission?.unified_number}</span>
-            </div>
-            {data?.internalNumber ? (
-              <div className="flex items-center justify-between gap-4 bg-primary/10 -mx-4 -mb-4 px-4 py-3 rounded-b-lg">
-                <span className="text-xs font-medium opacity-70 uppercase tracking-wide">الرقم الداخلي</span>
-                <span className="text-xl font-black tabular-nums" dir="ltr">🔢 {data.internalNumber}</span>
-              </div>
-            ) : null}
+      // Play success sound
+      playSuccessSound();
 
-            <div className="flex items-center justify-between gap-4 pt-2 border-t">
-              <span className="text-xs font-medium opacity-70 uppercase tracking-wide">تاريخ ووقت التسجيل</span>
-              <span className="text-sm font-bold tabular-nums" dir="ltr">
-                {data?.createdAt ? new Date(data.createdAt).toLocaleString("ar-EG") : "-"}
-              </span>
+      // Unified success notification (top-left, 5s, dismissible by click, with Records link)
+      sonnerToast.custom(
+        (id) => (
+          <div
+            dir="rtl"
+            className="cursor-pointer space-y-3 text-right"
+            onClick={() => sonnerToast.dismiss(id)}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="space-y-1">
+              <div className="text-base font-bold">✅ تم الحفظ بنجاح</div>
+              <div className="text-sm text-muted-foreground">تم تسجيل خروج الحالة بنجاح</div>
             </div>
+
+            <div className="rounded-lg border bg-card/50 p-4">
+              <div className="flex items-center justify-between gap-3 pb-2 border-b">
+                <span className="text-xs font-semibold text-muted-foreground">اسم المريض</span>
+                <span className="font-bold truncate max-w-[220px]">{data?.admission?.patient_name}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3 py-2 border-b">
+                <span className="text-xs font-semibold text-muted-foreground">الرقم الموحد</span>
+                <span className="font-bold tabular-nums" dir="ltr">
+                  {data?.admission?.unified_number}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <span className="text-xs font-semibold text-muted-foreground">الرقم الداخلي</span>
+                <span className="text-lg font-black tabular-nums" dir="ltr">
+                  🔢 {data?.internalNumber || "-"}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2 mt-2 border-t">
+                <span className="text-xs font-semibold text-muted-foreground">تاريخ ووقت التسجيل</span>
+                <span className="text-sm font-bold tabular-nums" dir="ltr">
+                  {data?.createdAt ? new Date(data.createdAt).toLocaleString("ar-EG") : "-"}
+                </span>
+              </div>
+            </div>
+
+            <Button type="button" className="w-full" onClick={() => navigate("/records")}>
+              📂 فتح صفحة السجلات
+            </Button>
           </div>
-        </div>,
+        ),
         {
-          duration: 12000,
-          className: "w-[420px]",
+          duration: 5000,
+          position: "top-left",
         }
       );
 
