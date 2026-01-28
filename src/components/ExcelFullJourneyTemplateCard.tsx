@@ -100,6 +100,14 @@ function fullJourneyHeaders() {
     "تاريخ تسجيل المنظار (endoscopy_created_at)",
     "تاريخ تسجيل الاستعارة (loan_created_at)",
     "تاريخ تسجيل الخروج (discharge_created_at)",
+
+    // append-only identifiers (optional)
+    "Admission ID (admission_id)",
+    "Emergency ID (emergency_id)",
+    "Procedure ID (procedure_id)",
+    "Endoscopy ID (endoscopy_id)",
+    "Loan ID (loan_id)",
+    "Discharge ID (discharge_id)",
   ];
 }
 

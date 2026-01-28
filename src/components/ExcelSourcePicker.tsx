@@ -98,6 +98,14 @@ export default function ExcelSourcePicker({
       "مستشفى التحويل (hospital) [اختياري]",
       "حالة خروج المنظار الأخرى (discharge_status_other) [للمناظير][اختياري]",
 
+      // endoscopy discharge details (append-only)
+      "تاريخ ووقت دخول المنظار (admission_date) [للمناظير][اختياري]",
+      "تاريخ ووقت خروج المنظار (discharge_date) [للمناظير][اختياري]",
+      "حالة خروج المنظار (discharge_status) [للمناظير][اختياري]",
+      "قسم خروج المنظار (discharge_department) [للمناظير][اختياري]",
+      "تشخيص خروج المنظار (discharge_diagnosis) [للمناظير][اختياري]",
+      "طبيب خروج المنظار (discharge_doctor) [للمناظير][اختياري]",
+
       // loan extras
       "اسم المستعير (borrowed_by) [للاستعارات]",
       "الجهة المستعارة إليها (borrowed_to_department) [للاستعارات]",
@@ -105,6 +113,9 @@ export default function ExcelSourcePicker({
       "تاريخ ووقت الاستعارة (loan_date) [للاستعارات]",
       "تم الإرجاع؟ (is_returned) [اختياري]",
       "تاريخ ووقت الإرجاع (return_date) [اختياري]",
+
+      // linkage (append-only)
+      "Admission ID (admission_id) [اختياري]",
     ];
   };
 
