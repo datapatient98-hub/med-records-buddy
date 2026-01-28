@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Settings, Trash2 } from "lucide-react";
+import { Search, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UnifiedPatientHistoryDialog, { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import UnifiedDatabaseGate from "@/components/UnifiedDatabaseGate";
@@ -15,17 +15,7 @@ import type { ColumnDef } from "@/components/UnifiedHistory/types";
 import { findUnifiedNumberForTopSearch, fetchUnifiedHistoryPayload } from "@/lib/topSearch";
 import { fmtDate } from "@/components/UnifiedHistory/format";
 import { Link } from "react-router-dom";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+// NOTE: hard-delete removed; all deletions should go through audited delete flow.
 import { DeleteRecordsDialog } from "@/components/unifiedDatabase/DeleteRecordsDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DeletionAuditTab } from "@/components/unifiedDatabase/DeletionAuditTab";
@@ -313,29 +303,6 @@ export default function UnifiedDatabase() {
     setHistoryOpen(true);
   };
 
-  const deleteUnified = async (unifiedNumber: string) => {
-    // Delete in safe order: discharges -> admissions -> other tables
-    const { data: admissions } = await supabase.from("admissions").select("id").eq("unified_number", unifiedNumber);
-    const admissionIds = (admissions ?? []).map((a: any) => a.id);
-
-    if (admissionIds.length) {
-      await supabase.from("discharges").delete().in("admission_id", admissionIds);
-    }
-
-    await Promise.all([
-      supabase.from("admissions").delete().eq("unified_number", unifiedNumber),
-      supabase.from("emergencies").delete().eq("unified_number", unifiedNumber),
-      supabase.from("endoscopies").delete().eq("unified_number", unifiedNumber),
-      supabase.from("procedures").delete().eq("unified_number", unifiedNumber),
-      supabase.from("file_loans").delete().eq("unified_number", unifiedNumber),
-    ]);
-
-    setHistoryPayload(null);
-    setHistoryOpen(false);
-    setSearchTerm("");
-    lastSearchedRef.current = "";
-  };
-
   const proceduresByType = useMemo(() => {
     const all = (historyPayload?.procedures ?? []) as any[];
     const pick = (t: ProcedureKind) => all.filter((r) => (r?.procedure_type ?? "") === t);
@@ -590,31 +557,6 @@ export default function UnifiedDatabase() {
                                   >
                                     إدارة الحذف
                                   </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button type="button" variant="destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>حذف كل بيانات الرقم الموحد؟</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          سيتم حذف الدخول والخروج والطوارئ والمناظير والإجراءات والاستعارات لهذا الرقم الموحد نهائيًا.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() => {
-                                            void deleteUnified(historyPayload.unified_number);
-                                          }}
-                                        >
-                                          حذف
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
                                 </div>
                               </div>
                             </CardContent>

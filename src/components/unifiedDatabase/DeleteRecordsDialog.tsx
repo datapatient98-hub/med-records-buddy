@@ -6,25 +6,17 @@ import { supabase } from "@/integrations/supabase/client";
 import type { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { getAuditActorLabel, setAuditActorLabel } from "@/lib/auditActor";
 import { downloadDeletionAuditExcel } from "@/lib/excel/exportDeletionAuditExcel";
 
-type TableKey = "admissions" | "discharges" | "emergencies" | "endoscopies" | "procedures" | "file_loans";
-
-type SelectableRecord = {
-  table: TableKey;
-  id: string;
-  unified_number?: string | null;
-  patient_name?: string | null;
-  internal_number?: number | null;
-  snapshot: any;
-};
+import type { SelectableRecord } from "@/components/unifiedDatabase/deleteRecords/types";
+import { DeleteRecordsGroup } from "@/components/unifiedDatabase/deleteRecords/DeleteRecordsGroup";
+import { buildSelectable, keyOf, pickPatientName, sanitizeJson } from "@/components/unifiedDatabase/deleteRecords/utils";
+import { deleteSelectedRecords } from "@/components/unifiedDatabase/deleteRecords/deleteSelectedRecords";
 
 const reasonSchema = z.string().trim().min(3, "سبب الحذف مطلوب (3 أحرف على الأقل)").max(500, "سبب الحذف طويل جداً");
 
@@ -147,12 +139,42 @@ export function DeleteRecordsDialog({
 
             <ScrollArea className="max-h-[52vh] pr-1">
               <div className="space-y-5">
-                <Group title="الدخول" rows={items.filter((i) => i.table === "admissions")} selected={selected} setSelected={setSelected} />
-                <Group title="الخروج" rows={items.filter((i) => i.table === "discharges")} selected={selected} setSelected={setSelected} />
-                <Group title="الطوارئ" rows={items.filter((i) => i.table === "emergencies")} selected={selected} setSelected={setSelected} />
-                <Group title="المناظير" rows={items.filter((i) => i.table === "endoscopies")} selected={selected} setSelected={setSelected} />
-                <Group title="الإجراءات" rows={items.filter((i) => i.table === "procedures")} selected={selected} setSelected={setSelected} />
-                <Group title="الاستعارات" rows={items.filter((i) => i.table === "file_loans")} selected={selected} setSelected={setSelected} />
+                <DeleteRecordsGroup
+                  title="الدخول"
+                  rows={items.filter((i) => i.table === "admissions")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
+                <DeleteRecordsGroup
+                  title="الخروج"
+                  rows={items.filter((i) => i.table === "discharges")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
+                <DeleteRecordsGroup
+                  title="الطوارئ"
+                  rows={items.filter((i) => i.table === "emergencies")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
+                <DeleteRecordsGroup
+                  title="المناظير"
+                  rows={items.filter((i) => i.table === "endoscopies")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
+                <DeleteRecordsGroup
+                  title="الإجراءات"
+                  rows={items.filter((i) => i.table === "procedures")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
+                <DeleteRecordsGroup
+                  title="الاستعارات"
+                  rows={items.filter((i) => i.table === "file_loans")}
+                  selected={selected}
+                  setSelected={setSelected}
+                />
               </div>
             </ScrollArea>
           </div>
@@ -160,145 +182,4 @@ export function DeleteRecordsDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function Group({
-  title,
-  rows,
-  selected,
-  setSelected,
-}: {
-  title: string;
-  rows: SelectableRecord[];
-  selected: Record<string, boolean>;
-  setSelected: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-}) {
-  if (!rows.length) return null;
-
-  return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            setSelected((prev) => {
-              const next = { ...prev };
-              const allSelected = rows.every((r) => !!next[keyOf(r)]);
-              for (const r of rows) next[keyOf(r)] = !allSelected;
-              return next;
-            });
-          }}
-        >
-          تحديد/إلغاء الكل
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {rows.map((r) => (
-          <label key={keyOf(r)} className="flex items-start gap-3 rounded-md border border-border p-3">
-            <Checkbox
-              checked={!!selected[keyOf(r)]}
-              onCheckedChange={(v) => setSelected((p) => ({ ...p, [keyOf(r)]: !!v }))}
-              className="mt-1"
-            />
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-foreground truncate">
-                {r.patient_name || "-"}
-                {r.internal_number != null ? <span className="text-muted-foreground"> — داخلي: {r.internal_number}</span> : null}
-              </div>
-              <div className="text-xs text-muted-foreground font-mono truncate">{r.unified_number || ""}</div>
-              <div className="text-xs text-muted-foreground truncate">ID: {r.id}</div>
-            </div>
-          </label>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function buildSelectable(payload: UnifiedHistoryPayload | null): SelectableRecord[] {
-  if (!payload) return [];
-
-  const unified = payload.unified_number;
-  const defaultName = pickPatientName(payload);
-
-  const mapRow = (table: TableKey, r: any): SelectableRecord => ({
-    table,
-    id: String(r?.id ?? ""),
-    unified_number: r?.unified_number ?? unified ?? null,
-    patient_name: r?.patient_name ?? defaultName ?? null,
-    internal_number: typeof r?.internal_number === "number" ? r.internal_number : null,
-    snapshot: r,
-  });
-
-  const out: SelectableRecord[] = [];
-  for (const r of payload.admissions ?? []) out.push(mapRow("admissions", r));
-  for (const r of payload.discharges ?? []) out.push(mapRow("discharges", r));
-  for (const r of payload.emergencies ?? []) out.push(mapRow("emergencies", r));
-  for (const r of payload.endoscopies ?? []) out.push(mapRow("endoscopies", r));
-  for (const r of payload.procedures ?? []) out.push(mapRow("procedures", r));
-  for (const r of payload.loans ?? []) out.push(mapRow("file_loans", r));
-  return out.filter((r) => !!r.id);
-}
-
-function keyOf(r: SelectableRecord) {
-  return `${r.table}:${r.id}`;
-}
-
-function pickPatientName(p: UnifiedHistoryPayload | null) {
-  return (
-    p?.admissions?.[0]?.patient_name ??
-    p?.emergencies?.[0]?.patient_name ??
-    p?.endoscopies?.[0]?.patient_name ??
-    p?.procedures?.[0]?.patient_name ??
-    null
-  );
-}
-
-function sanitizeJson(v: unknown) {
-  try {
-    return JSON.parse(JSON.stringify(v ?? {}));
-  } catch {
-    return {};
-  }
-}
-
-async function deleteSelectedRecords(selected: SelectableRecord[]) {
-  const byTable = new Map<TableKey, string[]>();
-  for (const it of selected) {
-    const list = byTable.get(it.table) ?? [];
-    list.push(it.id);
-    byTable.set(it.table, list);
-  }
-
-  const admissionIds = byTable.get("admissions") ?? [];
-  if (admissionIds.length) {
-    // Clean dependent rows to avoid FK errors
-    await supabase.from("discharges").delete().in("admission_id", admissionIds);
-    await supabase.from("notes").delete().in("admission_id", admissionIds);
-    await supabase.from("file_loans").delete().in("admission_id", admissionIds);
-    await supabase.from("procedures").delete().in("admission_id", admissionIds);
-    await supabase.from("endoscopies").delete().in("admission_id", admissionIds);
-    await supabase.from("emergencies").delete().in("admission_id", admissionIds);
-    await supabase.from("admissions").delete().in("id", admissionIds);
-  }
-
-  const delById = async (table: Exclude<TableKey, "admissions">, column: string = "id") => {
-    const ids = byTable.get(table) ?? [];
-    if (!ids.length) return;
-    // Supabase client generics can get too deep with dynamic table names.
-    // Use a narrowed, runtime-safe call.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const q = (supabase as any).from(table).delete().in(column, ids);
-    const { error } = (await q) as { error?: any };
-    if (error) throw error;
-  };
-
-  await delById("discharges");
-  await delById("emergencies");
-  await delById("endoscopies");
-  await delById("procedures");
-  await delById("file_loans");
 }
