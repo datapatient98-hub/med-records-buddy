@@ -27,6 +27,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DeleteRecordsDialog } from "@/components/unifiedDatabase/DeleteRecordsDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DeletionAuditTab } from "@/components/unifiedDatabase/DeletionAuditTab";
 
 type ProcedureKind = "بذل" | "استقبال" | "كلي";
 
@@ -468,154 +470,165 @@ export default function UnifiedDatabase() {
 
           <section className="rounded-lg border bg-card">
             <div className="p-4">
-              {!historyPayload ? (
-                <Card className="border">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-muted-foreground font-semibold">ابحث أولاً لعرض Timeline كامل.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <h2 className="text-xl font-extrabold text-center">Timeline المريض</h2>
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
-                      <span className="font-bold text-foreground">{patientName}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="font-semibold">الرقم الموحد: {historyPayload.unified_number}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="font-semibold">الرقم الداخلي الأخير: {mostRecentInternal ?? "-"}</span>
-                      <span className="text-muted-foreground">•</span>
-                      <span className="font-semibold">إجمالي السجلات: {totalRecords}</span>
-                    </div>
-                    <div className="text-center text-xs text-muted-foreground">
-                      آخر تحديث/حدث يتم حسابه داخل نافذة السجل الكامل.
-                    </div>
-                  </div>
+              <Tabs defaultValue="timeline" dir="rtl">
+                <TabsList className="w-full justify-start">
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  <TabsTrigger value="deletions">سجل المحذوفات</TabsTrigger>
+                </TabsList>
 
-                  <Separator className="my-4" />
+                <TabsContent value="timeline">
+                  {!historyPayload ? (
+                    <Card className="border">
+                      <CardContent className="p-6 text-center">
+                        <p className="text-muted-foreground font-semibold">ابحث أولاً لعرض Timeline كامل.</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <h2 className="text-xl font-extrabold text-center">Timeline المريض</h2>
+                        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+                          <span className="font-bold text-foreground">{patientName}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="font-semibold">الرقم الموحد: {historyPayload.unified_number}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="font-semibold">الرقم الداخلي الأخير: {mostRecentInternal ?? "-"}</span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="font-semibold">إجمالي السجلات: {totalRecords}</span>
+                        </div>
+                        <div className="text-center text-xs text-muted-foreground">آخر تحديث/حدث يتم حسابه داخل نافذة السجل الكامل.</div>
+                      </div>
 
-                  <ScrollArea className="max-h-[70vh] px-1">
-                    <div className="space-y-6 pb-6">
-                      <UnifiedHistorySummary unifiedNumber={historyPayload.unified_number} totalRecords={totalRecords} />
+                      <Separator className="my-4" />
 
-                      <UnifiedHistorySection
-                        title="سجلات الدخول"
-                        tone="green"
-                        rows={historyPayload.admissions ?? []}
-                        columns={sectionColumns.admissions}
-                        emptyMessage="تفاصيل الدخول: لا يوجد"
-                      />
+                      <ScrollArea className="max-h-[70vh] px-1">
+                        <div className="space-y-6 pb-6">
+                          <UnifiedHistorySummary unifiedNumber={historyPayload.unified_number} totalRecords={totalRecords} />
 
-                      <UnifiedHistorySection
-                        title="سجلات الطوارئ"
-                        tone="orange"
-                        rows={historyPayload.emergencies ?? []}
-                        columns={sectionColumns.emergencies}
-                        emptyMessage="تفاصيل الطوارئ: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات الدخول"
+                            tone="green"
+                            rows={historyPayload.admissions ?? []}
+                            columns={sectionColumns.admissions}
+                            emptyMessage="تفاصيل الدخول: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات البذل"
-                        tone="purple"
-                        rows={proceduresByType["بذل"]}
-                        columns={sectionColumns.procedures}
-                        emptyMessage="تفاصيل البذل: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات الطوارئ"
+                            tone="orange"
+                            rows={historyPayload.emergencies ?? []}
+                            columns={sectionColumns.emergencies}
+                            emptyMessage="تفاصيل الطوارئ: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات الاستقبال"
-                        tone="purple"
-                        rows={proceduresByType["استقبال"]}
-                        columns={sectionColumns.procedures}
-                        emptyMessage="تفاصيل الاستقبال: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات البذل"
+                            tone="purple"
+                            rows={proceduresByType["بذل"]}
+                            columns={sectionColumns.procedures}
+                            emptyMessage="تفاصيل البذل: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات الكُلى"
-                        tone="purple"
-                        rows={proceduresByType["كلي"]}
-                        columns={sectionColumns.procedures}
-                        emptyMessage="تفاصيل الكُلى: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات الاستقبال"
+                            tone="purple"
+                            rows={proceduresByType["استقبال"]}
+                            columns={sectionColumns.procedures}
+                            emptyMessage="تفاصيل الاستقبال: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات المناظير"
-                        tone="cyan"
-                        rows={historyPayload.endoscopies ?? []}
-                        columns={sectionColumns.endoscopies}
-                        emptyMessage="تفاصيل المناظير: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات الكُلى"
+                            tone="purple"
+                            rows={proceduresByType["كلي"]}
+                            columns={sectionColumns.procedures}
+                            emptyMessage="تفاصيل الكُلى: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات الاستعارات"
-                        tone="primary"
-                        rows={historyPayload.loans ?? []}
-                        columns={sectionColumns.loans}
-                        emptyMessage="تفاصيل الاستعارات: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات المناظير"
+                            tone="cyan"
+                            rows={historyPayload.endoscopies ?? []}
+                            columns={sectionColumns.endoscopies}
+                            emptyMessage="تفاصيل المناظير: لا يوجد"
+                          />
 
-                      <UnifiedHistorySection
-                        title="سجلات الخروج"
-                        tone="pink"
-                        rows={historyPayload.discharges ?? []}
-                        columns={sectionColumns.discharges}
-                        emptyMessage="تفاصيل الخروج: لا يوجد"
-                      />
+                          <UnifiedHistorySection
+                            title="سجلات الاستعارات"
+                            tone="primary"
+                            rows={historyPayload.loans ?? []}
+                            columns={sectionColumns.loans}
+                            emptyMessage="تفاصيل الاستعارات: لا يوجد"
+                          />
 
-                      <Card className="border">
-                        <CardContent className="p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-sm font-semibold">
-                              آخر رقم داخلي: <span className="font-mono">{mostRecentInternal ?? "-"}</span>
-                              {historyPayload?.procedures?.length ? (
-                                <span className="text-muted-foreground"> (آخر حدث: {fmtDate(historyPayload.procedures?.[0]?.procedure_date)})</span>
-                              ) : null}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="outline" onClick={openDialogForCurrent}>
-                                عرض السجل الكامل
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={() => setDeleteOpen(true)}
-                                disabled={!historyPayload?.unified_number}
-                              >
-                                إدارة الحذف
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button type="button" variant="destructive">
-                                    <Trash2 className="h-4 w-4" />
+                          <UnifiedHistorySection
+                            title="سجلات الخروج"
+                            tone="pink"
+                            rows={historyPayload.discharges ?? []}
+                            columns={sectionColumns.discharges}
+                            emptyMessage="تفاصيل الخروج: لا يوجد"
+                          />
+
+                          <Card className="border">
+                            <CardContent className="p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-sm font-semibold">
+                                  آخر رقم داخلي: <span className="font-mono">{mostRecentInternal ?? "-"}</span>
+                                  {historyPayload?.procedures?.length ? (
+                                    <span className="text-muted-foreground"> (آخر حدث: {fmtDate(historyPayload.procedures?.[0]?.procedure_date)})</span>
+                                  ) : null}
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button type="button" variant="outline" onClick={openDialogForCurrent}>
+                                    عرض السجل الكامل
                                   </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>حذف كل بيانات الرقم الموحد؟</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      سيتم حذف الدخول والخروج والطوارئ والمناظير والإجراءات والاستعارات لهذا الرقم الموحد نهائيًا.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => {
-                                        void deleteUnified(historyPayload.unified_number);
-                                      }}
-                                    >
-                                      حذف
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </ScrollArea>
-                </>
-              )}
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => setDeleteOpen(true)}
+                                    disabled={!historyPayload?.unified_number}
+                                  >
+                                    إدارة الحذف
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button type="button" variant="destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>حذف كل بيانات الرقم الموحد؟</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          سيتم حذف الدخول والخروج والطوارئ والمناظير والإجراءات والاستعارات لهذا الرقم الموحد نهائيًا.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => {
+                                            void deleteUnified(historyPayload.unified_number);
+                                          }}
+                                        >
+                                          حذف
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      </ScrollArea>
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="deletions">
+                  <DeletionAuditTab />
+                </TabsContent>
+              </Tabs>
             </div>
           </section>
 
