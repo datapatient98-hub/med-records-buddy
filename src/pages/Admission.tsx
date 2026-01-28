@@ -39,6 +39,8 @@ import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/Time
 import AdmissionSuccessNotification from "@/components/AdmissionSuccessNotification";
 import SearchableSelect from "@/components/SearchableSelect";
 import TopLeftNotice from "@/components/TopLeftNotice";
+import OldFileNotice from "@/components/OldFileNotice";
+import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
 import ExcelImportDialog from "@/components/ExcelImportDialog";
 import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
 import { downloadImportSummaryExcel } from "@/lib/excel/exportImportExcel";
@@ -136,6 +138,9 @@ export default function Admission() {
     departmentName: string;
   } | null>(null);
   const [notice, setNotice] = useState<InlineNoticeState>(null);
+  const [oldFileMeta, setOldFileMeta] = useState<null | { unified: string; internal: number | null; lastSeenAt: string | null }>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState<AdmissionFormValues | null>(null);
 
   const unifiedNumberRef = useRef<HTMLInputElement>(null);
 
@@ -302,6 +307,7 @@ export default function Admission() {
   const watchUnifiedNumber = form.watch("unified_number");
   useEffect(() => {
     if (!watchUnifiedNumber || watchUnifiedNumber.trim() === "") {
+      setOldFileMeta(null);
       // Reset all fields except defaults
       form.setValue("patient_name", "");
       form.setValue("national_id", "");
@@ -399,6 +405,7 @@ export default function Admission() {
     }
 
     if (data) {
+      setOldFileMeta({ unified: un, internal: (data as any).internal_number ?? null, lastSeenAt: (data as any).created_at ?? null });
       setNotice({
         title: "✅ تم استرجاع البيانات",
         description: `الملف السابق للمريض - الرقم الداخلي: ${data.internal_number || "سيُنشأ عند الخروج"}`,
@@ -427,6 +434,7 @@ export default function Admission() {
       form.setValue("admission_status", "محجوز");
       form.setValue("admission_source", "داخلي");
     } else {
+      setOldFileMeta(null);
       setNotice({
         title: "ℹ️ مريض جديد",
         description: "لم يتم العثور على سجل سابق - سيُنشأ رقم داخلي جديد عند أول خروج",
@@ -434,6 +442,20 @@ export default function Admission() {
         durationMs: 5000,
       });
     }
+  };
+
+  const personalLocked = !!oldFileMeta;
+
+  const openReview = (values: AdmissionFormValues) => {
+    setPendingSubmit(values);
+    setReviewOpen(true);
+  };
+
+  const nameOf = (list: any[] | undefined, id: string | undefined | null) => {
+    const v = (id ?? "").trim();
+    if (!v) return "—";
+    const hit = (list ?? []).find((x: any) => String(x.id) === v);
+    return (hit?.name as string | undefined) ?? v;
   };
 
   const mutation = useMutation({
@@ -650,7 +672,7 @@ export default function Admission() {
                       });
                       return;
                     }
-                    mutation.mutate(data);
+                    openReview(data);
                   },
                   (errors) => {
                     const first = Object.values(errors)[0];
@@ -665,6 +687,10 @@ export default function Admission() {
                 )}
                 className="space-y-6"
               >
+                {oldFileMeta ? (
+                  <OldFileNotice unifiedNumber={oldFileMeta.unified} internalNumber={oldFileMeta.internal} lastSeenAt={oldFileMeta.lastSeenAt} />
+                ) : null}
+
                 <div className="grid gap-4 md:grid-cols-3">
                   {showField("unified_number") && (
                   <FormField
@@ -710,7 +736,7 @@ export default function Admission() {
                           <RequiredLabel required={isRequired("patient_name")}>اسم المريض (رباعي)</RequiredLabel>
                         </FormLabel>
                         <FormControl>
-                          <Input placeholder="الاسم الرباعي الكامل" {...field} />
+                          <Input placeholder="الاسم الرباعي الكامل" {...field} disabled={personalLocked} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -739,6 +765,7 @@ export default function Admission() {
                             }}
                             onBlur={field.onBlur}
                             name={field.name}
+                            disabled={personalLocked}
                           />
                         </FormControl>
                         <FormMessage />
@@ -765,6 +792,7 @@ export default function Admission() {
                               { id: "أنثى", name: "أنثى" },
                             ]}
                             placeholder="اختر النوع"
+                            disabled={personalLocked}
                           />
                         </FormControl>
                         <FormMessage />
@@ -786,6 +814,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={occupations ?? []}
                             placeholder="اختر المهنة"
+                            disabled={personalLocked}
                             onManage={() => setShowManageDialog("occupation")}
                             onAddNew={() => {
                               setDialogContext(undefined);
@@ -823,6 +852,7 @@ export default function Admission() {
                               { id: "أرمل", name: "أرمل" },
                             ]}
                             placeholder="اختر الحالة الاجتماعية"
+                            disabled={personalLocked}
                             onAddNew={() => {
                               setNotice({
                                 title: "إضافة حالة اجتماعية جديدة",
@@ -861,6 +891,7 @@ export default function Admission() {
                             }}
                             onBlur={field.onBlur}
                             name={field.name}
+                            disabled={personalLocked}
                           />
                         </FormControl>
                         <FormMessage />
@@ -915,6 +946,7 @@ export default function Admission() {
                             }}
                             options={governorates ?? []}
                             placeholder="اختر المحافظة"
+                            disabled={personalLocked}
                             onManage={() => setShowManageDialog("governorate")}
                             onAddNew={() => {
                               setDialogContext(undefined);
@@ -945,6 +977,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={filteredDistricts as any}
                             placeholder="اختر المركز/الحي"
+                            disabled={personalLocked}
                             onManage={() => setShowManageDialog("district")}
                             onAddNew={() => {
                               setDialogContext({ governorate_id: selectedGovernorateId || undefined });
@@ -970,7 +1003,7 @@ export default function Admission() {
                       <FormItem>
                         <FormLabel>العنوان تفصيلي</FormLabel>
                         <FormControl>
-                          <Input placeholder="تفاصيل العنوان" {...field} />
+                          <Input placeholder="تفاصيل العنوان" {...field} disabled={personalLocked} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -991,6 +1024,7 @@ export default function Admission() {
                             onValueChange={field.onChange}
                             options={stations ?? []}
                             placeholder="اختر المحطة"
+                            disabled={personalLocked}
                             onManage={() => setShowManageDialog("station")}
                             onAddNew={() => {
                               setDialogContext(undefined);
@@ -1293,6 +1327,41 @@ export default function Admission() {
             onOpenChange={(open) => setShowManageDialog(open ? showManageDialog : null)}
           />
         )}
+
+        <PreSaveReviewDialog
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          title="مراجعة قبل حفظ الدخول"
+          description="تأكد من البيانات الثابتة (لا تعديل) وبيانات الحجز الحالية ثم اضغط تأكيد."
+          fixed={[
+            { label: "الرقم الموحد", value: pendingSubmit?.unified_number ?? form.getValues("unified_number") },
+            { label: "اسم المريض", value: pendingSubmit?.patient_name ?? form.getValues("patient_name") },
+            { label: "الرقم القومي", value: pendingSubmit?.national_id ?? form.getValues("national_id") },
+            { label: "الهاتف", value: pendingSubmit?.phone ?? form.getValues("phone") },
+            { label: "العنوان", value: pendingSubmit?.address_details ?? form.getValues("address_details") },
+            { label: "المحافظة", value: nameOf(governorates as any, pendingSubmit?.governorate_id ?? form.getValues("governorate_id")) },
+            { label: "المركز/الحي", value: nameOf(districts as any, pendingSubmit?.district_id ?? form.getValues("district_id")) },
+            { label: "المحطة", value: nameOf(stations as any, pendingSubmit?.station_id ?? form.getValues("station_id")) },
+            { label: "المهنة", value: nameOf(occupations as any, pendingSubmit?.occupation_id ?? form.getValues("occupation_id")) },
+          ]}
+          visit={[
+            { label: "قسم الحجز", value: nameOf(departments as any, pendingSubmit?.department_id ?? form.getValues("department_id")) },
+            { label: "التشخيص", value: nameOf(diagnoses as any, pendingSubmit?.diagnosis_id ?? form.getValues("diagnosis_id")) },
+            { label: "الطبيب", value: nameOf(doctors as any, pendingSubmit?.doctor_id ?? form.getValues("doctor_id")) },
+            { label: "تاريخ الدخول", value: pendingSubmit?.admission_date ?? form.getValues("admission_date") },
+            { label: "نوع الدخول", value: pendingSubmit?.admission_source ?? form.getValues("admission_source") },
+            { label: "الحالة", value: pendingSubmit?.admission_status ?? form.getValues("admission_status") },
+            { label: "الرقم الداخلي", value: oldFileMeta?.internal ?? "سيُنشأ عند أول خروج" },
+          ]}
+          confirmLabel="تأكيد حفظ الدخول"
+          loading={mutation.isPending}
+          onConfirm={() => {
+            if (!pendingSubmit) return;
+            setReviewOpen(false);
+            mutation.mutate(pendingSubmit);
+            setPendingSubmit(null);
+          }}
+        />
 
         {successNotification && (
           <AdmissionSuccessNotification
