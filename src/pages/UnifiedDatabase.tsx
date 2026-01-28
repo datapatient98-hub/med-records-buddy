@@ -403,9 +403,19 @@ export default function UnifiedDatabase() {
               {recentLoading ? "جاري التحميل..." : "تحميل آخر بيانات"}
             </Button>
             {historyPayload?.unified_number ? (
-              <Button type="button" variant="outline" onClick={openDialogForCurrent}>
-                عرض السجل الكامل (نافذة)
-              </Button>
+              <>
+                <Button type="button" variant="outline" onClick={openDialogForCurrent}>
+                  عرض السجل الكامل (نافذة)
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={!historyPayload?.unified_number}
+                >
+                  إدارة الحذف
+                </Button>
+              </>
             ) : null}
           </div>
 
