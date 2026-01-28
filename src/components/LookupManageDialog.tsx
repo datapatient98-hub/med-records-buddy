@@ -34,7 +34,7 @@ export default function LookupManageDialog({
   open: boolean;
   type: LookupCreateType;
   onOpenChange: (open: boolean) => void;
-  items: Array<{ id: string; name: string }>;
+  items: Array<{ id: string; name: string; kind?: string | null }>;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -97,7 +97,12 @@ export default function LookupManageDialog({
               <div className="divide-y">
                 {filtered.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-3 p-3">
-                    <div className="text-sm text-foreground truncate">{item.name}</div>
+                    <div className="min-w-0">
+                      <div className="text-sm text-foreground truncate">{item.name}</div>
+                      {type === "diagnosis" && item.kind ? (
+                        <div className="mt-0.5 text-xs text-muted-foreground">النوع: {item.kind}</div>
+                      ) : null}
+                    </div>
                     <Button
                       type="button"
                       variant="destructive"

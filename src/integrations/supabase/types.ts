@@ -266,16 +266,19 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          kind: Database["public"]["Enums"]["diagnosis_kind"]
           name: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["diagnosis_kind"]
           name: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          kind?: Database["public"]["Enums"]["diagnosis_kind"]
           name?: string
         }
         Relationships: []
@@ -1274,6 +1277,7 @@ export type Database = {
       admission_source: "طوارئ" | "داخلي"
       admission_status: "محجوز" | "خروج" | "متوفى" | "تحويل"
       app_role: "admin" | "doctor" | "nurse" | "records_clerk"
+      diagnosis_kind: "مرض" | "عرض"
       discharge_status: "تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج"
       finance_source: "تأمين صحي" | "علاج على نفقة الدولة" | "خاص"
       marital_status: "أعزب" | "متزوج" | "مطلق" | "أرمل"
@@ -1409,6 +1413,7 @@ export const Constants = {
       admission_source: ["طوارئ", "داخلي"],
       admission_status: ["محجوز", "خروج", "متوفى", "تحويل"],
       app_role: ["admin", "doctor", "nurse", "records_clerk"],
+      diagnosis_kind: ["مرض", "عرض"],
       discharge_status: ["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"],
       finance_source: ["تأمين صحي", "علاج على نفقة الدولة", "خاص"],
       marital_status: ["أعزب", "متزوج", "مطلق", "أرمل"],
