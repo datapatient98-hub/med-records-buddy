@@ -266,21 +266,27 @@ export default function FileReview() {
                     const [em, en, pr, lo] = await Promise.all([
                       supabase
                         .from("emergencies")
-                        .select("id, unified_number, patient_name, national_id, phone, internal_number, visit_date, created_at")
+                        .select(
+                          "id, unified_number, patient_name, national_id, phone, gender, age, marital_status, occupation_id, governorate_id, district_id, station_id, address_details, department_id, diagnosis_id, doctor_id, admission_id, internal_number, visit_date, created_at",
+                        )
                         .gte("created_at", ymdToStart(range.from))
                         .lte("created_at", ymdToEnd(range.to))
                         .order("created_at", { ascending: false })
                         .limit(1000),
                       supabase
                         .from("endoscopies")
-                        .select("id, unified_number, patient_name, national_id, phone, internal_number, procedure_date, created_at")
+                        .select(
+                          "id, unified_number, patient_name, national_id, phone, gender, age, marital_status, occupation_id, governorate_id, district_id, station_id, address_details, department_id, diagnosis_id, doctor_id, admission_id, internal_number, admission_date, discharge_date, discharge_department_id, discharge_diagnosis_id, discharge_doctor_id, discharge_status, discharge_status_other, procedure_date, created_at",
+                        )
                         .gte("created_at", ymdToStart(range.from))
                         .lte("created_at", ymdToEnd(range.to))
                         .order("created_at", { ascending: false })
                         .limit(1000),
                       supabase
                         .from("procedures")
-                        .select("id, unified_number, patient_name, national_id, phone, internal_number, procedure_type, procedure_date, created_at")
+                        .select(
+                          "id, unified_number, patient_name, national_id, phone, gender, age, marital_status, occupation_id, governorate_id, district_id, station_id, address_details, department_id, diagnosis_id, doctor_id, admission_id, internal_number, procedure_type, procedure_status, procedure_date, transferred_from_department_id, discharge_department_id, hospital_id, created_at",
+                        )
                         .gte("created_at", ymdToStart(range.from))
                         .lte("created_at", ymdToEnd(range.to))
                         .order("created_at", { ascending: false })
@@ -288,7 +294,7 @@ export default function FileReview() {
                       supabase
                         .from("file_loans")
                         .select(
-                          "id, unified_number, borrowed_by, borrowed_to_department, loan_reason, loan_date, return_date, is_returned, internal_number, created_at",
+                          "id, unified_number, admission_id, borrowed_by, borrowed_to_department, loan_reason, loan_date, return_date, is_returned, internal_number, created_at",
                         )
                         .gte("created_at", ymdToStart(range.from))
                         .lte("created_at", ymdToEnd(range.to))

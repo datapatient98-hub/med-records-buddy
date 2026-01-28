@@ -79,11 +79,24 @@ export function downloadFileReviewServicesExcel(args: {
   (wsSummary as any)["!cols"] = [{ wch: 24 }, { wch: 24 }];
   XLSX.utils.book_append_sheet(wb, wsSummary, "الملخص");
 
+  // Non-breaking export policy: append-only columns.
   const mapCommon = (r: any) => ({
     "الرقم الموحد": r.unified_number ?? "",
     "اسم المريض": r.patient_name ?? "",
     "الرقم القومي": r.national_id ?? "",
+    "النوع": r.gender ?? "",
     "الهاتف": r.phone ?? "",
+    "العمر": r.age ?? "",
+    "الحالة الاجتماعية": r.marital_status ?? "",
+    "المهنة (ID)": r.occupation_id ?? "",
+    "المحافظة (ID)": r.governorate_id ?? "",
+    "المركز/الحي (ID)": r.district_id ?? "",
+    "المحطة (ID)": r.station_id ?? "",
+    "العنوان التفصيلي": r.address_details ?? "",
+    "القسم (ID)": r.department_id ?? "",
+    "التشخيص (ID)": r.diagnosis_id ?? "",
+    "الطبيب (ID)": r.doctor_id ?? "",
+    "Admission ID": r.admission_id ?? "",
     "رقم داخلي": r.internal_number ?? "",
     "تاريخ التسجيل": toDisplayDate(r.created_at),
   });
@@ -92,19 +105,34 @@ export function downloadFileReviewServicesExcel(args: {
     ...mapCommon(r),
     "تاريخ الزيارة": toDisplayDate(r.visit_date),
   }));
+
   const endoscopies = (args.endoscopies ?? []).map((r) => ({
     ...mapCommon(r),
-    "تاريخ الإجراء": toDisplayDate(r.procedure_date),
+    "تاريخ المنظار": toDisplayDate(r.procedure_date),
+    // append-only discharge context (endoscopy)
+    "تاريخ الدخول (منظار)": toDisplayDate(r.admission_date),
+    "تاريخ خروج المنظار": toDisplayDate(r.discharge_date),
+    "حالة خروج المنظار": r.discharge_status ?? "",
+    "حالة خروج المنظار الأخرى": r.discharge_status_other ?? "",
+    "قسم الخروج (ID)": r.discharge_department_id ?? "",
+    "تشخيص الخروج (ID)": r.discharge_diagnosis_id ?? "",
+    "طبيب الخروج (ID)": r.discharge_doctor_id ?? "",
   }));
+
   const procedures = (args.procedures ?? []).map((r) => ({
     ...mapCommon(r),
     "نوع الإجراء": r.procedure_type ?? "",
     "تاريخ الإجراء": toDisplayDate(r.procedure_date),
-    // Non-breaking append-only columns
-    "سبب/حالة/ملاحظات": r.procedure_status ?? "",
+    "حالة الإجراء": r.procedure_status ?? "",
+    // append-only extras (procedures)
+    "قسم التحويل من (ID)": r.transferred_from_department_id ?? "",
+    "قسم الخروج/التحويل (ID)": r.discharge_department_id ?? "",
+    "مستشفى التحويل (ID)": r.hospital_id ?? "",
   }));
 
   const loans = (args.loans ?? []).map((r) => ({
+    // loans table does not include full demographics; keep common keys for consistency,
+    // missing values will be blank.
     ...mapCommon(r),
     "تاريخ الاستعارة": toDisplayDate(r.loan_date),
     "المستعير": r.borrowed_by ?? "",
