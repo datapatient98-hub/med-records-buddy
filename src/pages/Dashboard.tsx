@@ -93,6 +93,16 @@ export default function Dashboard() {
   };
 
   const dateRange = getDateRange();
+  const rangeEnd = format(new Date(), "yyyy-MM-dd");
+
+  const isWithinRange = (raw: unknown) => {
+    if (!raw) return false;
+    const t = new Date(String(raw)).getTime();
+    if (Number.isNaN(t)) return false;
+    const startT = new Date(dateRange.start).getTime();
+    const endT = new Date(rangeEnd).getTime() + 24 * 60 * 60 * 1000 - 1; // end-of-day
+    return t >= startT && t <= endT;
+  };
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -128,7 +138,8 @@ export default function Dashboard() {
       const { data } = await supabase
         .from("admissions")
         .select("*")
-        .gte("created_at", dateRange.start);
+        .gte("admission_date", dateRange.start)
+        .lte("admission_date", rangeEnd);
       return data || [];
     },
   });
@@ -139,7 +150,8 @@ export default function Dashboard() {
       const { data } = await supabase
         .from("discharges")
         .select("*, admissions(*)")
-        .gte("created_at", dateRange.start);
+        .gte("discharge_date", dateRange.start)
+        .lte("discharge_date", rangeEnd);
       return data || [];
     },
   });
@@ -220,16 +232,34 @@ export default function Dashboard() {
   });
 
   // Calculate stats
-  const totalAdmissions = admissionsData?.length || 0;
-  const todayAdmissions = admissionsData?.filter(
-    (a) => format(new Date(a.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-  ).length || 0;
-  const weekAdmissions = admissionsData?.filter(
-    (a) => new Date(a.created_at || "") >= startOfWeek(new Date())
-  ).length || 0;
+  // Only count COMPLETED visits inside the same period:
+  // - must be linked by admission_id
+  // - admission_date AND discharge_date must both be within the selected range
+  const completedDischarges = (dischargesData ?? []).filter((d: any) => {
+    if (!d?.admission_id) return false;
+    if (!d?.admissions?.admission_date) return false;
+    return isWithinRange(d.admissions.admission_date) && isWithinRange(d.discharge_date);
+  });
 
-  const totalDischarges = dischargesData?.length || 0;
-  const deathCases = dischargesData?.filter((d) => d.discharge_status === "وفاة").length || 0;
+  const totalAdmissions = completedDischarges.length;
+  const totalDischarges = completedDischarges.length;
+
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayAdmissions = completedDischarges.filter(
+    (d: any) => format(new Date(d.admissions?.admission_date || ""), "yyyy-MM-dd") === todayStr
+  ).length;
+  const weekAdmissions = completedDischarges.filter(
+    (d: any) => new Date(d.admissions?.admission_date || "") >= startOfWeek(new Date())
+  ).length;
+
+  const todayDischarges = completedDischarges.filter(
+    (d: any) => format(new Date(d.discharge_date || ""), "yyyy-MM-dd") === todayStr
+  ).length;
+  const weekDischarges = completedDischarges.filter(
+    (d: any) => new Date(d.discharge_date || "") >= startOfWeek(new Date())
+  ).length;
+
+  const deathCases = completedDischarges.filter((d: any) => d.discharge_status === "وفاة").length;
   
   const totalEmergencies = emergenciesData?.length || 0;
   const todayEmergencies = emergenciesData?.filter(
@@ -257,10 +287,16 @@ export default function Dashboard() {
 
   // Department stats
   const departmentStats = departments?.map((dept) => {
-    const deptAdmissions = admissionsData?.filter((a) => a.department_id === dept.id).length || 0;
-    const deptDischarges = dischargesData?.filter(
-      (d) => d.admissions?.department_id === dept.id
-    ).length || 0;
+    // Completed (entry-based)
+    const deptAdmissions = completedDischarges.filter(
+      (d: any) => d.admissions?.department_id === dept.id
+    ).length;
+
+    // Completed (exit-based)
+    const deptDischarges = completedDischarges.filter(
+      (d: any) => d.discharge_department_id === dept.id
+    ).length;
+
     const deptActive = activeAdmissions?.filter((a) => a.department_id === dept.id).length || 0;
 
     return {
@@ -294,8 +330,8 @@ export default function Dashboard() {
       const { data } = await supabase
         .from("admissions")
         .select("*")
-        .gte("created_at", format(startDate, "yyyy-MM-dd"))
-        .lte("created_at", format(endDate, "yyyy-MM-dd"));
+        .gte("admission_date", format(startDate, "yyyy-MM-dd"))
+        .lte("admission_date", format(endDate, "yyyy-MM-dd"));
       return data || [];
     },
   });
@@ -312,16 +348,20 @@ export default function Dashboard() {
       const { data } = await supabase
         .from("discharges")
         .select("*")
-        .gte("created_at", format(startDate, "yyyy-MM-dd"))
-        .lte("created_at", format(endDate, "yyyy-MM-dd"));
+        .gte("discharge_date", format(startDate, "yyyy-MM-dd"))
+        .lte("discharge_date", format(endDate, "yyyy-MM-dd"));
       return data || [];
     },
   });
 
   // Monthly data for interactive chart - merged procedures into emergencies
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const admissionsCount = admissionsData?.filter(a => new Date(a.created_at || '').getMonth() === i).length || 0;
-    const dischargesCount = dischargesData?.filter(d => new Date(d.created_at || '').getMonth() === i).length || 0;
+    const admissionsCount = completedDischarges.filter(
+      (d: any) => new Date(d.admissions?.admission_date || "").getMonth() === i
+    ).length;
+    const dischargesCount = completedDischarges.filter(
+      (d: any) => new Date(d.discharge_date || "").getMonth() === i
+    ).length;
     const emergenciesCount = emergenciesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
     const proceduresCount = proceduresData?.filter(p => new Date(p.created_at || '').getMonth() === i).length || 0;
     const endoscopiesCount = endoscopiesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
@@ -523,12 +563,8 @@ export default function Dashboard() {
           icon={Activity}
           color="pink"
           stats={[
-            { label: "اليوم", value: dischargesData?.filter(
-              (d) => format(new Date(d.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-            ).length || 0 },
-            { label: "الأسبوع", value: dischargesData?.filter(
-              (d) => new Date(d.created_at || "") >= startOfWeek(new Date())
-            ).length || 0 },
+            { label: "اليوم", value: todayDischarges },
+            { label: "الأسبوع", value: weekDischarges },
           ]}
         />
 
@@ -572,7 +608,7 @@ export default function Dashboard() {
           <KPICard
             title="حالات الوفاة"
             value={deathCases}
-            previousValue={previousDischarges?.filter(d => d.discharge_status === "وفاة").length}
+              previousValue={previousDischarges?.filter((d: any) => d.discharge_status === "وفاة").length}
             colorScheme="orange"
           />
         </div>
