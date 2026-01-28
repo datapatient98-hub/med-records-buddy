@@ -33,6 +33,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id: string | null
           id: string
+          internal_number: number | null
           last_updated_by: string | null
           marital_status: Database["public"]["Enums"]["marital_status"] | null
           national_id: string | null
@@ -61,6 +62,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
+          internal_number?: number | null
           last_updated_by?: string | null
           marital_status?: Database["public"]["Enums"]["marital_status"] | null
           national_id?: string | null
@@ -89,6 +91,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["patient_gender"] | null
           governorate_id?: string | null
           id?: string
+          internal_number?: number | null
           last_updated_by?: string | null
           marital_status?: Database["public"]["Enums"]["marital_status"] | null
           national_id?: string | null

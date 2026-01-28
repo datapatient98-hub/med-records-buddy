@@ -47,6 +47,7 @@ import { validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
 import { Activity, FileUp, LogOut, Save, UserPlus, Users } from "lucide-react";
 import { useFieldConfig } from "@/components/FieldConfigProvider";
+import { getAuditActorLabel } from "@/lib/auditActor";
 
 const digitsOnly = (msg: string) => z.string().trim().regex(/^\d+$/, msg);
 
@@ -371,12 +372,17 @@ export default function Admission() {
   });
 
   const fetchPatientByUnifiedNumber = async (unifiedNumber: string) => {
-    if (!unifiedNumber) return;
+    const un = (unifiedNumber ?? "").trim();
+    if (!un) {
+      setNotice(null);
+      return;
+    }
 
+    // Fetch last admission for this unified number (sorted by created_at DESC)
     const { data, error } = await supabase
       .from("admissions")
       .select("*")
-      .eq("unified_number", unifiedNumber)
+      .eq("unified_number", un)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -393,6 +399,14 @@ export default function Admission() {
     }
 
     if (data) {
+      setNotice({
+        title: "✅ تم استرجاع البيانات",
+        description: `الملف السابق للمريض - الرقم الداخلي: ${data.internal_number || "سيُنشأ عند الخروج"}`,
+        variant: "success",
+        durationMs: 5000,
+      });
+
+      // Auto-fill personal data (demographic fields + location)
       form.setValue("patient_name", data.patient_name);
       form.setValue("national_id", data.national_id);
       form.setValue("gender", data.gender);
@@ -405,17 +419,18 @@ export default function Admission() {
       if (data.occupation_id) form.setValue("occupation_id", data.occupation_id);
       if (data.station_id) form.setValue("station_id", data.station_id);
 
-      setNotice({
-        title: "تم العثور على بيانات سابقة",
-        description: "تم تعبئة البيانات تلقائياً",
-        variant: "info",
-        durationMs: 5000,
-      });
+      // Clear booking-specific fields (user must select new department/diagnosis/doctor)
+      form.setValue("department_id", "");
+      form.setValue("diagnosis_id", "");
+      form.setValue("doctor_id", "");
+      form.setValue("admission_date", new Date().toISOString().slice(0, 16));
+      form.setValue("admission_status", "محجوز");
+      form.setValue("admission_source", "داخلي");
     } else {
       setNotice({
-        title: "لا يوجد مريض بهذا الرقم",
-        description: "هذا الرقم الموحد غير مسجل من قبل",
-        variant: "error",
+        title: "ℹ️ مريض جديد",
+        description: "لم يتم العثور على سجل سابق - سيُنشأ رقم داخلي جديد عند أول خروج",
+        variant: "info",
         durationMs: 5000,
       });
     }
@@ -423,6 +438,15 @@ export default function Admission() {
 
   const mutation = useMutation({
     mutationFn: async (values: AdmissionFormValues) => {
+      // Get last admission to preserve internal_number if it exists
+      const { data: lastAdmission } = await supabase
+        .from("admissions")
+        .select("internal_number")
+        .eq("unified_number", values.unified_number)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const { data, error } = await supabase
         .from("admissions")
         .insert([
@@ -445,6 +469,8 @@ export default function Admission() {
             diagnosis_id: values.diagnosis_id || null,
             doctor_id: values.doctor_id || null,
             admission_date: values.admission_date,
+            internal_number: lastAdmission?.internal_number || null, // Preserve internal_number
+            last_updated_by: getAuditActorLabel() || null,
           },
         ])
         .select("*, departments(name)")
