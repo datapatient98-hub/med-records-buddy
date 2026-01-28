@@ -75,6 +75,8 @@ const COLORS = {
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
+  // Safety alias: prevents runtime crashes if an older hot-reloaded chunk still references the old name.
+  const DashboardDateRangeFilter = DashboardProfessionalDateRangeCard;
   const [period, setPeriod] = useState<PeriodType>("month");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
