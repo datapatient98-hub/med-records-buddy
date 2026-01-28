@@ -49,8 +49,18 @@ export function DeletionAuditTab() {
     table: "",
   });
 
+  const pageSize = 200;
+  const [page, setPage] = React.useState(0);
+
+  React.useEffect(() => {
+    // reset paging when filters change
+    setPage(0);
+  }, [filters.from, filters.to, filters.unified, filters.actor, filters.table]);
+
+  const limit = pageSize * (page + 1);
+
   const query = useQuery({
-    queryKey: ["deletion_audit", filters],
+    queryKey: ["deletion_audit", filters, limit],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q: any = supabase
@@ -59,7 +69,9 @@ export function DeletionAuditTab() {
           "deleted_at, deleted_by, reason, unified_number, patient_name, internal_number, table_name, record_id, record_snapshot",
         )
         .order("deleted_at", { ascending: false })
-        .limit(500);
+
+        // Fetch +1 to detect if we can load more
+        .limit(limit + 1);
 
       if (filters.from) q = q.gte("deleted_at", toIsoStartOfDay(filters.from));
       if (filters.to) q = q.lt("deleted_at", toIsoStartOfNextDay(filters.to));
@@ -73,7 +85,18 @@ export function DeletionAuditTab() {
     },
   });
 
-  const rows = query.data ?? [];
+  const raw = query.data ?? [];
+  const hasMore = raw.length > limit;
+  const rows = hasMore ? raw.slice(0, limit) : raw;
+
+  const setPresetDays = (days: number) => {
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const start = new Date(today);
+    start.setDate(start.getDate() - (days - 1));
+    const from = start.toISOString().slice(0, 10);
+    setFilters((p) => ({ ...p, from, to: end }));
+  };
 
   const exportExcel = () => {
     downloadDeletionAuditExcel({
@@ -90,10 +113,22 @@ export function DeletionAuditTab() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">
               <div className="text-sm font-bold">سجل المحذوفات</div>
-              <div className="text-xs text-muted-foreground">يعرض آخر 500 عملية (مع الفلترة)</div>
+              <div className="text-xs text-muted-foreground">يعرض حتى {limit} عملية (مع الفلترة)</div>
             </div>
             <Button type="button" variant="secondary" onClick={exportExcel} disabled={!rows.length}>
               تصدير Excel
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setPresetDays(1)}>
+              اليوم
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setPresetDays(7)}>
+              آخر 7 أيام
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setPresetDays(30)}>
+              آخر 30 يوم
             </Button>
           </div>
 
@@ -196,6 +231,12 @@ export function DeletionAuditTab() {
               )}
             </div>
           </ScrollArea>
+
+          <div className="flex justify-center">
+            <Button type="button" variant="outline" onClick={() => setPage((p) => p + 1)} disabled={!hasMore || query.isFetching}>
+              {hasMore ? "تحميل المزيد" : "لا يوجد المزيد"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
