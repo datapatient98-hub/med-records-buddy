@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,15 +104,16 @@ export type ExitHistoryPayload = {
   loans: AnyRow[];
 };
 
-export default function ExitHistoryDialog({
-  open,
-  onOpenChange,
-  payload,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  payload: ExitHistoryPayload | null;
-}) {
+const ExitHistoryDialog = React.forwardRef<
+  HTMLDivElement,
+  {
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+    payload: ExitHistoryPayload | null;
+  }
+>(function ExitHistoryDialog({ open, onOpenChange, payload }, _ref) {
+  // NOTE: forwardRef here is intentional to avoid Radix/React ref warnings
+  // when this component is used in compositions that may pass refs.
   const [tab, setTab] = useState("discharges");
   const p = payload;
 
@@ -165,4 +167,8 @@ export default function ExitHistoryDialog({
       </DialogContent>
     </Dialog>
   );
-}
+});
+
+ExitHistoryDialog.displayName = "ExitHistoryDialog";
+
+export default ExitHistoryDialog;
