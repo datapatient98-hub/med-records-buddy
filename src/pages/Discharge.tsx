@@ -23,6 +23,8 @@ import LookupManageDialog from "@/components/LookupManageDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useFieldConfig } from "@/components/FieldConfigProvider";
 import { getAuditActorLabel } from "@/lib/auditActor";
+import OldFileNotice from "@/components/OldFileNotice";
+import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().optional().or(z.literal("")),
@@ -66,6 +68,8 @@ export default function Discharge() {
   const [showOccupationManage, setShowOccupationManage] = useState(false);
   const [isEmergencyFile, setIsEmergencyFile] = useState(false);
   const [registrationAt, setRegistrationAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState<DischargeFormValues | null>(null);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -461,7 +465,8 @@ export default function Discharge() {
       form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
       return;
     }
-    mutation.mutate(data);
+    setPendingSubmit(data);
+    setReviewOpen(true);
   };
 
   const handleEditAdmission = () => {
@@ -555,6 +560,12 @@ export default function Discharge() {
               </AlertDescription>
             </Alert>
           )}
+
+          <OldFileNotice
+            unifiedNumber={selectedAdmission.unified_number}
+            internalNumber={(selectedAdmission as any).internal_number ?? null}
+            lastSeenAt={(selectedAdmission as any).created_at ?? null}
+          />
         
         <Card className="shadow-lg border-border">
           <CardHeader>
@@ -648,6 +659,12 @@ export default function Discharge() {
             <CardDescription>يرجى ملء بيانات الخروج</CardDescription>
           </CardHeader>
           <CardContent>
+            <OldFileNotice
+              unifiedNumber={selectedAdmission.unified_number}
+              internalNumber={(selectedAdmission as any).internal_number ?? null}
+              lastSeenAt={(selectedAdmission as any).created_at ?? null}
+            />
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -899,6 +916,31 @@ export default function Discharge() {
           </CardContent>
         </Card>
       )}
+
+      <PreSaveReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        title="مراجعة قبل حفظ الخروج"
+        description="راجع بيانات المريض وبيانات الخروج ثم أكد الحفظ."
+        fixed={[
+          { label: "اسم المريض", value: selectedAdmission?.patient_name ?? "—" },
+          { label: "الرقم الموحد", value: selectedAdmission?.unified_number ?? "—" },
+          { label: "الرقم الداخلي", value: (selectedAdmission as any)?.internal_number ?? "سيُنشأ عند أول خروج" },
+        ]}
+        visit={[
+          { label: "تاريخ الخروج", value: pendingSubmit?.discharge_date ?? form.getValues("discharge_date") },
+          { label: "حالة الخروج", value: pendingSubmit?.discharge_status ?? form.getValues("discharge_status") },
+          { label: "مصدر التمويل", value: pendingSubmit?.finance_source ?? form.getValues("finance_source") },
+        ]}
+        confirmLabel="تأكيد حفظ الخروج"
+        loading={mutation.isPending}
+        onConfirm={() => {
+          if (!pendingSubmit) return;
+          setReviewOpen(false);
+          mutation.mutate(pendingSubmit);
+          setPendingSubmit(null);
+        }}
+      />
 
       <LookupCreateDialog
         open={showHospitalDialog}

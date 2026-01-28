@@ -174,6 +174,8 @@ export default function UnifiedPatientHistoryDialog({
               <span className="text-muted-foreground">•</span>
               <span className="font-semibold">الرقم الداخلي: {headerMeta.internalNumber}</span>
               <span className="text-muted-foreground">•</span>
+              <span className="font-semibold">الرقم الداخلي ثابت</span>
+              <span className="text-muted-foreground">•</span>
               <span className="font-semibold">آخر حدث: {headerMeta.lastEventAt}</span>
               <span className="text-muted-foreground">•</span>
               <span className="font-semibold">آخر تحديث: {headerMeta.lastUpdateAt}</span>

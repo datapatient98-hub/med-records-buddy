@@ -29,6 +29,7 @@ interface SearchableSelectProps {
   addNewLabel?: string;
   /** Show clear (X) button to فقط مسح الاختيار بدون حذف العنصر */
   allowClear?: boolean;
+  disabled?: boolean;
 }
 
 const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectProps>(function SearchableSelect(
@@ -42,6 +43,7 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
     onManage,
     addNewLabel = "إضافة جديد",
     allowClear = true,
+    disabled = false,
   },
   ref
 ) {
@@ -84,7 +86,13 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
 
   return (
     <div className="relative w-full">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(v) => {
+          if (disabled) return;
+          setOpen(v);
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             ref={ref}
@@ -92,13 +100,14 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
             role="combobox"
             aria-expanded={open}
             className="w-full justify-between text-right pr-3"
+            disabled={disabled}
           >
             <span className="flex-1 text-right truncate">
               {selectedOption ? selectedOption.name : placeholder}
             </span>
 
             {/* IMPORTANT: avoid nesting <button> inside <button> (invalid HTML) */}
-            {allowClear && value && (
+            {allowClear && value && !disabled && (
               <span
                 role="button"
                 tabIndex={0}
@@ -125,7 +134,7 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="ml-2 mr-2 flex items-center gap-1">
-                      {onManage && (
+                      {onManage && !disabled && (
                         <span
                           role="button"
                           tabIndex={0}
@@ -152,7 +161,7 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
                         </span>
                       )}
 
-                      {onAddNew && (
+                      {onAddNew && !disabled && (
                         <span
                           role="button"
                           tabIndex={0}
@@ -196,6 +205,7 @@ const SearchableSelect = React.forwardRef<HTMLButtonElement, SearchableSelectPro
               value={searchQuery}
               onValueChange={setSearchQuery}
               className="text-right"
+              disabled={disabled}
             />
             <CommandList>
               <CommandEmpty>{emptyText}</CommandEmpty>

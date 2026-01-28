@@ -23,6 +23,8 @@ import { useNavigate } from "react-router-dom";
 import EndoscopyForm, { type EndoscopyFormValues } from "@/components/MedicalProcedures/EndoscopyForm";
 import { useFieldConfig } from "@/components/FieldConfigProvider";
 import { getAuditActorLabel } from "@/lib/auditActor";
+import OldFileNotice from "@/components/OldFileNotice";
+import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
  
   type ProcedureType = "procedure" | "reception" | "kidney" | "endoscopy";
  
@@ -50,6 +52,10 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
    const [selectedAdmission, setSelectedAdmission] = useState<AdmissionData | null>(null);
     const [endoscopyNewMode, setEndoscopyNewMode] = useState(false);
    const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
+   const [reviewOpen, setReviewOpen] = useState(false);
+   const [pendingSubmit, setPendingSubmit] = useState<ProcedureFormValues | null>(null);
+   const [endoReviewOpen, setEndoReviewOpen] = useState(false);
+   const [pendingEndo, setPendingEndo] = useState<EndoscopyFormValues | null>(null);
    
    // Lookup dialog states
    const [showDiagnosisDialog, setShowDiagnosisDialog] = useState(false);
@@ -700,7 +706,8 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
        form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
        return;
      }
-     mutation.mutate(data);
+      setPendingSubmit(data);
+      setReviewOpen(true);
    };
  
    const handleTabChange = (newTab: ProcedureType) => {
@@ -871,6 +878,14 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           )}
  
          {/* Patient Data Display Card */}
+          {selectedAdmission ? (
+            <OldFileNotice
+              unifiedNumber={selectedAdmission.unified_number}
+              internalNumber={(selectedAdmission as any).internal_number ?? null}
+              lastSeenAt={(selectedAdmission as any).created_at ?? null}
+            />
+          ) : null}
+
          {selectedAdmission && (
           <Card className="shadow-2xl border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 animate-fade-in">
              <CardHeader className="pb-3">
@@ -1741,9 +1756,61 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
                 return match ? [match] : [];
               })()}
               isSubmitting={endoscopyMutation.isPending}
-              onSubmit={(values) => endoscopyMutation.mutate(values)}
+              onSubmit={(values) => {
+                setPendingEndo(values);
+                setEndoReviewOpen(true);
+              }}
             />
           )}
+
+          <PreSaveReviewDialog
+            open={reviewOpen}
+            onOpenChange={setReviewOpen}
+            title="مراجعة قبل الحفظ"
+            description="راجع بيانات المريض وبيانات الإجراء ثم أكد الحفظ."
+            fixed={[
+              { label: "اسم المريض", value: selectedAdmission?.patient_name ?? "-" },
+              { label: "الرقم الموحد", value: selectedAdmission?.unified_number ?? searchNumber.trim() },
+              { label: "الرقم الداخلي", value: (selectedAdmission as any)?.internal_number ?? "سيُنشأ عند أول خروج" },
+            ]}
+            visit={[
+              { label: "نوع الإجراء", value: activeTab },
+              { label: "تاريخ/وقت الإجراء", value: pendingSubmit?.procedure_date ?? form.getValues("procedure_date") },
+              { label: "حالة الخروج", value: pendingSubmit?.procedure_status ?? form.getValues("procedure_status") },
+            ]}
+            confirmLabel="تأكيد حفظ الإجراء"
+            loading={mutation.isPending}
+            onConfirm={() => {
+              if (!pendingSubmit) return;
+              setReviewOpen(false);
+              mutation.mutate(pendingSubmit);
+              setPendingSubmit(null);
+            }}
+          />
+
+          <PreSaveReviewDialog
+            open={endoReviewOpen}
+            onOpenChange={setEndoReviewOpen}
+            title="مراجعة قبل حفظ المناظير"
+            description="راجع البيانات سريعاً ثم أكد الحفظ."
+            fixed={[
+              { label: "الرقم الموحد", value: searchNumber.trim() },
+              { label: "الرقم الداخلي", value: (selectedAdmission as any)?.internal_number ?? "سيُنشأ عند أول خروج" },
+            ]}
+            visit={[
+              { label: "اسم المريض", value: pendingEndo?.patient_name ?? "-" },
+              { label: "تاريخ المنظار", value: pendingEndo?.procedure_date ?? "-" },
+              { label: "حالة الخروج", value: pendingEndo?.discharge_status ?? "-" },
+            ]}
+            confirmLabel="تأكيد حفظ المناظير"
+            loading={endoscopyMutation.isPending}
+            onConfirm={() => {
+              if (!pendingEndo) return;
+              setEndoReviewOpen(false);
+              endoscopyMutation.mutate(pendingEndo);
+              setPendingEndo(null);
+            }}
+          />
 
           {showHospitalManage && (
             <LookupManageDialog

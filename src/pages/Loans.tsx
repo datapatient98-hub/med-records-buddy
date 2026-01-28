@@ -19,6 +19,8 @@ import { FileArchive, Save, Search, FolderOpen, FolderCheck, Files } from "lucid
 import LoanSuggestInput from "@/components/LoanSuggestInput";
 import LoanLookupCreateDialog, { type LoanLookupType } from "@/components/LoanLookupCreateDialog";
 import LoanLookupManageDialog from "@/components/LoanLookupManageDialog";
+import OldFileNotice from "@/components/OldFileNotice";
+import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
 
 const loanSchema = z.object({
   borrowed_by: z.string().min(1, "اسم المستعير مطلوب"),
@@ -61,6 +63,8 @@ export default function Loans() {
   const [loansSearch, setLoansSearch] = useState("");
   const [lastAdmissionInternalNumber, setLastAdmissionInternalNumber] = useState<number | null>(null);
   const [activeLoanInfo, setActiveLoanInfo] = useState<LoanRow | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState<LoanFormValues | null>(null);
 
   const [loanLookupType, setLoanLookupType] = useState<LoanLookupType>("borrower");
   const [lookupCreateOpen, setLookupCreateOpen] = useState(false);
@@ -278,7 +282,10 @@ export default function Loans() {
     },
   });
 
-  const onSubmit = (data: LoanFormValues) => mutation.mutate(data);
+  const onSubmit = (data: LoanFormValues) => {
+    setPendingSubmit(data);
+    setReviewOpen(true);
+  };
 
   const loansForTabRaw = activeTab === "borrowed" ? borrowedLoans : activeTab === "returned" ? returnedLoans : loans || [];
 
@@ -434,6 +441,12 @@ export default function Loans() {
             {/* Patient Info */}
             {selectedAdmission && (
               <div className="p-4 rounded-lg bg-secondary/50 border border-border">
+                <OldFileNotice
+                  unifiedNumber={selectedAdmission.unified_number}
+                  internalNumber={lastAdmissionInternalNumber}
+                  lastSeenAt={(selectedAdmission as any)?.created_at ?? null}
+                />
+
                 <div className="grid gap-3 md:grid-cols-3">
                   <div>
                     <p className="text-xs text-muted-foreground">اسم المريض</p>
@@ -598,6 +611,32 @@ export default function Loans() {
                 </form>
               </Form>
             )}
+
+            <PreSaveReviewDialog
+              open={reviewOpen}
+              onOpenChange={setReviewOpen}
+              title="مراجعة قبل حفظ الاستعارة"
+              description="راجع بيانات المريض وبيانات الاستعارة ثم أكد الحفظ."
+              fixed={[
+                { label: "اسم المريض", value: selectedAdmission?.patient_name ?? "-" },
+                { label: "الرقم الموحد", value: selectedAdmission?.unified_number ?? "-" },
+                { label: "الرقم الداخلي", value: lastAdmissionInternalNumber ?? "سيُنشأ عند أول خروج" },
+              ]}
+              visit={[
+                { label: "المستعير", value: pendingSubmit?.borrowed_by ?? form.getValues("borrowed_by") },
+                { label: "القسم", value: pendingSubmit?.borrowed_to_department ?? form.getValues("borrowed_to_department") },
+                { label: "السبب", value: pendingSubmit?.loan_reason ?? form.getValues("loan_reason") },
+                { label: "تاريخ الاستعارة", value: pendingSubmit?.loan_date ?? form.getValues("loan_date") },
+              ]}
+              confirmLabel="تأكيد حفظ الاستعارة"
+              loading={mutation.isPending}
+              onConfirm={() => {
+                if (!pendingSubmit) return;
+                setReviewOpen(false);
+                mutation.mutate(pendingSubmit);
+                setPendingSubmit(null);
+              }}
+            />
           </CardContent>
         </Card>
 
