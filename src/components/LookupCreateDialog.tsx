@@ -11,6 +11,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export type LookupCreateType =
   | "department"
@@ -105,12 +112,14 @@ export default function LookupCreateDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
+  const [diagnosisKind, setDiagnosisKind] = useState<"مرض" | "عرض">("مرض");
   const [saving, setSaving] = useState(false);
 
   const meta = useMemo(() => typeMeta[type], [type]);
 
   const handleClose = () => {
     setName("");
+    setDiagnosisKind("مرض");
     onOpenChange(false);
   };
 
@@ -130,6 +139,9 @@ export default function LookupCreateDialog({
       const payload: Record<string, any> = { name: clean };
       if (type === "district" && context?.governorate_id) {
         payload.governorate_id = context.governorate_id;
+      }
+      if (type === "diagnosis") {
+        payload.kind = diagnosisKind;
       }
 
       const { data, error } = await supabase
@@ -180,6 +192,24 @@ export default function LookupCreateDialog({
             placeholder={meta.placeholder}
             autoFocus
           />
+
+          {type === "diagnosis" ? (
+            <div className="pt-2 space-y-2">
+              <label className="text-sm font-medium text-foreground">النوع</label>
+              <Select value={diagnosisKind} onValueChange={(v) => setDiagnosisKind(v as any)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر النوع" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="مرض">مرض</SelectItem>
+                  <SelectItem value="عرض">عرض</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                يساعد في ضبط الجودة (شديد → أخف) لاحقًا.
+              </p>
+            </div>
+          ) : null}
           <p className="text-xs text-muted-foreground">بعد الحفظ سيتم تحديث القائمة تلقائياً.</p>
         </div>
 
