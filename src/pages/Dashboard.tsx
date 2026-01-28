@@ -297,6 +297,20 @@ export default function Dashboard() {
       (d: any) => d.discharge_department_id === dept.id
     ).length;
 
+    // إجمالي الزيارات للقسم (بدون تكرار):
+    // - لو نفس الزيارة قسم الدخول = قسم الخروج، تتحسب مرة واحدة فقط.
+    // - لو الزيارة دخلت من قسم وخرجت من قسم مختلف، تظهر كزيارة ضمن كل قسم على حدة.
+    const deptTotalVisits = new Set(
+      completedDischarges
+        .filter(
+          (d: any) =>
+            d?.admission_id &&
+            (d.admissions?.department_id === dept.id ||
+              d.discharge_department_id === dept.id)
+        )
+        .map((d: any) => String(d.admission_id))
+    ).size;
+
     const deptActive = activeAdmissions?.filter((a) => a.department_id === dept.id).length || 0;
 
     return {
@@ -304,7 +318,7 @@ export default function Dashboard() {
       admissions: deptAdmissions,
       discharges: deptDischarges,
       active: deptActive,
-      totalCases: deptAdmissions + deptDischarges,
+      totalCases: deptTotalVisits,
     };
   }) || [];
 
