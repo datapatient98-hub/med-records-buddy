@@ -340,11 +340,14 @@ export default function Discharge() {
     mutationFn: async (values: DischargeFormValues) => {
       if (!selectedAdmission) return;
 
+      // If admission doesn't have internal_number yet, database will generate one
+      // Otherwise, we preserve the existing internal_number from admission
       // Insert discharge record
       const { data: dischargeData, error: dischargeError } = await supabase
         .from("discharges")
         .insert([{
           admission_id: selectedAdmission.id,
+          internal_number: selectedAdmission.internal_number || undefined, // Use existing or let DB generate
           discharge_date: values.discharge_date,
           discharge_department_id: values.discharge_department_id || null,
           discharge_diagnosis_id: values.discharge_diagnosis_id || null,
@@ -359,10 +362,14 @@ export default function Discharge() {
 
       if (dischargeError) throw dischargeError;
 
-      // Update admission status
+      // Update admission status AND save internal_number back to admission if it was just generated
       const { error: updateError } = await supabase
         .from("admissions")
-        .update({ admission_status: "خروج" as any, last_updated_by: getAuditActorLabel() || null })
+        .update({ 
+          admission_status: "خروج" as any, 
+          internal_number: dischargeData?.internal_number || selectedAdmission.internal_number,
+          last_updated_by: getAuditActorLabel() || null 
+        })
         .eq("id", selectedAdmission.id);
 
       if (updateError) throw updateError;

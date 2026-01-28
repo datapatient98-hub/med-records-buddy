@@ -551,6 +551,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
         procedure_status: values.procedure_status || null,
         hospital_id: values.hospital_id || null,
         transferred_from_department_id: values.transferred_from_department_id || null,
+        internal_number: selectedAdmission.internal_number || undefined, // Use existing or let DB generate
        };
  
        const { data, error } = await supabase
@@ -560,6 +561,15 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
          .single();
  
        if (error) throw error;
+
+        // Update admission's internal_number if it was just generated
+        if (!selectedAdmission.internal_number && data.internal_number) {
+          await supabase
+            .from("admissions")
+            .update({ internal_number: data.internal_number })
+            .eq("id", selectedAdmission.id);
+        }
+
        return data;
      },
      onSuccess: (data) => {
@@ -641,6 +651,7 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           discharge_department_id: values.department_id,
           discharge_diagnosis_id: values.discharge_diagnosis_id ? values.discharge_diagnosis_id : null,
           discharge_doctor_id: values.discharge_doctor_id ? values.discharge_doctor_id : null,
+          internal_number: selectedAdmission?.internal_number || undefined, // Use existing or let DB generate
         };
 
         const { data, error } = await supabase
@@ -649,6 +660,15 @@ type ProcedureData = Database["public"]["Tables"]["procedures"]["Row"];
           .select()
           .single();
         if (error) throw error;
+
+        // Update admission's internal_number if it was just generated
+        if (selectedAdmission && !selectedAdmission.internal_number && data.internal_number) {
+          await supabase
+            .from("admissions")
+            .update({ internal_number: data.internal_number })
+            .eq("id", selectedAdmission.id);
+        }
+
         return data;
       },
       onSuccess: (data) => {
