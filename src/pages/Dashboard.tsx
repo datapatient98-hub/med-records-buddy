@@ -7,9 +7,10 @@ import KPICard from "@/components/KPICard";
 import LoanAlertNotification from "@/components/LoanAlertNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import DashboardDateRangeFilter, {
-  type DateRangeValue,
-} from "@/components/dashboard/DashboardDateRangeFilter";
+import type { DateRangeValue } from "@/components/dashboard/DashboardDateRangeFilter";
+import DashboardProfessionalDateRangeCard, {
+  type PeriodType,
+} from "@/components/dashboard/DashboardProfessionalDateRangeCard";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,8 +72,6 @@ const COLORS = {
   purple: "hsl(var(--chart-4))",
   orange: "hsl(var(--chart-3))",
 };
-
-type PeriodType = "today" | "week" | "month" | "quarter" | "year";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -676,38 +675,20 @@ export default function Dashboard() {
                   تصدير
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[220px]">
+              <DropdownMenuContent
+                align="end"
+                className="min-w-[220px] bg-popover text-popover-foreground shadow-md border z-50"
+              >
                 <DropdownMenuItem onSelect={() => setExportOpen(true)}>
                   <FileDown className="ml-2 h-4 w-4" />
                   تصدير Excel (يوم محدد)
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            {[
-              { key: "today", label: "اليوم" },
-              { key: "week", label: "الأسبوع" },
-              { key: "month", label: "الشهر" },
-              { key: "quarter", label: "3 أشهر" },
-              { key: "year", label: "السنة" },
-            ].map((p) => (
-            <Button
-              key={p.key}
-              variant={period === p.key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPeriod(p.key as PeriodType)}
-            >
-              {p.label}
-            </Button>
-          ))}
         </div>
       </div>
 
-      <DashboardDateRangeFilter
-        value={dateRangeValue}
-        onChange={(next) => setDateRangeValue(next)}
-      />
-
-        {/* Export Panel (always first under the date-range filter) */}
+        {/* Export Panel (top) */}
         <Card id="dashboard-export-panel" className="bg-card/50 backdrop-blur border-r-4 border-primary">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -722,6 +703,14 @@ export default function Dashboard() {
             <DashboardExportForm compact />
           </CardContent>
         </Card>
+
+        {/* Date Range (professional, under export) */}
+        <DashboardProfessionalDateRangeCard
+          value={dateRangeValue}
+          onChange={(next) => setDateRangeValue(next)}
+          period={period}
+          onPeriodChange={setPeriod}
+        />
 
         {/* Global Outcomes Summary (Discharges + Endoscopies) */}
         <Card className="border-border bg-card/50 backdrop-blur">
