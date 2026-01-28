@@ -7,6 +7,9 @@ import KPICard from "@/components/KPICard";
 import LoanAlertNotification from "@/components/LoanAlertNotification";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import DashboardDateRangeFilter, {
+  type DateRangeValue,
+} from "@/components/dashboard/DashboardDateRangeFilter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,7 +54,14 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { format, subDays, startOfWeek, startOfMonth, startOfYear } from "date-fns";
+import {
+  format,
+  subDays,
+  startOfWeek,
+  startOfMonth,
+  startOfYear,
+  differenceInCalendarDays,
+} from "date-fns";
 
 const COLORS = {
   primary: "hsl(var(--chart-1))",
@@ -69,6 +79,15 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<PeriodType>("month");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
+
+  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(() => {
+    const now = new Date();
+    const start = startOfMonth(now);
+    return {
+      from: format(start, "yyyy-MM-dd"),
+      to: format(now, "yyyy-MM-dd"),
+    };
+  });
   
   // Chart visibility toggles - merged procedures (بذل) into emergencies
   const [visibleSeries, setVisibleSeries] = useState({
@@ -98,13 +117,26 @@ export default function Dashboard() {
   };
 
   const dateRange = getDateRange();
-  const rangeEnd = format(new Date(), "yyyy-MM-dd");
+  const rangeEnd = dateRangeValue.to;
+  const rangeStart = dateRangeValue.from;
+
+  // Sync the quick buttons with the custom range (date-only) to keep UX consistent.
+  // Any time the user clicks a quick period, we update the from/to.
+  useEffect(() => {
+    const now = new Date();
+    setDateRangeValue((prev) => ({
+      ...prev,
+      from: dateRange.start,
+      to: format(now, "yyyy-MM-dd"),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
 
   const isWithinRange = (raw: unknown) => {
     if (!raw) return false;
     const t = new Date(String(raw)).getTime();
     if (Number.isNaN(t)) return false;
-    const startT = new Date(dateRange.start).getTime();
+    const startT = new Date(rangeStart).getTime();
     const endT = new Date(rangeEnd).getTime() + 24 * 60 * 60 * 1000 - 1; // end-of-day
     return t >= startT && t <= endT;
   };
@@ -138,64 +170,64 @@ export default function Dashboard() {
 
   // Fetch all data
   const { data: admissionsData } = useQuery({
-    queryKey: ["admissions-period", period],
+    queryKey: ["admissions-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("admissions")
         .select(
           "id, department_id, admission_date, patient_name, unified_number, national_id, phone, address_details"
         )
-        .gte("admission_date", dateRange.start)
+        .gte("admission_date", rangeStart)
         .lte("admission_date", rangeEnd);
       return data || [];
     },
   });
 
   const { data: dischargesData } = useQuery({
-    queryKey: ["discharges-period", period],
+    queryKey: ["discharges-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("discharges")
         .select(
           "id, admission_id, discharge_date, discharge_department_id, discharge_status, created_at, admissions(id, admission_date, department_id, unified_number)"
         )
-        .gte("discharge_date", dateRange.start)
+        .gte("discharge_date", rangeStart)
         .lte("discharge_date", rangeEnd);
       return data || [];
     },
   });
 
   const { data: emergenciesData } = useQuery({
-    queryKey: ["emergencies-period", period],
+    queryKey: ["emergencies-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("emergencies")
         .select("id, visit_date")
-        .gte("visit_date", dateRange.start)
+        .gte("visit_date", rangeStart)
         .lte("visit_date", rangeEnd);
       return data || [];
     },
   });
 
   const { data: endoscopiesData } = useQuery({
-    queryKey: ["endoscopies-period", period],
+    queryKey: ["endoscopies-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("endoscopies")
         .select("id, procedure_date")
-        .gte("procedure_date", dateRange.start)
+        .gte("procedure_date", rangeStart)
         .lte("procedure_date", rangeEnd);
       return data || [];
     },
   });
 
   const { data: proceduresData } = useQuery({
-    queryKey: ["procedures-period", period],
+    queryKey: ["procedures-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("procedures")
-        .select("id, procedure_date")
-        .gte("procedure_date", dateRange.start)
+        .select("id, procedure_date, procedure_type")
+        .gte("procedure_date", rangeStart)
         .lte("procedure_date", rangeEnd);
       return data || [];
     },
@@ -222,12 +254,12 @@ export default function Dashboard() {
 
   // Fetch loans data
   const { data: loansData } = useQuery({
-    queryKey: ["loans-period", period],
+    queryKey: ["loans-period", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("file_loans")
         .select("id, is_returned, loan_date")
-        .gte("loan_date", dateRange.start)
+        .gte("loan_date", rangeStart)
         .lte("loan_date", rangeEnd);
       return data || [];
     },
@@ -245,12 +277,12 @@ export default function Dashboard() {
   });
 
   const { data: admissionsAudit } = useQuery({
-    queryKey: ["admissions-audit", period],
+    queryKey: ["admissions-audit", rangeStart, rangeEnd],
     queryFn: async () => {
       const { data } = await supabase
         .from("admissions_audit")
         .select("id, changed_at, changed_fields")
-        .gte("changed_at", dateRange.start)
+        .gte("changed_at", rangeStart)
         .lte("changed_at", rangeEnd)
         .order("changed_at", { ascending: false })
         .limit(200);
@@ -313,6 +345,29 @@ export default function Dashboard() {
     ).length || 0;
 
   const totalProcedures = proceduresData?.length || 0;
+  // More accurate breakdowns
+  const dischargeByStatus = (dischargesData ?? []).reduce(
+    (acc: Record<string, number>, d: any) => {
+      const status = String(d?.discharge_status || "غير محدد").trim() || "غير محدد";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    },
+    {}
+  );
+
+  const countDischargeStatus = (status: string) => dischargeByStatus[status] || 0;
+
+  const proceduresByType = (proceduresData ?? []).reduce(
+    (acc: Record<string, number>, p: any) => {
+      const t = String(p?.procedure_type || "غير محدد").trim() || "غير محدد";
+      acc[t] = (acc[t] || 0) + 1;
+      return acc;
+    },
+    {}
+  );
+
+  const countProcedureType = (t: string) => proceduresByType[t] || 0;
+
   const todayProcedures =
     proceduresData?.filter(
       (p: any) =>
@@ -499,17 +554,17 @@ export default function Dashboard() {
 
   // KPI calculations for previous period (for comparison)
   const { data: previousAdmissions } = useQuery({
-    queryKey: ["previous-admissions", period],
+    queryKey: ["previous-admissions", rangeStart, rangeEnd],
     queryFn: async () => {
-      const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : period === "quarter" ? 90 : 365;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - periodDays * 2);
-      const endDate = new Date();
+      const periodDays = Math.max(1, differenceInCalendarDays(new Date(rangeEnd), new Date(rangeStart)) + 1);
+      const startDate = new Date(rangeStart);
+      startDate.setDate(startDate.getDate() - periodDays);
+      const endDate = new Date(rangeEnd);
       endDate.setDate(endDate.getDate() - periodDays);
       
       const { data } = await supabase
         .from("admissions")
-        .select("*")
+        .select("id")
         .gte("admission_date", format(startDate, "yyyy-MM-dd"))
         .lte("admission_date", format(endDate, "yyyy-MM-dd"));
       return data || [];
@@ -517,17 +572,17 @@ export default function Dashboard() {
   });
 
   const { data: previousDischarges } = useQuery({
-    queryKey: ["previous-discharges", period],
+    queryKey: ["previous-discharges", rangeStart, rangeEnd],
     queryFn: async () => {
-      const periodDays = period === "today" ? 1 : period === "week" ? 7 : period === "month" ? 30 : period === "quarter" ? 90 : 365;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - periodDays * 2);
-      const endDate = new Date();
+      const periodDays = Math.max(1, differenceInCalendarDays(new Date(rangeEnd), new Date(rangeStart)) + 1);
+      const startDate = new Date(rangeStart);
+      startDate.setDate(startDate.getDate() - periodDays);
+      const endDate = new Date(rangeEnd);
       endDate.setDate(endDate.getDate() - periodDays);
       
       const { data } = await supabase
         .from("discharges")
-        .select("*")
+        .select("id, discharge_status")
         .gte("discharge_date", format(startDate, "yyyy-MM-dd"))
         .lte("discharge_date", format(endDate, "yyyy-MM-dd"));
       return data || [];
@@ -570,7 +625,9 @@ export default function Dashboard() {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-3xl font-bold text-foreground">لوحة التحكم</h2>
-            <p className="text-muted-foreground">نظرة شاملة على البيانات - {dateRange.label}</p>
+            <p className="text-muted-foreground">
+              نظرة شاملة على البيانات — {rangeStart} → {rangeEnd}
+            </p>
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -624,6 +681,11 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      <DashboardDateRangeFilter
+        value={dateRangeValue}
+        onChange={(next) => setDateRangeValue(next)}
+      />
 
        {/* Export Panel (clear + always visible) */}
        <Card className="bg-card/50 backdrop-blur border-r-4 border-primary">
@@ -765,6 +827,76 @@ export default function Dashboard() {
             { label: "الأسبوع", value: weekEndoscopies },
           ]}
         />
+      </div>
+
+      {/* Detailed Breakdown */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <FileText className="h-5 w-5 text-primary" />
+              تفصيل الخروج حسب الحالة
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              محسوب حسب تاريخ الخروج داخل الفترة (بدون شرط تاريخ الدخول).
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">تحسن</span>
+                <span className="text-lg font-semibold text-foreground">{countDischargeStatus("تحسن")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">تحويل</span>
+                <span className="text-lg font-semibold text-foreground">{countDischargeStatus("تحويل")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">هروب</span>
+                <span className="text-lg font-semibold text-foreground">{countDischargeStatus("هروب")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">وفاة</span>
+                <span className="text-lg font-semibold text-foreground">{countDischargeStatus("وفاة")}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Syringe className="h-5 w-5 text-primary" />
+              تفصيل الإجراءات حسب النوع
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">محسوب حسب تاريخ الإجراء داخل الفترة.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">بذل</span>
+                <span className="text-lg font-semibold text-foreground">{countProcedureType("بذل")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">استقبال</span>
+                <span className="text-lg font-semibold text-foreground">{countProcedureType("استقبال")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">كلي</span>
+                <span className="text-lg font-semibold text-foreground">{countProcedureType("كلي")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">مناظير</span>
+                <span className="text-lg font-semibold text-foreground">
+                  {(countProcedureType("مناظير") || 0) + (endoscopiesData?.length || 0)}
+                </span>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              ملاحظة: (مناظير) هنا = مناظير الخدمات + سجلات جدول المناظير.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* KPI Performance Indicators */}
