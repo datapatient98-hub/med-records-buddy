@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
+import Login from "./pages/Login";
+import SetupAdmin from "./pages/SetupAdmin";
 import Admission from "./pages/Admission";
 import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
@@ -29,6 +31,8 @@ const App = () => (
         <FieldConfigProvider>
           <BrowserRouter>
             <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/setup" element={<SetupAdmin />} />
               <Route path="/" element={<Dashboard />} />
               <Route path="/admission" element={<Admission />} />
               <Route path="/discharge" element={<Discharge />} />

@@ -19,6 +19,7 @@ import { Link } from "react-router-dom";
 import { DeleteRecordsDialog } from "@/components/unifiedDatabase/DeleteRecordsDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DeletionAuditTab } from "@/components/unifiedDatabase/DeletionAuditTab";
+import UserManagementTab from "@/components/userManagement/UserManagementTab";
 
 type ProcedureKind = "بذل" | "استقبال" | "كلي";
 
@@ -441,6 +442,7 @@ export default function UnifiedDatabase() {
                 <TabsList className="w-full justify-start">
                   <TabsTrigger value="timeline">Timeline</TabsTrigger>
                   <TabsTrigger value="deletions">سجل المحذوفات</TabsTrigger>
+                  <TabsTrigger value="users">إدارة المستخدمين</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="timeline">
@@ -569,6 +571,10 @@ export default function UnifiedDatabase() {
 
                 <TabsContent value="deletions">
                   <DeletionAuditTab />
+                </TabsContent>
+
+                <TabsContent value="users">
+                  <UserManagementTab />
                 </TabsContent>
               </Tabs>
             </div>
