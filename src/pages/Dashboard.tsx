@@ -16,6 +16,11 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import DashboardExportDialog from "@/components/DashboardExportDialog";
 import DashboardExportForm from "@/components/DashboardExportForm";
+import DashboardAlertBar, {
+  type DashboardAlertItem,
+} from "@/components/dashboard/DashboardAlertBar";
+import DashboardAuditSummary from "@/components/dashboard/DashboardAuditSummary";
+import DashboardQualityScorecard from "@/components/dashboard/DashboardQualityScorecard";
 import {
   TrendingUp,
   FileDown,
@@ -137,7 +142,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("admissions")
-        .select("*")
+        .select(
+          "id, department_id, admission_date, patient_name, unified_number, national_id, phone, address_details"
+        )
         .gte("admission_date", dateRange.start)
         .lte("admission_date", rangeEnd);
       return data || [];
@@ -149,7 +156,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("discharges")
-        .select("*, admissions(*)")
+        .select(
+          "id, admission_id, discharge_date, discharge_department_id, discharge_status, created_at, admissions(id, admission_date, department_id, unified_number)"
+        )
         .gte("discharge_date", dateRange.start)
         .lte("discharge_date", rangeEnd);
       return data || [];
@@ -161,8 +170,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("emergencies")
-        .select("*")
-        .gte("created_at", dateRange.start);
+        .select("id, visit_date")
+        .gte("visit_date", dateRange.start)
+        .lte("visit_date", rangeEnd);
       return data || [];
     },
   });
@@ -172,8 +182,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("endoscopies")
-        .select("*")
-        .gte("created_at", dateRange.start);
+        .select("id, procedure_date")
+        .gte("procedure_date", dateRange.start)
+        .lte("procedure_date", rangeEnd);
       return data || [];
     },
   });
@@ -183,8 +194,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("procedures")
-        .select("*")
-        .gte("created_at", dateRange.start);
+        .select("id, procedure_date")
+        .gte("procedure_date", dateRange.start)
+        .lte("procedure_date", rangeEnd);
       return data || [];
     },
   });
@@ -194,7 +206,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("admissions")
-        .select("*")
+        .select("id, department_id")
         .eq("admission_status", "محجوز");
       return data || [];
     },
@@ -214,8 +226,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("file_loans")
-        .select("*")
-        .gte("created_at", dateRange.start);
+        .select("id, is_returned, loan_date")
+        .gte("loan_date", dateRange.start)
+        .lte("loan_date", rangeEnd);
       return data || [];
     },
   });
@@ -225,8 +238,22 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("file_loans")
-        .select("*")
+        .select("id")
         .eq("is_returned", false);
+      return data || [];
+    },
+  });
+
+  const { data: admissionsAudit } = useQuery({
+    queryKey: ["admissions-audit", period],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("admissions_audit")
+        .select("id, changed_at, changed_fields")
+        .gte("changed_at", dateRange.start)
+        .lte("changed_at", rangeEnd)
+        .order("changed_at", { ascending: false })
+        .limit(200);
       return data || [];
     },
   });
@@ -262,28 +289,171 @@ export default function Dashboard() {
   const deathCases = completedDischarges.filter((d: any) => d.discharge_status === "وفاة").length;
   
   const totalEmergencies = emergenciesData?.length || 0;
-  const todayEmergencies = emergenciesData?.filter(
-    (e) => format(new Date(e.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-  ).length || 0;
-  const weekEmergencies = emergenciesData?.filter(
-    (e) => new Date(e.created_at || "") >= startOfWeek(new Date())
-  ).length || 0;
+  const todayEmergencies =
+    emergenciesData?.filter(
+      (e: any) =>
+        format(new Date(e.visit_date || ""), "yyyy-MM-dd") ===
+        format(new Date(), "yyyy-MM-dd")
+    ).length || 0;
+  const weekEmergencies =
+    emergenciesData?.filter(
+      (e: any) => new Date(e.visit_date || "") >= startOfWeek(new Date())
+    ).length || 0;
 
   const totalEndoscopies = endoscopiesData?.length || 0;
-  const todayEndoscopies = endoscopiesData?.filter(
-    (e) => format(new Date(e.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-  ).length || 0;
-  const weekEndoscopies = endoscopiesData?.filter(
-    (e) => new Date(e.created_at || "") >= startOfWeek(new Date())
-  ).length || 0;
+  const todayEndoscopies =
+    endoscopiesData?.filter(
+      (e: any) =>
+        format(new Date(e.procedure_date || ""), "yyyy-MM-dd") ===
+        format(new Date(), "yyyy-MM-dd")
+    ).length || 0;
+  const weekEndoscopies =
+    endoscopiesData?.filter(
+      (e: any) => new Date(e.procedure_date || "") >= startOfWeek(new Date())
+    ).length || 0;
 
   const totalProcedures = proceduresData?.length || 0;
-  const todayProcedures = proceduresData?.filter(
-    (p) => format(new Date(p.created_at || ""), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
-  ).length || 0;
-  const weekProcedures = proceduresData?.filter(
-    (p) => new Date(p.created_at || "") >= startOfWeek(new Date())
-  ).length || 0;
+  const todayProcedures =
+    proceduresData?.filter(
+      (p: any) =>
+        format(new Date(p.procedure_date || ""), "yyyy-MM-dd") ===
+        format(new Date(), "yyyy-MM-dd")
+    ).length || 0;
+  const weekProcedures =
+    proceduresData?.filter(
+      (p: any) => new Date(p.procedure_date || "") >= startOfWeek(new Date())
+    ).length || 0;
+
+  // Loan stats (needed for alerts + KPI cards)
+  const totalLoans = loansData?.length || 0;
+  const unreturnedCount = unreturnedLoans?.length || 0;
+
+  // Safety + Quality + Audit (derived)
+  const admissionsInPeriod = admissionsData ?? [];
+  const countTotalAdmissions = admissionsInPeriod.length;
+
+  const invalidNationalIdCount = admissionsInPeriod.filter((a: any) => {
+    const nat = String(a.national_id || "").replace(/\D/g, "");
+    return nat.length > 0 && nat.length !== 14;
+  }).length;
+  const invalidPhoneCount = admissionsInPeriod.filter((a: any) => {
+    const ph = String(a.phone || "").replace(/\D/g, "");
+    return ph.length > 0 && ph.length !== 11;
+  }).length;
+  const nonQuadNameCount = admissionsInPeriod.filter((a: any) => {
+    const name = String(a.patient_name || "").trim();
+    if (!name) return true;
+    return name.split(/\s+/).filter(Boolean).length < 4;
+  }).length;
+  const missingAddressCount = admissionsInPeriod.filter(
+    (a: any) => !String(a.address_details || "").trim()
+  ).length;
+
+  const makeDuplicatesCount = (key: "national_id" | "phone") => {
+    const m = new Map<string, number>();
+    for (const a of admissionsInPeriod as any[]) {
+      const raw = String((a as any)[key] || "").replace(/\D/g, "");
+      if (!raw) continue;
+      m.set(raw, (m.get(raw) || 0) + 1);
+    }
+    return Array.from(m.values()).reduce((acc, v) => acc + (v > 1 ? v : 0), 0);
+  };
+
+  const duplicatedNationalIdRows = makeDuplicatesCount("national_id");
+  const duplicatedPhoneRows = makeDuplicatesCount("phone");
+
+  const alerts: DashboardAlertItem[] = [
+    {
+      id: "dup_nat",
+      title: "تنبيه: تكرار الرقم القومي",
+      description:
+        duplicatedNationalIdRows > 0
+          ? `يوجد ${duplicatedNationalIdRows} سجل/سجلات داخل الفترة تحمل رقم قومي مكرر.`
+          : "",
+      severity: "warn",
+    },
+    {
+      id: "dup_phone",
+      title: "تنبيه: تكرار رقم الهاتف",
+      description:
+        duplicatedPhoneRows > 0
+          ? `يوجد ${duplicatedPhoneRows} سجل/سجلات داخل الفترة تحمل رقم هاتف مكرر.`
+          : "",
+      severity: "warn",
+    },
+    {
+      id: "unreturned_loans",
+      title: "تنبيه: ملفات لم تُرجع",
+      description:
+        unreturnedCount > 0 ? `يوجد ${unreturnedCount} ملف/ملفات لم تُرجع حتى الآن.` : "",
+      severity: unreturnedCount > 0 ? "error" : "info",
+    },
+  ];
+
+  const qualityScores = [
+    {
+      label: "الاسم رباعي",
+      percent:
+        countTotalAdmissions > 0
+          ? ((countTotalAdmissions - nonQuadNameCount) / countTotalAdmissions) * 100
+          : 0,
+      countBad: nonQuadNameCount,
+      countTotal: countTotalAdmissions,
+    },
+    {
+      label: "الرقم القومي صحيح",
+      percent:
+        countTotalAdmissions > 0
+          ? ((countTotalAdmissions - invalidNationalIdCount) / countTotalAdmissions) * 100
+          : 0,
+      countBad: invalidNationalIdCount,
+      countTotal: countTotalAdmissions,
+    },
+    {
+      label: "الهاتف صحيح",
+      percent:
+        countTotalAdmissions > 0
+          ? ((countTotalAdmissions - invalidPhoneCount) / countTotalAdmissions) * 100
+          : 0,
+      countBad: invalidPhoneCount,
+      countTotal: countTotalAdmissions,
+    },
+    {
+      label: "العنوان مكتمل",
+      percent:
+        countTotalAdmissions > 0
+          ? ((countTotalAdmissions - missingAddressCount) / countTotalAdmissions) * 100
+          : 0,
+      countBad: missingAddressCount,
+      countTotal: countTotalAdmissions,
+    },
+  ];
+
+  const topIssues = [
+    { id: "name", label: "الاسم غير رباعي/فارغ", count: nonQuadNameCount },
+    { id: "nat", label: "الرقم القومي غير صحيح", count: invalidNationalIdCount },
+    { id: "phone", label: "رقم الهاتف غير صحيح", count: invalidPhoneCount },
+    { id: "addr", label: "العنوان ناقص", count: missingAddressCount },
+  ]
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  const auditFieldCounts = new Map<string, number>();
+  for (const row of (admissionsAudit ?? []) as any[]) {
+    const changedFields = row?.changed_fields;
+    if (!changedFields || typeof changedFields !== "object") continue;
+    for (const k of Object.keys(changedFields)) {
+      auditFieldCounts.set(k, (auditFieldCounts.get(k) || 0) + 1);
+    }
+  }
+  const auditTopFields = Array.from(auditFieldCounts.entries())
+    .map(([field, count]) => ({ field, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  const auditSummary = {
+    totalChanges: (admissionsAudit ?? []).length,
+    topFields: auditTopFields,
+  };
 
   // Department stats
   const departmentStats = departments?.map((dept) => {
@@ -321,10 +491,6 @@ export default function Dashboard() {
       totalCases: deptTotalVisits,
     };
   }) || [];
-
-  // Loan stats
-  const totalLoans = loansData?.length || 0;
-  const unreturnedCount = unreturnedLoans?.length || 0;
 
   // Combined emergencies + procedures (البذل مدمج مع الطوارئ)
   const combinedEmergencies = (emergenciesData?.length || 0) + (proceduresData?.length || 0);
@@ -376,12 +542,12 @@ export default function Dashboard() {
     const dischargesCount = completedDischarges.filter(
       (d: any) => new Date(d.discharge_date || "").getMonth() === i
     ).length;
-    const emergenciesCount = emergenciesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
-    const proceduresCount = proceduresData?.filter(p => new Date(p.created_at || '').getMonth() === i).length || 0;
-    const endoscopiesCount = endoscopiesData?.filter(e => new Date(e.created_at || '').getMonth() === i).length || 0;
-    const loansCount = loansData?.filter(l => new Date(l.created_at || '').getMonth() === i).length || 0;
-    const unreturnedLoansCount = loansData?.filter(l => 
-      new Date(l.created_at || '').getMonth() === i && !l.is_returned
+    const emergenciesCount = emergenciesData?.filter((e: any) => new Date(e.visit_date || '').getMonth() === i).length || 0;
+    const proceduresCount = proceduresData?.filter((p: any) => new Date(p.procedure_date || '').getMonth() === i).length || 0;
+    const endoscopiesCount = endoscopiesData?.filter((e: any) => new Date(e.procedure_date || '').getMonth() === i).length || 0;
+    const loansCount = loansData?.filter((l: any) => new Date(l.loan_date || '').getMonth() === i).length || 0;
+    const unreturnedLoansCount = loansData?.filter((l: any) => 
+      new Date(l.loan_date || '').getMonth() === i && !l.is_returned
     ).length || 0;
     
     return {
@@ -474,6 +640,13 @@ export default function Dashboard() {
            <DashboardExportForm compact />
          </CardContent>
        </Card>
+
+        <DashboardAlertBar items={alerts} />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <DashboardQualityScorecard scores={qualityScores} topIssues={topIssues} />
+          <DashboardAuditSummary summary={auditSummary} />
+        </div>
 
        <DashboardExportDialog open={exportOpen} onOpenChange={setExportOpen} />
 
