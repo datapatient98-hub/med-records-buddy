@@ -707,29 +707,28 @@ export default function Dashboard() {
         onChange={(next) => setDateRangeValue(next)}
       />
 
-        {/* Quick action under the date range (no changes to the range component itself) */}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">تصدير البيانات:</span> استخدم النموذج التالي لتصدير Excel.
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              document.getElementById("dashboard-export-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-          >
-            <FileDown className="ml-2 h-4 w-4" />
-            الانتقال للتصدير
-          </Button>
-        </div>
+        {/* Export Panel (always first under the date-range filter) */}
+        <Card id="dashboard-export-panel" className="bg-card/50 backdrop-blur border-r-4 border-primary">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <FileSpreadsheet className="h-5 w-5" />
+              تصدير بيانات لوحة التحكم
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              اختر اليوم/الفترة والأنواع المطلوبة لتصدير ملف Excel (ملخص + تفاصيل) بعناوين عربية.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <DashboardExportForm compact />
+          </CardContent>
+        </Card>
 
         {/* Global Outcomes Summary (Discharges + Endoscopies) */}
         <Card className="border-border bg-card/50 backdrop-blur">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-foreground">
               <Activity className="h-5 w-5 text-primary" />
-              ملخص نتائج الخروج (الخروج + المناظير)
+              ملخص النتائج (الخروج + المناظير)
             </CardTitle>
             <p className="text-sm text-muted-foreground">تحسن / تحويل / هروب / وفاة داخل الفترة المختارة.</p>
           </CardHeader>
@@ -740,36 +739,24 @@ export default function Dashboard() {
                 <span className="text-lg font-semibold text-foreground">{countOutcomeAll("تحسن")}</span>
               </div>
               <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
-                <span className="text-sm text-muted-foreground">تحويل</span>
-                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("تحويل")}</span>
+                <span className="text-sm text-muted-foreground">حسب الطلب</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("حسب الطلب")}</span>
               </div>
               <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
                 <span className="text-sm text-muted-foreground">هروب</span>
                 <span className="text-lg font-semibold text-foreground">{countOutcomeAll("هروب")}</span>
               </div>
               <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">تحويل</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("تحويل")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2 lg:col-span-4">
                 <span className="text-sm text-muted-foreground">وفاة</span>
                 <span className="text-lg font-semibold text-foreground">{countOutcomeAll("وفاة")}</span>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        {/* Export Panel (clear + always visible) */}
-        <Card id="dashboard-export-panel" className="bg-card/50 backdrop-blur border-r-4 border-primary">
-         <CardHeader className="pb-3">
-           <CardTitle className="flex items-center gap-2">
-             <FileSpreadsheet className="h-5 w-5" />
-             تصدير بيانات لوحة التحكم
-           </CardTitle>
-           <p className="text-sm text-muted-foreground">
-             اختر اليوم والأنواع المطلوبة لتصدير ملف Excel (ملخص + تفاصيل) بعناوين عربية.
-           </p>
-         </CardHeader>
-         <CardContent>
-           <DashboardExportForm compact />
-         </CardContent>
-       </Card>
 
         <DashboardAlertBar items={alerts} />
 
