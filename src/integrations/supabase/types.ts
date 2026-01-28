@@ -181,6 +181,30 @@ export type Database = {
         }
         Relationships: []
       }
+      app_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value?: Json
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       deletion_audit: {
         Row: {
           deleted_at: string
@@ -1104,6 +1128,84 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          can_access_admission: boolean | null
+          can_access_dashboard: boolean | null
+          can_access_discharge: boolean | null
+          can_access_loans: boolean | null
+          can_access_medical_procedures: boolean | null
+          can_access_patient_search: boolean | null
+          can_access_records: boolean | null
+          can_access_reports: boolean | null
+          can_access_unified_database: boolean | null
+          can_bypass_department_restriction: boolean | null
+          can_create_records: boolean | null
+          can_delete_patient_records: boolean | null
+          can_delete_records: boolean | null
+          can_export_excel: boolean | null
+          can_import_excel: boolean | null
+          can_manage_master_data: boolean | null
+          can_manage_users: boolean | null
+          can_update_records: boolean | null
+          can_view_audit_logs: boolean | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          can_access_admission?: boolean | null
+          can_access_dashboard?: boolean | null
+          can_access_discharge?: boolean | null
+          can_access_loans?: boolean | null
+          can_access_medical_procedures?: boolean | null
+          can_access_patient_search?: boolean | null
+          can_access_records?: boolean | null
+          can_access_reports?: boolean | null
+          can_access_unified_database?: boolean | null
+          can_bypass_department_restriction?: boolean | null
+          can_create_records?: boolean | null
+          can_delete_patient_records?: boolean | null
+          can_delete_records?: boolean | null
+          can_export_excel?: boolean | null
+          can_import_excel?: boolean | null
+          can_manage_master_data?: boolean | null
+          can_manage_users?: boolean | null
+          can_update_records?: boolean | null
+          can_view_audit_logs?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          can_access_admission?: boolean | null
+          can_access_dashboard?: boolean | null
+          can_access_discharge?: boolean | null
+          can_access_loans?: boolean | null
+          can_access_medical_procedures?: boolean | null
+          can_access_patient_search?: boolean | null
+          can_access_records?: boolean | null
+          can_access_reports?: boolean | null
+          can_access_unified_database?: boolean | null
+          can_bypass_department_restriction?: boolean | null
+          can_create_records?: boolean | null
+          can_delete_patient_records?: boolean | null
+          can_delete_records?: boolean | null
+          can_export_excel?: boolean | null
+          can_import_excel?: boolean | null
+          can_manage_master_data?: boolean | null
+          can_manage_users?: boolean | null
+          can_update_records?: boolean | null
+          can_view_audit_logs?: boolean | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1130,6 +1232,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_permissions: {
+        Args: { _user_id?: string }
+        Returns: {
+          can_access_admission: boolean
+          can_access_dashboard: boolean
+          can_access_discharge: boolean
+          can_access_loans: boolean
+          can_access_medical_procedures: boolean
+          can_access_patient_search: boolean
+          can_access_records: boolean
+          can_access_reports: boolean
+          can_access_unified_database: boolean
+          can_bypass_department_restriction: boolean
+          can_create_records: boolean
+          can_delete_patient_records: boolean
+          can_delete_records: boolean
+          can_export_excel: boolean
+          can_import_excel: boolean
+          can_manage_master_data: boolean
+          can_manage_users: boolean
+          can_update_records: boolean
+          can_view_audit_logs: boolean
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
