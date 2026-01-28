@@ -214,7 +214,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("endoscopies")
-        .select("id, procedure_date")
+        .select("id, procedure_date, discharge_status, discharge_status_other")
         .gte("procedure_date", rangeStart)
         .lte("procedure_date", rangeEnd);
       return data || [];
@@ -318,7 +318,27 @@ export default function Dashboard() {
     (d: any) => new Date(d.discharge_date || "") >= startOfWeek(new Date())
   ).length;
 
-  const deathCases = completedDischarges.filter((d: any) => d.discharge_status === "وفاة").length;
+  const normalizeOutcome = (raw: unknown) => {
+    const s = String(raw ?? "").trim();
+    return s || "غير محدد";
+  };
+
+  const endoscopyOutcomeRows = (endoscopiesData ?? [])
+    .map((r: any) => normalizeOutcome(r?.discharge_status_other || r?.discharge_status))
+    .filter((s) => s !== "غير محدد");
+
+  const dischargeOutcomeRows = (dischargesData ?? []).map((d: any) => normalizeOutcome(d?.discharge_status));
+
+  const outcomesAll = [...dischargeOutcomeRows, ...endoscopyOutcomeRows];
+  const outcomesAllByStatus = outcomesAll.reduce((acc: Record<string, number>, s) => {
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+
+  const countOutcomeAll = (s: string) => outcomesAllByStatus[s] || 0;
+
+  // KPI: الوفاة من كل المصادر (الخروج + المناظير)
+  const deathCases = countOutcomeAll("وفاة");
   
   const totalEmergencies = emergenciesData?.length || 0;
   const todayEmergencies =
@@ -687,8 +707,56 @@ export default function Dashboard() {
         onChange={(next) => setDateRangeValue(next)}
       />
 
-       {/* Export Panel (clear + always visible) */}
-       <Card className="bg-card/50 backdrop-blur border-r-4 border-primary">
+        {/* Quick action under the date range (no changes to the range component itself) */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">تصدير البيانات:</span> استخدم النموذج التالي لتصدير Excel.
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              document.getElementById("dashboard-export-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          >
+            <FileDown className="ml-2 h-4 w-4" />
+            الانتقال للتصدير
+          </Button>
+        </div>
+
+        {/* Global Outcomes Summary (Discharges + Endoscopies) */}
+        <Card className="border-border bg-card/50 backdrop-blur">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <Activity className="h-5 w-5 text-primary" />
+              ملخص نتائج الخروج (الخروج + المناظير)
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">تحسن / تحويل / هروب / وفاة داخل الفترة المختارة.</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">تحسن</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("تحسن")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">تحويل</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("تحويل")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">هروب</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("هروب")}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-sm text-muted-foreground">وفاة</span>
+                <span className="text-lg font-semibold text-foreground">{countOutcomeAll("وفاة")}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Export Panel (clear + always visible) */}
+        <Card id="dashboard-export-panel" className="bg-card/50 backdrop-blur border-r-4 border-primary">
          <CardHeader className="pb-3">
            <CardTitle className="flex items-center gap-2">
              <FileSpreadsheet className="h-5 w-5" />
