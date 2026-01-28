@@ -52,6 +52,7 @@ export default function Discharge() {
   const [showDiagnosisManage, setShowDiagnosisManage] = useState(false);
   const [showDoctorDialog, setShowDoctorDialog] = useState(false);
   const [showDoctorManage, setShowDoctorManage] = useState(false);
+  const [diagnosisKindFilter, setDiagnosisKindFilter] = useState<"all" | "مرض" | "عرض">("all");
   const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
   const [showGovernorateDialog, setShowGovernorateDialog] = useState(false);
   const [showGovernorateManage, setShowGovernorateManage] = useState(false);
@@ -133,6 +134,12 @@ export default function Discharge() {
       return data || [];
     },
   });
+
+  const filteredDiagnoses = useMemo(() => {
+    if (!diagnoses) return [];
+    if (diagnosisKindFilter === "all") return diagnoses;
+    return diagnoses.filter((d: any) => (d as any)?.kind === diagnosisKindFilter);
+  }, [diagnoses, diagnosisKindFilter]);
 
   const { data: governorates } = useQuery({
     queryKey: ["governorates"],
@@ -702,11 +709,38 @@ export default function Discharge() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>تشخيص الخروج</FormLabel>
+                          <div className="mb-2">
+                            <label className="text-xs font-medium text-muted-foreground">تصنيف التشخيص</label>
+                            <Select
+                              value={diagnosisKindFilter}
+                              onValueChange={(v) => {
+                                const next = v as "all" | "مرض" | "عرض";
+                                setDiagnosisKindFilter(next);
+
+                                // لو التشخيص الحالي لا يطابق التصفية الجديدة، امسحه لتفادي التناقض
+                                if (next !== "all" && field.value) {
+                                  const current = (diagnoses || []).find((d: any) => d.id === field.value);
+                                  if (current && (current as any)?.kind !== next) {
+                                    form.setValue("discharge_diagnosis_id", "");
+                                  }
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="اختر التصنيف" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">الكل</SelectItem>
+                                <SelectItem value="مرض">مرض</SelectItem>
+                                <SelectItem value="عرض">عرض</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <FormControl>
                             <SearchableSelect
                               value={field.value || ""}
                               onValueChange={field.onChange}
-                              options={diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []}
+                              options={filteredDiagnoses?.map((d: any) => ({ id: d.id, name: d.name })) || []}
                               placeholder="اختر أو ابحث عن تشخيص"
                               emptyText="لا توجد تشخيصات"
                               onAddNew={() => setShowDiagnosisDialog(true)}
