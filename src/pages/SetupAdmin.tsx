@@ -43,7 +43,12 @@ export default function SetupAdmin() {
         const msg = (error as any)?.message ?? "";
         const status = (error as any)?.context?.status;
         const body = (error as any)?.context?.body;
-        const bodyErr = typeof body === "string" ? body : "";
+        const bodyErr =
+          typeof body === "string"
+            ? body
+            : body && typeof body === "object"
+              ? String((body as any).error ?? "")
+              : "";
 
         const alreadyExists =
           status === 400 &&
