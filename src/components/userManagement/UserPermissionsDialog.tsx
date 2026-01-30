@@ -17,18 +17,43 @@ function triStateLabel(v: TriState) {
   return v ? "سماح" : "منع";
 }
 
-function TriStateSelect({ value, onChange }: { value: TriState; onChange: (v: TriState) => void }) {
+function TriStateSegmented({ value, onChange }: { value: TriState; onChange: (v: TriState) => void }) {
+  const selected = value === null ? "inherit" : value ? "allow" : "deny";
+  const base =
+    "h-9 px-3 text-xs md:text-sm border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+  const selectedCls = "bg-secondary text-secondary-foreground";
+  const idleCls = "bg-background hover:bg-accent hover:text-accent-foreground";
+
   return (
-    <Select value={value === null ? "inherit" : value ? "allow" : "deny"} onValueChange={(v) => onChange(v === "inherit" ? null : v === "allow")}>
-      <SelectTrigger className="h-9">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="inherit">وراثة من القالب</SelectItem>
-        <SelectItem value="allow">سماح</SelectItem>
-        <SelectItem value="deny">منع</SelectItem>
-      </SelectContent>
-    </Select>
+    <div className="inline-flex w-full overflow-hidden rounded-md border" role="group" aria-label="صلاحية">
+      <button
+        type="button"
+        className={`${base} flex-1 border-l ${selected === "inherit" ? selectedCls : idleCls}`}
+        aria-pressed={selected === "inherit"}
+        onClick={() => onChange(null)}
+        title={triStateLabel(null)}
+      >
+        وراثة
+      </button>
+      <button
+        type="button"
+        className={`${base} flex-1 border-l ${selected === "allow" ? selectedCls : idleCls}`}
+        aria-pressed={selected === "allow"}
+        onClick={() => onChange(true)}
+        title={triStateLabel(true)}
+      >
+        سماح
+      </button>
+      <button
+        type="button"
+        className={`${base} flex-1 ${selected === "deny" ? selectedCls : idleCls}`}
+        aria-pressed={selected === "deny"}
+        onClick={() => onChange(false)}
+        title={triStateLabel(false)}
+      >
+        منع
+      </button>
+    </div>
   );
 }
 
@@ -124,115 +149,131 @@ export default function UserPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" dir="rtl">
-        <DialogHeader>
-          <DialogTitle>تخصيص صلاحيات المستخدم</DialogTitle>
-          <DialogDescription>
-            المستخدم: <span className="font-mono">{user.email ?? user.id}</span>
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl p-0" dir="rtl">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-6">
+          <DialogHeader>
+            <DialogTitle>تخصيص صلاحيات المستخدم</DialogTitle>
+            <DialogDescription>
+              المستخدم: <span className="font-mono">{user.email ?? user.id}</span>
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        {loading ? (
-          <div className="text-sm text-muted-foreground">جاري التحميل...</div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>قالب الصلاحيات</Label>
-                <Select value={templateId ?? "none"} onValueChange={(v) => setTemplateId(v === "none" ? null : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="اختر قالب" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">بدون قالب (الافتراضي = منع)</SelectItem>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {templateId ? (
-                  <div className="text-xs text-muted-foreground">
-                    {templates.find((t) => t.id === templateId)?.description ?? ""}
+        {/* Scrollable body */}
+        <div className="max-h-[80vh] overflow-y-auto px-6 py-4">
+          {loading ? (
+            <div className="text-sm text-muted-foreground">جاري التحميل...</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>قالب الصلاحيات</Label>
+                  <Select value={templateId ?? "none"} onValueChange={(v) => setTemplateId(v === "none" ? null : v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="اختر قالب" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">بدون قالب (الافتراضي = منع)</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {templateId ? (
+                    <div className="text-xs text-muted-foreground">{templates.find((t) => t.id === templateId)?.description ?? ""}</div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-md border bg-card p-3 text-sm">
+                  <div className="font-semibold">طريقة العمل</div>
+                  <div className="text-muted-foreground mt-1">
+                    كل صلاحية لها 3 حالات: <span className="font-medium">وراثة</span> / <span className="font-medium">سماح</span> / <span className="font-medium">منع</span>.
                   </div>
-                ) : null}
-              </div>
-
-              <div className="rounded-md border p-3 text-sm">
-                <div className="font-semibold">طريقة العمل</div>
-                <div className="text-muted-foreground mt-1">
-                  كل صلاحية لها 3 حالات: <span className="font-medium">وراثة</span> من القالب / <span className="font-medium">سماح</span> / <span className="font-medium">منع</span>.
                 </div>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <section className="space-y-3">
-              <div className="font-semibold">الصفحات</div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {grouped.pages.map((f) => (
-                  <div key={f.key} className="space-y-1">
-                    <div className="text-sm">{f.label}</div>
-                    <TriStateSelect
-                      value={(overrides[f.key] ?? null) as TriState}
-                      onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
-                    />
-                  </div>
-                ))}
+              <section className="space-y-3">
+                <div className="font-semibold">الصفحات</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {grouped.pages.map((f) => (
+                    <div key={f.key} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm">{f.label}</div>
+                        <div className="text-xs text-muted-foreground">{triStateLabel((overrides[f.key] ?? null) as TriState)}</div>
+                      </div>
+                      <TriStateSegmented
+                        value={(overrides[f.key] ?? null) as TriState}
+                        onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <Separator />
+
+              <section className="space-y-3">
+                <div className="font-semibold">العمليات (CRUD)</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {grouped.ops.map((f) => (
+                    <div key={f.key} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm">{f.label}</div>
+                        <div className="text-xs text-muted-foreground">{triStateLabel((overrides[f.key] ?? null) as TriState)}</div>
+                      </div>
+                      <TriStateSegmented
+                        value={(overrides[f.key] ?? null) as TriState}
+                        onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
+                      />
+                      {f.hint ? <div className="text-xs text-muted-foreground">{f.hint}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <Separator />
+
+              <section className="space-y-3">
+                <div className="font-semibold">صلاحيات خاصة</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {grouped.special.map((f) => (
+                    <div key={f.key} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm">{f.label}</div>
+                        <div className="text-xs text-muted-foreground">{triStateLabel((overrides[f.key] ?? null) as TriState)}</div>
+                      </div>
+                      <TriStateSegmented
+                        value={(overrides[f.key] ?? null) as TriState}
+                        onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <div className="text-xs text-muted-foreground">
+                ملاحظة: "وراثة" تعني الاعتماد على القالب. لو مفيش قالب، فالوراثة = منع.
               </div>
-            </section>
-
-            <Separator />
-
-            <section className="space-y-3">
-              <div className="font-semibold">العمليات (CRUD)</div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {grouped.ops.map((f) => (
-                  <div key={f.key} className="space-y-1">
-                    <div className="text-sm">{f.label}</div>
-                    <TriStateSelect
-                      value={(overrides[f.key] ?? null) as TriState}
-                      onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
-                    />
-                    {f.hint ? <div className="text-xs text-muted-foreground">{f.hint}</div> : null}
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <Separator />
-
-            <section className="space-y-3">
-              <div className="font-semibold">صلاحيات خاصة</div>
-              <div className="grid gap-3 md:grid-cols-2">
-                {grouped.special.map((f) => (
-                  <div key={f.key} className="space-y-1">
-                    <div className="text-sm">{f.label}</div>
-                    <TriStateSelect
-                      value={(overrides[f.key] ?? null) as TriState}
-                      onChange={(v) => setOverrides((prev) => ({ ...prev, [f.key]: v }))}
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                إلغاء
-              </Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? "جاري الحفظ..." : "حفظ"}
-              </Button>
             </div>
+          )}
+        </div>
 
-            <div className="text-xs text-muted-foreground">
-              ملاحظة: "وراثة" تعني الاعتماد على القالب. لو مفيش قالب، فالوراثة = منع.
-            </div>
+        {/* Sticky footer */}
+        <div className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-6 py-4">
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              إلغاء
+            </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? "جاري الحفظ..." : "حفظ"}
+            </Button>
           </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );
