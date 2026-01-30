@@ -12,10 +12,42 @@ import { supabase } from "@/integrations/supabase/client";
 export default function SetupAdmin() {
   const navigate = useNavigate();
 
+  const [sessionEmail, setSessionEmail] = React.useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = React.useState(true);
+
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+
+    // Subscribe first
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setSessionEmail(session?.user?.email ?? null);
+      setCheckingSession(false);
+    });
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSessionEmail(data.session?.user?.email ?? null);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setCheckingSession(false);
+      });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,10 +138,39 @@ export default function SetupAdmin() {
             </div>
           </div>
           <CardTitle className="text-2xl">إعداد المسؤول (Admin)</CardTitle>
-          <CardDescription>يتم استخدام هذا مرة واحدة لإنشاء أول حساب Admin.</CardDescription>
+          <CardDescription>
+            يتم استخدام هذا مرة واحدة لإنشاء أول حساب Admin.
+            {sessionEmail ? " أنت مسجّل دخول بالفعل." : ""}
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
+          {checkingSession ? (
+            <div className="text-center text-sm text-muted-foreground">جاري التحقق...</div>
+          ) : sessionEmail ? (
+            <div className="space-y-3">
+              <div className="rounded-md border bg-card p-4 text-sm">
+                <div className="font-semibold">لا تحتاج لإنشاء Admin جديد</div>
+                <div className="text-muted-foreground mt-1">
+                  أنت مسجّل دخول بالحساب: <span className="font-mono">{sessionEmail}</span>
+                </div>
+              </div>
+
+              <Button className="w-full" onClick={() => navigate("/unified-database", { replace: true })}>
+                فتح إدارة المستخدمين والصلاحيات
+              </Button>
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  navigate("/login", { replace: true });
+                }}
+              >
+                تسجيل خروج
+              </Button>
+            </div>
+          ) : (
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">البريد الإلكتروني</Label>
@@ -163,6 +224,7 @@ export default function SetupAdmin() {
               {loading ? "جاري الإنشاء..." : "إنشاء Admin"}
             </Button>
           </form>
+          )}
         </CardContent>
       </Card>
     </div>
