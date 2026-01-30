@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import {
   UserPlus,
   LogOut,
+  LogIn,
   Microscope,
   AlertTriangle,
   Syringe,
@@ -33,20 +34,24 @@ interface LayoutProps {
 
 const navigation = [
   { name: "لوحة التحكم", href: "/", icon: Home },
-  { name: "تسجيل دخول", href: "/admission", icon: UserPlus },
-  { name: "تسجيل خروج", href: "/discharge", icon: LogOut },
+  // These are patient workflows (not account auth)
+  { name: "دخول (مرضى)", href: "/admission", icon: UserPlus },
+  { name: "خروج (مرضى)", href: "/discharge", icon: LogOut },
   { name: "الإجراءات الطبية", href: "/medical-procedures", icon: Microscope },
   { name: "الاستعارات", href: "/loans", icon: FileArchive },
   { name: "مراجعة الملفات", href: "/patient-search", icon: AlertTriangle },
   { name: "سجل المرضى", href: "/records", icon: Users },
   { name: "قاعدة البيانات الموحدة", href: "/unified-database", icon: Database },
   { name: "التقارير", href: "/reports", icon: FileText },
+  { name: "تسجيل الدخول (حساب)", href: "/login", icon: LogIn },
+  { name: "إعداد Admin", href: "/setup", icon: Syringe },
 ];
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [logoutRequested, setLogoutRequested] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
 
   const lastSearchedRef = useRef<string>("");
   const [topSearchLoading, setTopSearchLoading] = useState(false);
@@ -65,6 +70,26 @@ export default function Layout({ children }: LayoutProps) {
     } else {
       setActorLabelState(existing);
     }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setIsAuthed(!!session);
+    });
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setIsAuthed(!!data.session);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const shouldShowHeaderSearch = useMemo(() => {
@@ -159,10 +184,19 @@ export default function Layout({ children }: LayoutProps) {
             <NotificationBell />
             <ExcelConnectionIndicator />
             <ThemeToggle />
-            <Button variant="ghost" size="sm" onClick={handleSignOutClick} className="gap-2">
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">خروج</span>
-            </Button>
+            {isAuthed ? (
+              <Button variant="ghost" size="sm" onClick={handleSignOutClick} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">تسجيل خروج</span>
+              </Button>
+            ) : (
+              <Link to="/login">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden sm:inline">تسجيل دخول</span>
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
