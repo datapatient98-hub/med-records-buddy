@@ -35,6 +35,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import ExcelSourcesSettings from "@/components/ExcelSourcesSettings";
+import BackupCenterTab from "@/components/backup/BackupCenterTab";
 
 type LookupItem = {
   id: string;
@@ -488,12 +489,13 @@ export default function FieldSettings() {
         </div>
 
         <Tabs defaultValue="admission" dir="rtl" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
             <TabsTrigger value="admission">الدخول</TabsTrigger>
             <TabsTrigger value="discharge">الخروج</TabsTrigger>
             <TabsTrigger value="endoscopy">المناظير</TabsTrigger>
             <TabsTrigger value="procedures">البذل/الاستقبال/الكلي</TabsTrigger>
             <TabsTrigger value="excel-sources">مصادر الإكسل</TabsTrigger>
+            <TabsTrigger value="backup">النسخ الاحتياطي</TabsTrigger>
           </TabsList>
 
           <TabsContent value="admission" className="pt-4">
@@ -530,6 +532,10 @@ export default function FieldSettings() {
 
           <TabsContent value="excel-sources" className="pt-4">
             <ExcelSourcesSettings />
+          </TabsContent>
+
+          <TabsContent value="backup" className="pt-4">
+            <BackupCenterTab />
           </TabsContent>
         </Tabs>
       </div>

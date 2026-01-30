@@ -208,6 +208,142 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_artifacts: {
+        Row: {
+          artifact_type: string
+          bytes: number | null
+          checksum_sha256: string | null
+          created_at: string
+          drive_file_id: string | null
+          drive_parent_folder_id: string | null
+          encryption_version: number | null
+          id: string
+          is_encrypted: boolean
+          meta: Json | null
+          mime_type: string | null
+          run_id: string
+          sheet_id: string | null
+          sheet_tab_name: string | null
+          storage_bucket: string | null
+          storage_path: string | null
+        }
+        Insert: {
+          artifact_type: string
+          bytes?: number | null
+          checksum_sha256?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          drive_parent_folder_id?: string | null
+          encryption_version?: number | null
+          id?: string
+          is_encrypted?: boolean
+          meta?: Json | null
+          mime_type?: string | null
+          run_id: string
+          sheet_id?: string | null
+          sheet_tab_name?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
+        }
+        Update: {
+          artifact_type?: string
+          bytes?: number | null
+          checksum_sha256?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          drive_parent_folder_id?: string | null
+          encryption_version?: number | null
+          id?: string
+          is_encrypted?: boolean
+          meta?: Json | null
+          mime_type?: string | null
+          run_id?: string
+          sheet_id?: string | null
+          sheet_tab_name?: string | null
+          storage_bucket?: string | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backup_artifacts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "backup_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      backup_runs: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          duration_ms: number | null
+          error_code: string | null
+          error_details: Json | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          initiated_by: string | null
+          initiated_by_role: Database["public"]["Enums"]["app_role"] | null
+          retention_daily_days: number | null
+          retention_monthly_months: number | null
+          retention_weekly_weeks: number | null
+          schedule_type: string
+          started_at: string | null
+          status: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          duration_ms?: number | null
+          error_code?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          initiated_by_role?: Database["public"]["Enums"]["app_role"] | null
+          retention_daily_days?: number | null
+          retention_monthly_months?: number | null
+          retention_weekly_weeks?: number | null
+          schedule_type: string
+          started_at?: string | null
+          status: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          duration_ms?: number | null
+          error_code?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          initiated_by?: string | null
+          initiated_by_role?: Database["public"]["Enums"]["app_role"] | null
+          retention_daily_days?: number | null
+          retention_monthly_months?: number | null
+          retention_weekly_weeks?: number | null
+          schedule_type?: string
+          started_at?: string | null
+          status?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backup_runs_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deletion_audit: {
         Row: {
           deleted_at: string
@@ -1151,6 +1287,7 @@ export type Database = {
           can_delete_records: boolean | null
           can_export_excel: boolean | null
           can_import_excel: boolean | null
+          can_manage_backups: boolean
           can_manage_master_data: boolean | null
           can_manage_users: boolean | null
           can_update_records: boolean | null
@@ -1176,6 +1313,7 @@ export type Database = {
           can_delete_records?: boolean | null
           can_export_excel?: boolean | null
           can_import_excel?: boolean | null
+          can_manage_backups?: boolean
           can_manage_master_data?: boolean | null
           can_manage_users?: boolean | null
           can_update_records?: boolean | null
@@ -1201,6 +1339,7 @@ export type Database = {
           can_delete_records?: boolean | null
           can_export_excel?: boolean | null
           can_import_excel?: boolean | null
+          can_manage_backups?: boolean
           can_manage_master_data?: boolean | null
           can_manage_users?: boolean | null
           can_update_records?: boolean | null
@@ -1279,7 +1418,12 @@ export type Database = {
     Enums: {
       admission_source: "طوارئ" | "داخلي"
       admission_status: "محجوز" | "خروج" | "متوفى" | "تحويل"
-      app_role: "admin" | "doctor" | "nurse" | "records_clerk"
+      app_role:
+        | "admin"
+        | "doctor"
+        | "nurse"
+        | "records_clerk"
+        | "backup_manager"
       diagnosis_kind: "مرض" | "عرض"
       discharge_status: "تحسن" | "تحويل" | "وفاة" | "هروب" | "رفض العلاج"
       finance_source: "تأمين صحي" | "علاج على نفقة الدولة" | "خاص"
@@ -1415,7 +1559,7 @@ export const Constants = {
     Enums: {
       admission_source: ["طوارئ", "داخلي"],
       admission_status: ["محجوز", "خروج", "متوفى", "تحويل"],
-      app_role: ["admin", "doctor", "nurse", "records_clerk"],
+      app_role: ["admin", "doctor", "nurse", "records_clerk", "backup_manager"],
       diagnosis_kind: ["مرض", "عرض"],
       discharge_status: ["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"],
       finance_source: ["تأمين صحي", "علاج على نفقة الدولة", "خاص"],

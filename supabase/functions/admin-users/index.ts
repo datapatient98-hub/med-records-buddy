@@ -8,7 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type Role = "admin" | "doctor" | "nurse" | "records_clerk";
+type Role = "admin" | "backup_manager" | "doctor" | "nurse" | "records_clerk";
 type Body = { action?: "me" | "list" | "create"; email?: string; password?: string; role?: Role };
 
 serve(async (req) => {
@@ -109,6 +109,8 @@ serve(async (req) => {
       if (roleErr) throw roleErr;
 
       const isAdminRole = role === "admin";
+      const isBackupManagerRole = role === "backup_manager";
+      const isBackupOps = isAdminRole || isBackupManagerRole;
       const { error: permErr } = await admin.from("user_permissions").insert({
         user_id: userId,
         can_access_dashboard: true,
@@ -130,6 +132,7 @@ serve(async (req) => {
         can_delete_patient_records: isAdminRole,
         can_manage_users: isAdminRole,
         can_bypass_department_restriction: isAdminRole,
+        can_manage_backups: isBackupOps,
       });
       if (permErr) throw permErr;
 
