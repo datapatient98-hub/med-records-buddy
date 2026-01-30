@@ -25,6 +25,24 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
   const [blocking, setBlocking] = React.useState(false);
   const [running, setRunning] = React.useState(false);
 
+  const getCairoNow = React.useCallback(() => {
+    // Robust timezone handling (avoids fixed UTC+2/+3 assumptions)
+    return new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Cairo" }));
+  }, []);
+
+  const getCairoDayStartIso = React.useCallback(() => {
+    const cairoNow = getCairoNow();
+    const y = cairoNow.getFullYear();
+    const m = cairoNow.getMonth();
+    const d = cairoNow.getDate();
+
+    // Create a Date that represents Cairo midnight in *local* time, then convert to UTC by applying the Cairo offset.
+    const cairoMidnightLocal = new Date(y, m, d, 0, 0, 0);
+    const offsetMinutes = (Date.now() - getCairoNow().getTime()) / 60000; // (UTC - Cairo)
+    const utcMs = cairoMidnightLocal.getTime() + offsetMinutes * 60_000;
+    return new Date(utcMs).toISOString();
+  }, [getCairoNow]);
+
   const check = React.useCallback(async () => {
     try {
       // 1) Check if backup_settings.logout_guard.enabled
@@ -41,11 +59,9 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
       }
 
       // 2) Check current time vs 13:30 Cairo
-      const now = new Date();
-      const cairoOffset = 2; // Africa/Cairo = UTC+2 (or +3 during DST, simplified)
-      const cairoTime = new Date(now.getTime() + cairoOffset * 60 * 60 * 1000);
-      const hh = cairoTime.getUTCHours();
-      const mm = cairoTime.getUTCMinutes();
+      const cairoTime = getCairoNow();
+      const hh = cairoTime.getHours();
+      const mm = cairoTime.getMinutes();
       const minutesOfDay = hh * 60 + mm;
       const dueAt = 13 * 60 + 30; // 13:30 = 810 minutes
 
@@ -55,13 +71,13 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
         return;
       }
 
-      // 3) Check if a successful backup run today
-      const todayStart = new Date(cairoTime.getUTCFullYear(), cairoTime.getUTCMonth(), cairoTime.getUTCDate());
+      // 3) Check if a successful backup run today (Cairo day)
+      const todayStartIso = getCairoDayStartIso();
       const { data: runs, error } = await supabase
         .from("backup_runs")
         .select("id, status")
         .eq("status", "success")
-        .gte("created_at", todayStart.toISOString())
+        .gte("created_at", todayStartIso)
         .limit(1);
 
       if (error) throw error;
@@ -78,7 +94,7 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
       console.error("BackupLogoutGuard check failed:", err);
       onProceed(); // Fail-safe: allow logout
     }
-  }, [onProceed]);
+  }, [getCairoDayStartIso, getCairoNow, onProceed]);
 
   React.useEffect(() => {
     void check();
@@ -110,6 +126,20 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
 
         const status = (runRow as any)?.status as string | undefined;
         if (status === "success") {
+          // Pull counts from the latest artifact meta (if available) to show the user a useful summary.
+          const { data: art } = await supabase
+            .from("backup_artifacts")
+            .select("meta")
+            .eq("run_id", runId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const totals = (art?.meta as any)?.totals as Record<string, number> | undefined;
+          const msg = totals
+            ? `تم النسخ الاحتياطي: دخول ${totals.admissions ?? 0} | خروج ${totals.discharges ?? 0} | طوارئ ${totals.emergencies ?? 0} | مناظير ${totals.endoscopies ?? 0} | إجراءات ${totals.procedures ?? 0}`
+            : "تم النسخ الاحتياطي بنجاح";
+          toast.success(msg);
           setOpen(false);
           onProceed();
           return;
