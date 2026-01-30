@@ -1,1 +1,10 @@
 project_id = "oajbgurnrbrryfifxxji"
+
+[functions.backup-run]
+verify_jwt = false
+
+[functions.backup-worker]
+verify_jwt = false
+
+[functions.backup-schedule]
+verify_jwt = false

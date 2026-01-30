@@ -68,8 +68,12 @@ serve(async (req) => {
 
     if (createErr) throw createErr;
 
-    // NOTE: المرحلة القادمة: تنفيذ إنشاء الملفات (Excel/JSON/PDF) + رفعها للتخزين + Drive/Sheets
-    return new Response(JSON.stringify({ ok: true, run_id: created?.id }), {
+    // Trigger worker (fire-and-forget)
+    const { data: workerData, error: workerErr } = await admin.functions.invoke("backup-worker", {
+      body: { run_id: created?.id, schedule_type },
+    });
+
+    return new Response(JSON.stringify({ ok: true, run_id: created?.id, worker_error: workerErr?.message ?? null, worker_data: workerData ?? null }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
