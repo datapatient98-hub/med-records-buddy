@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.backup-schedule]
 verify_jwt = false
+
+[functions.backup-config]
+verify_jwt = false
