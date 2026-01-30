@@ -93,12 +93,35 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
+      const runId = data?.run_id as string | undefined;
+      if (!runId) throw new Error("لم يتم استلام رقم العملية");
+
       toast.success("تم بدء النسخ الاحتياطي، سيتم تسجيل الخروج عند الانتهاء");
-      // Simulate "success" after 2s (in real implementation you'd poll or use realtime)
-      setTimeout(() => {
-        setOpen(false);
-        onProceed();
-      }, 2000);
+
+      // Poll until success/failed (max ~2 minutes)
+      const started = Date.now();
+      while (Date.now() - started < 120_000) {
+        const { data: runRow, error: runErr } = await supabase
+          .from("backup_runs")
+          .select("status, error_message")
+          .eq("id", runId)
+          .single();
+        if (runErr) throw runErr;
+
+        const status = (runRow as any)?.status as string | undefined;
+        if (status === "success") {
+          setOpen(false);
+          onProceed();
+          return;
+        }
+        if (status === "failed") {
+          throw new Error((runRow as any)?.error_message ?? "فشل النسخ الاحتياطي");
+        }
+
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      throw new Error("استغرق النسخ وقتاً أطول من المتوقع، حاول مرة أخرى");
     } catch (err: any) {
       toast.error(err?.message ?? "تعذر بدء النسخ");
     } finally {
