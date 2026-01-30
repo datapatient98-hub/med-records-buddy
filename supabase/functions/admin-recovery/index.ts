@@ -75,6 +75,26 @@ serve(async (req) => {
       return json(200, { action_link: data?.properties?.action_link ?? null });
     }
 
+    if (action === "reset_password_direct") {
+      const email = (((body as any)?.email ?? "") as string).trim().toLowerCase();
+      const newPassword = (((body as any)?.newPassword ?? "") as string).toString();
+
+      if (!email) return json(400, { error: "Missing email" });
+      if (!newPassword || newPassword.length < 6) return json(400, { error: "Weak password" });
+
+      // Find user by email (Auth Admin APIs are not queryable via SQL)
+      const { data: usersRes, error: listErr } = await admin.auth.admin.listUsers({ perPage: 200 });
+      if (listErr) throw listErr;
+
+      const user = (usersRes.users ?? []).find((u) => (u.email ?? "").toLowerCase() === email);
+      if (!user) return json(404, { error: "User not found" });
+
+      const { error: updErr } = await admin.auth.admin.updateUserById(user.id, { password: newPassword });
+      if (updErr) throw updErr;
+
+      return json(200, { ok: true });
+    }
+
     return json(400, { error: "Unknown action" });
   } catch (err: any) {
     return json(500, { error: err?.message ?? String(err) });
