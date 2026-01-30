@@ -92,8 +92,22 @@ export default function BackupCenterTab() {
     void loadConfig();
   }, [load, loadConfig]);
 
+  const ensureSignedIn = React.useCallback(async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      toast.error(error.message);
+      return false;
+    }
+    if (!data.session) {
+      toast.error("لازم تسجّل دخول الأول قبل تشغيل النسخ الاحتياطي");
+      return false;
+    }
+    return true;
+  }, []);
+
   const runNow = async () => {
     try {
+      if (!(await ensureSignedIn())) return;
       const { data, error } = await supabase.functions.invoke("backup-run", { body: { schedule_type: "manual" } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -128,6 +142,10 @@ export default function BackupCenterTab() {
     setTestLoading(true);
     setTestResult(null);
     try {
+      if (!(await ensureSignedIn())) {
+        setTestResult({ error: "غير مسجّل دخول" });
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("backup-connection-test");
       if (error) throw error;
       if (data?.error) throw new Error(data.error);

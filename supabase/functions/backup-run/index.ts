@@ -28,12 +28,23 @@ serve(async (req) => {
       });
     }
 
+    // IMPORTANT: verify_jwt=false in config.toml, so we must validate JWT in code.
+    // If the client isn't logged in, it may send no Authorization or even the anon key as a Bearer token.
+    // We treat anything that doesn't validate as an authenticated user as Unauthorized.
     const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Please sign in" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "").trim();
     const caller = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
-    const { data: userData } = await caller.auth.getUser();
-    const callerId = userData.user?.id ?? null;
-    if (!callerId) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    const { data: claimsData, error: claimsErr } = await caller.auth.getClaims(token);
+    const callerId = claimsData?.claims?.sub ?? null;
+    if (claimsErr || !callerId) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid session" }), {
         status: 401,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
