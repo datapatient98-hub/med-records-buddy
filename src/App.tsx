@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import SetupAdmin from "./pages/SetupAdmin";
+import ResetPassword from "./pages/ResetPassword";
 import Admission from "./pages/Admission";
 import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
@@ -19,6 +20,7 @@ import FieldSettings from "./pages/FieldSettings";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { FieldConfigProvider } from "@/components/FieldConfigProvider";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -33,17 +35,96 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/setup" element={<SetupAdmin />} />
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/admission" element={<Admission />} />
-              <Route path="/discharge" element={<Discharge />} />
-              <Route path="/medical-procedures" element={<MedicalProcedures />} />
-              <Route path="/loans" element={<Loans />} />
-              <Route path="/records" element={<Records />} />
-              <Route path="/unified-database" element={<UnifiedDatabase />} />
-              <Route path="/field-settings" element={<FieldSettings />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/patient-search" element={<FileReview />} />
-              <Route path="/file-review/patient" element={<FileReviewPatient />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admission"
+                element={
+                  <ProtectedRoute>
+                    <Admission />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/discharge"
+                element={
+                  <ProtectedRoute>
+                    <Discharge />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/medical-procedures"
+                element={
+                  <ProtectedRoute>
+                    <MedicalProcedures />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/loans"
+                element={
+                  <ProtectedRoute>
+                    <Loans />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/records"
+                element={
+                  <ProtectedRoute>
+                    <Records />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/unified-database"
+                element={
+                  <ProtectedRoute>
+                    <UnifiedDatabase />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/field-settings"
+                element={
+                  <ProtectedRoute>
+                    <FieldSettings />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/reports"
+                element={
+                  <ProtectedRoute>
+                    <Reports />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/patient-search"
+                element={
+                  <ProtectedRoute>
+                    <FileReview />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/file-review/patient"
+                element={
+                  <ProtectedRoute>
+                    <FileReviewPatient />
+                  </ProtectedRoute>
+                }
+              />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

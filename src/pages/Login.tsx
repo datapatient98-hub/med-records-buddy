@@ -44,7 +44,8 @@ export default function Login() {
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(em, {
-        redirectTo: window.location.origin + "/login",
+        // User will land on /reset-password with a recovery session.
+        redirectTo: window.location.origin + "/reset-password",
       });
       if (error) throw error;
       toast({ title: "تم إرسال رابط إعادة تعيين كلمة المرور", description: "افتح الإيميل واتبع الخطوات." });
