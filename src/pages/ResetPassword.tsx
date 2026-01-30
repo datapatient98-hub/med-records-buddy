@@ -9,6 +9,16 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Lock } from "lucide-react";
 
+function getUrlHashParams() {
+  const raw = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const params = new URLSearchParams(raw);
+  return {
+    access_token: params.get("access_token") ?? "",
+    refresh_token: params.get("refresh_token") ?? "",
+    type: params.get("type") ?? "",
+  };
+}
+
 export default function ResetPassword() {
   const navigate = useNavigate();
 
@@ -20,6 +30,13 @@ export default function ResetPassword() {
   React.useEffect(() => {
     let mounted = true;
 
+    // 1) Handle PKCE-style links (may come with ?code=...)
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code") ?? "";
+
+    // 2) Handle implicit-style links (may come with #access_token=...)
+    const { access_token, refresh_token, type } = getUrlHashParams();
+
     // When coming from the reset link, Supabase creates a recovery session.
     const {
       data: { subscription },
@@ -30,10 +47,27 @@ export default function ResetPassword() {
       }
     });
 
-    supabase.auth.getSession().then(({ data }) => {
+    (async () => {
+      try {
+        if (code) {
+          // If this fails, we'll still fall back to getSession below.
+          await supabase.auth.exchangeCodeForSession(code);
+        } else if (access_token && refresh_token) {
+          // Defensive: ensure session is set even if auto-detection doesn't run.
+          await supabase.auth.setSession({ access_token, refresh_token });
+          // Clean up URL hash to avoid re-processing on refresh.
+          if (type === "recovery") {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }
+      } catch {
+        // ignore; getSession below will determine readiness.
+      }
+
+      const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setReady(!!data.session);
-    });
+    })();
 
     return () => {
       mounted = false;
