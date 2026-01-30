@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import UserPermissionsDialog from "@/components/userManagement/UserPermissionsDialog";
 
 type Role = "admin" | "backup_manager" | "doctor" | "nurse" | "records_clerk";
 
@@ -17,6 +18,7 @@ type AdminListUser = {
   email: string | null;
   created_at: string;
   role: Role | null;
+  template_id?: string | null;
   template?: string | null;
 };
 
@@ -49,6 +51,9 @@ export default function UserManagementTab() {
   const [newRole, setNewRole] = React.useState<Role>("records_clerk");
   const [creating, setCreating] = React.useState(false);
 
+  const [editingUser, setEditingUser] = React.useState<AdminListUser | null>(null);
+  const [permissionsOpen, setPermissionsOpen] = React.useState(false);
+
   const checkAdmin = React.useCallback(async () => {
     setChecking(true);
     try {
@@ -75,6 +80,11 @@ export default function UserManagementTab() {
       setLoadingUsers(false);
     }
   }, []);
+
+  const openPermissions = (u: AdminListUser) => {
+    setEditingUser(u);
+    setPermissionsOpen(true);
+  };
 
   React.useEffect(() => {
     void checkAdmin();
@@ -183,6 +193,7 @@ export default function UserManagementTab() {
               <TableHead className="text-right">الدور</TableHead>
               <TableHead className="text-right">السياسة</TableHead>
               <TableHead className="text-right">تاريخ الإنشاء</TableHead>
+              <TableHead className="text-right">إجراءات</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -194,11 +205,25 @@ export default function UserManagementTab() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{u.template ?? "-"}</TableCell>
                 <TableCell className="text-muted-foreground">{new Date(u.created_at).toLocaleDateString("ar-EG")}</TableCell>
+                <TableCell>
+                  <Button variant="outline" size="sm" onClick={() => openPermissions(u)}>
+                    الصلاحيات
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {editingUser ? (
+        <UserPermissionsDialog
+          open={permissionsOpen}
+          onOpenChange={setPermissionsOpen}
+          user={editingUser}
+          onSaved={loadUsers}
+        />
+      ) : null}
     </div>
   );
 }
