@@ -24,6 +24,8 @@ export default function AdminRecovery() {
   const [admins, setAdmins] = React.useState<AdminUser[]>([]);
   const [selectedEmail, setSelectedEmail] = React.useState<string>("");
   const [resetLink, setResetLink] = React.useState<string>("");
+  const [newPw, setNewPw] = React.useState("");
+  const [newPw2, setNewPw2] = React.useState("");
 
   const loadAdmins = async () => {
     setLoading(true);
@@ -71,6 +73,37 @@ export default function AdminRecovery() {
       toast({ title: "تم إنشاء رابط الاسترجاع" });
     } catch (err: any) {
       toast({ title: "تعذر إنشاء الرابط", description: err?.message ?? "حدث خطأ", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetDirect = async () => {
+    const em = selectedEmail.trim().toLowerCase();
+    if (!em) return;
+    if (newPw.length < 6) {
+      toast({ title: "خطأ", description: "كلمة المرور يجب أن تكون 6 أحرف على الأقل", variant: "destructive" });
+      return;
+    }
+    if (newPw !== newPw2) {
+      toast({ title: "خطأ", description: "كلمتا المرور غير متطابقتين", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+    setResetLink("");
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-recovery", {
+        body: { action: "reset_password_direct", code: code.trim(), email: em, newPassword: newPw },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({ title: "تم تحديث كلمة المرور" });
+      // Take the user back to login to sign in with the new password.
+      window.location.assign("/login");
+    } catch (err: any) {
+      toast({ title: "تعذر تحديث كلمة المرور", description: err?.message ?? "حدث خطأ", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -131,8 +164,29 @@ export default function AdminRecovery() {
                 </Select>
               </div>
 
-              <Button className="w-full" onClick={() => void generateLink()} disabled={loading || !selectedEmail}>
-                {loading ? "جاري..." : "إنشاء رابط Reset Password"}
+              <div className="space-y-2">
+                <Label htmlFor="newPw">كلمة مرور جديدة (بدون رابط)</Label>
+                <Input
+                  id="newPw"
+                  type="password"
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  placeholder="••••••••"
+                />
+                <Input
+                  type="password"
+                  value={newPw2}
+                  onChange={(e) => setNewPw2(e.target.value)}
+                  placeholder="تأكيد كلمة المرور"
+                />
+              </div>
+
+              <Button className="w-full" onClick={() => void resetDirect()} disabled={loading || !selectedEmail}>
+                {loading ? "جاري..." : "تعيين كلمة مرور جديدة"}
+              </Button>
+
+              <Button className="w-full" variant="outline" onClick={() => void generateLink()} disabled={loading || !selectedEmail}>
+                {loading ? "جاري..." : "بديل: إنشاء رابط Reset Password"}
               </Button>
 
               {resetLink && (
