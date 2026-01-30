@@ -192,30 +192,47 @@ async function sheetsAppendBackupRow(args: {
   }
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+type BackupTargets = {
+  /** always on */
+  storage?: boolean;
+  drive?: boolean;
+  sheets?: boolean;
+};
+
+// NOTE: keep this inline; no cross-file imports in edge functions.
+async function getBackupTargets(admin: any): Promise<Required<BackupTargets>> {
+  try {
+    const { data } = await admin
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "backup_settings")
+      .maybeSingle();
+
+    const targets = (data?.setting_value as any)?.targets as BackupTargets | undefined;
+    return {
+      storage: true,
+      drive: targets?.drive !== false,
+      sheets: targets?.sheets !== false,
+    };
+  } catch {
+    return { storage: true, drive: true, sheets: true };
+  }
+}
+
+async function runBackupJob(req: Request, body: Body) {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceRole) {
+    throw new Error("Server configuration error: Missing backend credentials");
+  }
+
+  const admin = createClient(url, serviceRole);
+  const startedAt = new Date();
+  const scheduleType = body.schedule_type ?? "manual";
+
+  const targets = await getBackupTargets(admin);
 
   try {
-    const url = Deno.env.get("SUPABASE_URL");
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!url || !serviceRole) {
-      return json({ error: "Server configuration error: Missing backend credentials" }, 500);
-    }
-
-    const GOOGLE_SERVICE_ACCOUNT_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
-    if (!GOOGLE_SERVICE_ACCOUNT_JSON) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not configured");
-    const GOOGLE_DRIVE_FOLDER_ID = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
-    if (!GOOGLE_DRIVE_FOLDER_ID) throw new Error("GOOGLE_DRIVE_FOLDER_ID is not configured");
-    const GOOGLE_SHEETS_SPREADSHEET_ID = Deno.env.get("GOOGLE_SHEETS_SPREADSHEET_ID");
-    if (!GOOGLE_SHEETS_SPREADSHEET_ID) throw new Error("GOOGLE_SHEETS_SPREADSHEET_ID is not configured");
-
-    const body = (await req.json().catch(() => ({}))) as Body;
-    if (!body.run_id) return json({ error: "Missing run_id" }, 400);
-
-    const admin = createClient(url, serviceRole);
-    const startedAt = new Date();
-    const scheduleType = body.schedule_type ?? "manual";
-
     // Mark running
     await admin
       .from("backup_runs")
@@ -273,6 +290,7 @@ serve(async (req) => {
       ["Backup Run ID", body.run_id],
       ["Schedule Type", scheduleType],
       ["Generated At", new Date().toISOString()],
+      ["Targets", JSON.stringify(targets)],
       [],
       ["Table", "Rows"],
       ...tables.map((t) => [t, totals[t] ?? 0]),
@@ -286,47 +304,67 @@ serve(async (req) => {
     const filename = `backup_${ymd}_${safeFilenamePart(scheduleType)}_${safeFilenamePart(body.run_id)}.xlsx`;
     const storagePath = `${ymd}/${body.run_id}/${filename}`;
 
-    // Upload to internal storage
+    // Upload to internal storage (always)
     const { error: uploadErr } = await admin.storage.from("backups").upload(storagePath, xlsxBytes, {
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       upsert: true,
     });
     if (uploadErr) throw uploadErr;
 
-    // Google access token
-    const sa = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON) as GoogleServiceAccount;
-    const accessToken = await getGoogleAccessToken({
-      sa,
-      scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/spreadsheets"],
-    });
+    let driveFileId: string | null = null;
+    let driveWebViewLink: string | null = null;
+    let driveFolderId: string | null = null;
 
-    // Upload to Drive
-    const drive = await driveUploadXlsx({
-      accessToken,
-      folderId: GOOGLE_DRIVE_FOLDER_ID,
-      filename,
-      bytes: xlsxBytes,
-    });
+    // Optional: Drive + Sheets
+    if (targets.drive || targets.sheets) {
+      const GOOGLE_SERVICE_ACCOUNT_JSON = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON");
+      if (!GOOGLE_SERVICE_ACCOUNT_JSON) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not configured");
 
-    // Append to Sheets
-    const tabName = "Backups";
-    await sheetsEnsureTab({ accessToken, spreadsheetId: GOOGLE_SHEETS_SPREADSHEET_ID, tabName });
-    await sheetsAppendBackupRow({
-      accessToken,
-      spreadsheetId: GOOGLE_SHEETS_SPREADSHEET_ID,
-      tabName,
-      values: [
-        startedAt.toISOString(),
-        scheduleType,
-        body.run_id,
-        filename,
-        xlsxBytes.length,
-        drive.id,
-        drive.webViewLink ?? "",
-      ],
-    });
+      const sa = JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON) as GoogleServiceAccount;
+      const accessToken = await getGoogleAccessToken({
+        sa,
+        scopes: ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/spreadsheets"],
+      });
 
-    // Record artifact
+      if (targets.drive) {
+        const GOOGLE_DRIVE_FOLDER_ID = Deno.env.get("GOOGLE_DRIVE_FOLDER_ID");
+        if (!GOOGLE_DRIVE_FOLDER_ID) throw new Error("GOOGLE_DRIVE_FOLDER_ID is not configured");
+        driveFolderId = GOOGLE_DRIVE_FOLDER_ID;
+
+        const drive = await driveUploadXlsx({
+          accessToken,
+          folderId: GOOGLE_DRIVE_FOLDER_ID,
+          filename,
+          bytes: xlsxBytes,
+        });
+        driveFileId = drive.id;
+        driveWebViewLink = drive.webViewLink ?? null;
+      }
+
+      if (targets.sheets) {
+        const GOOGLE_SHEETS_SPREADSHEET_ID = Deno.env.get("GOOGLE_SHEETS_SPREADSHEET_ID");
+        if (!GOOGLE_SHEETS_SPREADSHEET_ID) throw new Error("GOOGLE_SHEETS_SPREADSHEET_ID is not configured");
+
+        const tabName = "Backups";
+        await sheetsEnsureTab({ accessToken, spreadsheetId: GOOGLE_SHEETS_SPREADSHEET_ID, tabName });
+        await sheetsAppendBackupRow({
+          accessToken,
+          spreadsheetId: GOOGLE_SHEETS_SPREADSHEET_ID,
+          tabName,
+          values: [
+            startedAt.toISOString(),
+            scheduleType,
+            body.run_id,
+            filename,
+            xlsxBytes.length,
+            driveFileId ?? "",
+            driveWebViewLink ?? "",
+          ],
+        });
+      }
+    }
+
+    // Record artifact (always)
     const { data: artifact, error: artErr } = await admin
       .from("backup_artifacts")
       .insert({
@@ -337,9 +375,9 @@ serve(async (req) => {
         bytes: xlsxBytes.length,
         storage_bucket: "backups",
         storage_path: storagePath,
-        drive_file_id: drive.id,
-        drive_parent_folder_id: GOOGLE_DRIVE_FOLDER_ID,
-        meta: { tables, totals, filename },
+        drive_file_id: driveFileId,
+        drive_parent_folder_id: driveFolderId,
+        meta: { tables, totals, filename, targets, drive_web_view_link: driveWebViewLink },
       })
       .select("id")
       .single();
@@ -352,25 +390,40 @@ serve(async (req) => {
       .update({ status: "success", finished_at: finishedAt.toISOString(), duration_ms: durationMs })
       .eq("id", body.run_id);
 
-    return json({ ok: true, run_id: body.run_id, artifact_id: artifact?.id, storage_path: storagePath, drive_file_id: drive.id });
+    console.log("backup-worker success", { run_id: body.run_id, durationMs, targets });
+    return { ok: true, run_id: body.run_id, artifact_id: artifact?.id, storage_path: storagePath, drive_file_id: driveFileId };
   } catch (err: any) {
     console.error("backup-worker failed:", err);
     try {
-      const url = Deno.env.get("SUPABASE_URL");
-      const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (url && serviceRole) {
-        const admin = createClient(url, serviceRole);
-        const body = (await req.json().catch(() => ({}))) as Body;
-        if (body?.run_id) {
-          await admin
-            .from("backup_runs")
-            .update({ status: "failed", finished_at: new Date().toISOString(), error_message: err?.message ?? String(err) })
-            .eq("id", body.run_id);
-        }
-      }
+      await admin
+        .from("backup_runs")
+        .update({ status: "failed", finished_at: new Date().toISOString(), error_message: err?.message ?? String(err) })
+        .eq("id", body.run_id);
     } catch {
       // ignore
     }
+    throw err;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  try {
+    const body = (await req.json().catch(() => ({}))) as Body;
+    if (!body.run_id) return json({ error: "Missing run_id" }, 400);
+    // Run in background: return immediately to avoid client timeouts.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const waitUntil = (globalThis as any).EdgeRuntime?.waitUntil as ((p: Promise<unknown>) => void) | undefined;
+    if (waitUntil) {
+      waitUntil(runBackupJob(req, body));
+      return json({ ok: true, run_id: body.run_id, queued: true });
+    }
+
+    // Fallback (shouldn't happen in production): run inline.
+    const res = await runBackupJob(req, body);
+    return json(res);
+  } catch (err: any) {
     return json({ error: err?.message ?? String(err) }, 500);
   }
 });

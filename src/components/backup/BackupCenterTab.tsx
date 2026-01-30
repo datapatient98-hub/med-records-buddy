@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,58 @@ export default function BackupCenterTab() {
 
   const [sheetPreviewOpen, setSheetPreviewOpen] = React.useState(false);
 
+  const [targets, setTargets] = React.useState<{ drive: boolean; sheets: boolean }>({ drive: true, sheets: true });
+  const [savingTargets, setSavingTargets] = React.useState(false);
+
+  const loadTargets = React.useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("app_settings")
+        .select("setting_value")
+        .eq("setting_key", "backup_settings")
+        .maybeSingle();
+      if (error) throw error;
+      const t = (data?.setting_value as any)?.targets as { drive?: boolean; sheets?: boolean } | undefined;
+      setTargets({ drive: t?.drive !== false, sheets: t?.sheets !== false });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const saveTargets = React.useCallback(
+    async (next: { drive: boolean; sheets: boolean }) => {
+      setSavingTargets(true);
+      try {
+        // This requires Admin due to RLS policy on app_settings.
+        const { data: existing, error: readErr } = await supabase
+          .from("app_settings")
+          .select("id, setting_value")
+          .eq("setting_key", "backup_settings")
+          .maybeSingle();
+        if (readErr) throw readErr;
+
+        const prev = (existing?.setting_value as any) ?? {};
+        const merged = { ...prev, targets: { ...(prev.targets ?? {}), drive: next.drive, sheets: next.sheets } };
+
+        if (existing?.id) {
+          const { error: upErr } = await supabase.from("app_settings").update({ setting_value: merged }).eq("id", existing.id);
+          if (upErr) throw upErr;
+        } else {
+          const { error: insErr } = await supabase.from("app_settings").insert({ setting_key: "backup_settings", setting_value: merged });
+          if (insErr) throw insErr;
+        }
+
+        setTargets(next);
+        toast.success("تم حفظ إعدادات النسخ");
+      } catch (err: any) {
+        toast.error(err?.message ?? "تعذر حفظ الإعدادات (مسموح للمسؤول فقط)");
+      } finally {
+        setSavingTargets(false);
+      }
+    },
+    []
+  );
+
   const loadConfig = React.useCallback(async () => {
     try {
       const { data, error } = await supabase.functions.invoke("backup-config");
@@ -90,7 +143,8 @@ export default function BackupCenterTab() {
   React.useEffect(() => {
     void load();
     void loadConfig();
-  }, [load, loadConfig]);
+    void loadTargets();
+  }, [load, loadConfig, loadTargets]);
 
   const ensureSignedIn = React.useCallback(async () => {
     const { data, error } = await supabase.auth.getSession();
@@ -180,6 +234,37 @@ export default function BackupCenterTab() {
           </p>
 
           <Separator />
+
+          <div className="space-y-2" dir="rtl">
+            <div className="text-sm font-medium">وجهات النسخ (اختياري)</div>
+            <div className="text-xs text-muted-foreground">
+              لو في مشكلة وصول لمواقع Google أو عايز تسريع، ممكن توقف Drive/Sheets مؤقتاً. (التخزين الداخلي يظل يعمل دائماً)
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <div className="text-sm">الرفع إلى Drive</div>
+                  <div className="text-xs text-muted-foreground">رفع ملف Excel على Drive</div>
+                </div>
+                <Switch
+                  checked={targets.drive}
+                  onCheckedChange={(v) => void saveTargets({ ...targets, drive: v })}
+                  disabled={savingTargets}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <div className="text-sm">التسجيل في Sheets</div>
+                  <div className="text-xs text-muted-foreground">تسجيل سطر في Google Sheet</div>
+                </div>
+                <Switch
+                  checked={targets.sheets}
+                  onCheckedChange={(v) => void saveTargets({ ...targets, sheets: v })}
+                  disabled={savingTargets}
+                />
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-2" dir="rtl">
             <div className="flex flex-wrap items-center justify-between gap-2">
