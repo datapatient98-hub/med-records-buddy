@@ -17,6 +17,7 @@ type AdminListUser = {
   email: string | null;
   created_at: string;
   role: Role | null;
+  template?: string | null;
 };
 
 function roleLabel(role: Role | null) {
@@ -180,6 +181,7 @@ export default function UserManagementTab() {
             <TableRow>
               <TableHead className="text-right">البريد الإلكتروني</TableHead>
               <TableHead className="text-right">الدور</TableHead>
+              <TableHead className="text-right">السياسة</TableHead>
               <TableHead className="text-right">تاريخ الإنشاء</TableHead>
             </TableRow>
           </TableHeader>
@@ -190,6 +192,7 @@ export default function UserManagementTab() {
                 <TableCell>
                   <Badge variant={u.role === "admin" ? "destructive" : "outline"}>{roleLabel(u.role)}</Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">{u.template ?? "-"}</TableCell>
                 <TableCell className="text-muted-foreground">{new Date(u.created_at).toLocaleDateString("ar-EG")}</TableCell>
               </TableRow>
             ))}
