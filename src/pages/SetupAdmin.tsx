@@ -37,8 +37,42 @@ export default function SetupAdmin() {
         body: { email: em, password },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      // If admin already exists, backend returns 400 with { error: "Admin already exists" }
+      // Treat that as a non-fatal state and redirect to /login.
+      if (error) {
+        const msg = (error as any)?.message ?? "";
+        const status = (error as any)?.context?.status;
+        const body = (error as any)?.context?.body;
+        const bodyErr = typeof body === "string" ? body : "";
+
+        const alreadyExists =
+          status === 400 &&
+          (msg.includes("Admin already exists") || bodyErr.includes("Admin already exists"));
+
+        if (alreadyExists) {
+          toast({
+            title: "الأدمن موجود بالفعل",
+            description: "تم إعداد حساب Admin مسبقًا. انتقل لتسجيل الدخول.",
+          });
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        throw error;
+      }
+
+      if (data?.error) {
+        const msg = String(data.error);
+        if (msg.includes("Admin already exists")) {
+          toast({
+            title: "الأدمن موجود بالفعل",
+            description: "تم إعداد حساب Admin مسبقًا. انتقل لتسجيل الدخول.",
+          });
+          navigate("/login", { replace: true });
+          return;
+        }
+        throw new Error(msg);
+      }
 
       // Auto sign-in to avoid losing the credentials / confusion.
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: em, password });
