@@ -28,13 +28,20 @@ async function getGoogleAccessToken(args: { sa: GoogleServiceAccount; scopes: st
   const scope = args.scopes.join(" ");
 
   const normalizedPk = (args.sa.private_key ?? "").replace(/\\n/g, "\n");
+
+  if (normalizedPk.includes("BEGIN RSA PRIVATE KEY")) {
+    throw new Error(
+      "Service Account private_key is PKCS#1 (-----BEGIN RSA PRIVATE KEY-----). This runtime requires PKCS#8 (-----BEGIN PRIVATE KEY-----). In Google Cloud: create a NEW JSON key for the Service Account and use its private_key field."
+    );
+  }
   if (!normalizedPk.includes("BEGIN PRIVATE KEY")) {
     throw new Error(
-      "Service Account private_key must be PKCS#8 PEM (-----BEGIN PRIVATE KEY-----). Regenerate a JSON key for the Service Account."
+      "Service Account private_key must be PKCS#8 PEM (-----BEGIN PRIVATE KEY-----). Create/regenerate a JSON key for the Service Account and paste it exactly as provided."
     );
   }
 
   const pk = await importPKCS8(normalizedPk, "RS256");
+
   const jwt = await new SignJWT({ scope })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" })
     .setIssuer(args.sa.client_email)
