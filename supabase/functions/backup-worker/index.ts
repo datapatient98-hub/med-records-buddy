@@ -57,7 +57,16 @@ async function getGoogleAccessToken(args: { sa: GoogleServiceAccount; scopes: st
   const now = Math.floor(Date.now() / 1000);
   const scope = args.scopes.join(" ");
 
-  const pk = await importPKCS8(args.sa.private_key, "RS256");
+  // Service account JSON sometimes arrives with literal "\\n" sequences in env secrets.
+  // jose expects a PEM string with real newlines.
+  const normalizedPk = (args.sa.private_key ?? "").replace(/\\n/g, "\n");
+  if (!normalizedPk.includes("BEGIN PRIVATE KEY")) {
+    throw new Error(
+      "GOOGLE_SERVICE_ACCOUNT_JSON.private_key must be a PKCS#8 PEM string (-----BEGIN PRIVATE KEY-----). Please regenerate a JSON key from Google Service Account."
+    );
+  }
+
+  const pk = await importPKCS8(normalizedPk, "RS256");
   const jwt = await new SignJWT({
     scope,
   })
