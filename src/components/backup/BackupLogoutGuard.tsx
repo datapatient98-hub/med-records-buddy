@@ -277,32 +277,34 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
       <AlertDialogContent dir="rtl">
         <AlertDialogHeader>
           <AlertDialogTitle>انتبه: النسخ الاحتياطي مطلوب</AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>لم يتم تشغيل نسخة احتياطية ناجحة اليوم بعد 1:30 مساءً.</p>
-            <p>يجب عمل نسخة احتياطية الآن قبل تسجيل الخروج.</p>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>لم يتم تشغيل نسخة احتياطية ناجحة اليوم بعد 1:30 مساءً.</p>
+              <p>يجب عمل نسخة احتياطية الآن قبل تسجيل الخروج.</p>
 
-            {running ? (
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <div className="text-muted-foreground">جاري النسخ…</div>
-                  <div className="font-mono">
-                    <span className="text-muted-foreground">الوقت: </span>
-                    <span>{formatDuration(elapsedMs)}</span>
-                    {remainingMs != null ? (
-                      <>
-                        <span className="text-muted-foreground"> — المتبقي: </span>
-                        <span>{formatDuration(remainingMs)}</span>
-                      </>
-                    ) : null}
+              {running ? (
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div className="text-muted-foreground">جاري النسخ…</div>
+                    <div className="font-mono">
+                      <span className="text-muted-foreground">الوقت: </span>
+                      <span>{formatDuration(elapsedMs)}</span>
+                      {remainingMs != null ? (
+                        <>
+                          <span className="text-muted-foreground"> — المتبقي: </span>
+                          <span>{formatDuration(remainingMs)}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {progressValue != null ? <Progress value={progressValue} /> : null}
+                  <div className="text-xs text-muted-foreground">
+                    {estimatedMs != null ? "الوقت المتبقي تقديري وقد يزيد/يقل حسب حجم البيانات والاتصال." : "جاري حساب الوقت المتوقع…"}
                   </div>
                 </div>
-
-                {progressValue != null ? <Progress value={progressValue} /> : null}
-                <div className="text-xs text-muted-foreground">
-                  {estimatedMs != null ? "الوقت المتبقي تقديري وقد يزيد/يقل حسب حجم البيانات والاتصال." : "جاري حساب الوقت المتوقع…"}
-                </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
