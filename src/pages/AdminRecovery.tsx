@@ -143,12 +143,18 @@ export default function AdminRecovery() {
                     <Button type="button" variant="outline" onClick={() => void copyLink()}>
                       نسخ
                     </Button>
-                    <Button type="button" variant="outline" asChild>
-                      <a href={resetLink} target="_blank" rel="noreferrer" className="gap-2 inline-flex items-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => {
+                          // Open in same tab to avoid popup/new-tab blocking that prevents completing the recovery flow.
+                          window.location.assign(resetLink);
+                        }}
+                      >
                         <LinkIcon className="h-4 w-4" />
                         فتح
-                      </a>
-                    </Button>
+                      </Button>
                   </div>
                 </div>
               )}
