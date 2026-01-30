@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import SetupAdmin from "./pages/SetupAdmin";
 import ResetPassword from "./pages/ResetPassword";
+import AdminRecovery from "./pages/AdminRecovery";
 import Admission from "./pages/Admission";
 import Discharge from "./pages/Discharge";
 import MedicalProcedures from "./pages/MedicalProcedures";
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/setup" element={<SetupAdmin />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/admin-recovery" element={<AdminRecovery />} />
 
               <Route
                 path="/"

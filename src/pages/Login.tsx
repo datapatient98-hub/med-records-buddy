@@ -118,10 +118,16 @@ export default function Login() {
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">
-              <button type="button" className="text-primary hover:underline" onClick={() => navigate("/setup")}
-              >
-                إنشاء حساب Admin أول مرة
-              </button>
+              <div className="space-y-2">
+                <button type="button" className="text-primary hover:underline" onClick={() => navigate("/setup")}>
+                  إنشاء حساب Admin أول مرة
+                </button>
+                <div>
+                  <button type="button" className="text-primary hover:underline" onClick={() => navigate("/admin-recovery")}>
+                    مش فاكر إيميل الأدمن؟ (استرجاع)
+                  </button>
+                </div>
+              </div>
             </div>
           </form>
         </CardContent>
