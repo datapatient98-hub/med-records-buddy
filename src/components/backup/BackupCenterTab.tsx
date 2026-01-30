@@ -6,6 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
 type BackupRun = {
@@ -39,6 +47,10 @@ export default function BackupCenterTab() {
     sheets_spreadsheet_id: string | null;
     sheets_tab_name: string | null;
   } | null>(null);
+
+  const [testOpen, setTestOpen] = React.useState(false);
+  const [testLoading, setTestLoading] = React.useState(false);
+  const [testResult, setTestResult] = React.useState<any>(null);
 
   const loadConfig = React.useCallback(async () => {
     try {
@@ -106,6 +118,24 @@ export default function BackupCenterTab() {
     window.open(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(id)}/edit`, "_blank", "noopener,noreferrer");
   };
 
+  const runConnectionTest = async () => {
+    setTestOpen(true);
+    setTestLoading(true);
+    setTestResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("backup-connection-test");
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setTestResult(data);
+      toast.success("تم تنفيذ اختبار الربط");
+    } catch (err: any) {
+      setTestResult({ error: err?.message ?? "تعذر تنفيذ اختبار الربط" });
+      toast.error(err?.message ?? "تعذر تنفيذ اختبار الربط");
+    } finally {
+      setTestLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4" dir="rtl">
       <Card>
@@ -113,6 +143,9 @@ export default function BackupCenterTab() {
           <CardTitle>مركز النسخ الاحتياطي</CardTitle>
           <div className="flex items-center gap-2">
             <Button onClick={runNow}>بدء نسخ الآن</Button>
+            <Button variant="outline" onClick={runConnectionTest} disabled={testLoading}>
+              {testLoading ? "جاري الاختبار..." : "اختبار الربط"}
+            </Button>
             <Button variant="outline" onClick={load} disabled={loading}>
               {loading ? "جاري..." : "تحديث"}
             </Button>
@@ -162,6 +195,81 @@ export default function BackupCenterTab() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={testOpen} onOpenChange={setTestOpen}>
+        <DialogContent className="max-w-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>نتيجة اختبار الربط</DialogTitle>
+            <DialogDescription>
+              الاختبار يتحقق من الوصول للفولدر والشيت، ويكتب سطر Test ثم يمسح قيمه تلقائيًا.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 text-sm">
+            {testResult?.error ? (
+              <div className="rounded-md border p-3">
+                <div className="text-xs text-muted-foreground">خطأ</div>
+                <div className="font-mono text-xs break-all">{String(testResult.error)}</div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Service Account Email</div>
+                    <div className="font-mono text-xs break-all">{testResult?.service_account_email ?? "-"}</div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Drive</div>
+                    <div className="text-sm">
+                      {testResult?.drive?.ok ? "✅ OK" : "❌ فشل"} (status: {testResult?.drive?.status ?? "-"})
+                    </div>
+                  </div>
+                  <div className="rounded-md border p-3 sm:col-span-2">
+                    <div className="text-xs text-muted-foreground">Sheets</div>
+                    <div className="text-sm">
+                      قراءة: {testResult?.sheets?.read_ok ? "✅" : "❌"} — كتابة: {testResult?.sheets?.write_ok ? "✅" : "❌"} — مسح: {testResult?.sheets?.cleared_ok ? "✅" : "❌"}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      tab: {testResult?.sheets?.tab_name ?? "Backups"} | range: {testResult?.sheets?.append_range ?? "-"}
+                    </div>
+                    {(testResult?.sheets?.append_error || testResult?.sheets?.clear_error) && (
+                      <div className="mt-2 font-mono text-xs break-all">
+                        {testResult?.sheets?.append_error ? `append_error: ${testResult.sheets.append_error}` : ""}
+                        {testResult?.sheets?.clear_error ? `\nclear_error: ${testResult.sheets.clear_error}` : ""}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => testResult?.links?.drive_folder && window.open(testResult.links.drive_folder, "_blank", "noopener,noreferrer")}
+                    disabled={!testResult?.links?.drive_folder}
+                  >
+                    فتح فولدر Drive
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => testResult?.links?.sheet && window.open(testResult.links.sheet, "_blank", "noopener,noreferrer")}
+                    disabled={!testResult?.links?.sheet}
+                  >
+                    فتح Google Sheet
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setTestOpen(false)}>
+              إغلاق
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="border rounded-lg overflow-hidden">
         <Table>
