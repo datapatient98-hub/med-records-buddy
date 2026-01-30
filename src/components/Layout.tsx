@@ -52,6 +52,7 @@ export default function Layout({ children }: LayoutProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [logoutRequested, setLogoutRequested] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const lastSearchedRef = useRef<string>("");
   const [topSearchLoading, setTopSearchLoading] = useState(false);
@@ -79,11 +80,13 @@ export default function Layout({ children }: LayoutProps) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setIsAuthed(!!session);
+      setUserEmail(session?.user?.email ?? null);
     });
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setIsAuthed(!!data.session);
+      setUserEmail(data.session?.user?.email ?? null);
     });
 
     return () => {
@@ -184,6 +187,11 @@ export default function Layout({ children }: LayoutProps) {
             <NotificationBell />
             <ExcelConnectionIndicator />
             <ThemeToggle />
+            {isAuthed && userEmail ? (
+              <div className="hidden md:flex items-center px-2 py-1 rounded-md bg-secondary/50 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{userEmail}</span>
+              </div>
+            ) : null}
             {isAuthed ? (
               <Button variant="ghost" size="sm" onClick={handleSignOutClick} className="gap-2">
                 <LogOut className="h-4 w-4" />
