@@ -211,9 +211,10 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
 
       toast.success("تم بدء النسخ الاحتياطي، سيتم تسجيل الخروج عند الانتهاء");
 
-      // Poll until success/failed (max ~2 minutes)
+      // Poll until success/failed (dynamic max wait)
       const started = Date.now();
-      while (Date.now() - started < 120_000) {
+      const maxWaitMs = Math.max(120_000, (estimatedMs ?? 0) + 30_000);
+      while (Date.now() - started < maxWaitMs) {
         const { data: runRow, error: runErr } = await supabase
           .from("backup_runs")
           .select("status, error_message")
@@ -248,7 +249,7 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      throw new Error("استغرق النسخ وقتاً أطول من المتوقع، حاول مرة أخرى");
+      throw new Error("استغرق النسخ وقتاً أطول من المتوقع (قد تكون البيانات كبيرة). انتظر قليلاً ثم حاول تحديث الحالة.");
     } catch (err: any) {
       toast.error(err?.message ?? "تعذر بدء النسخ");
     } finally {
