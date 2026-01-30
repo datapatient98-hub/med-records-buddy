@@ -11,13 +11,6 @@ import { KeyRound, Link as LinkIcon, Shield } from "lucide-react";
 
 type AdminUser = { id: string; email: string | null; created_at: string };
 
-function maskEmail(email: string) {
-  const [u, d] = email.split("@");
-  if (!u || !d) return email;
-  const visible = u.slice(0, 2);
-  return `${visible}${"*".repeat(Math.max(1, u.length - 2))}@${d}`;
-}
-
 export default function AdminRecovery() {
   const [code, setCode] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -157,7 +150,7 @@ export default function AdminRecovery() {
                       .filter((a) => a.email)
                       .map((a) => (
                         <SelectItem key={a.id} value={a.email as string}>
-                          {maskEmail(a.email as string)}
+                           {a.email as string}
                         </SelectItem>
                       ))}
                   </SelectContent>
