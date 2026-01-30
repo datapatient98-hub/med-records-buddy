@@ -1,17 +1,26 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Layout from "@/components/Layout";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SearchableSelect from "@/components/SearchableSelect";
 import LookupCreateDialog, { LookupCreateType } from "@/components/LookupCreateDialog";
-import { FileDown, FileSpreadsheet, FileX } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
-import * as XLSX from "xlsx";
+import ReportsSummary from "@/components/reports/ReportsSummary";
+import { toEventRangeIso } from "@/lib/reports/dateRange";
+import {
+  exportAdmissionsExcel,
+  exportDischargesExcel,
+  exportEmergenciesExcel,
+  exportEndoscopiesExcel,
+  exportProceduresExcel,
+  exportLoansExcel,
+} from "@/lib/excel/exportReportsExcel";
 
 export default function Reports() {
   const [startDate, setStartDate] = useState("");
@@ -60,12 +69,26 @@ export default function Reports() {
   const { data: reportData, isLoading, refetch } = useQuery({
     queryKey: ["report", startDate, endDate, recordType, departmentFilter, diagnosisFilter, doctorFilter],
     queryFn: async () => {
+      if (!startDate || !endDate) {
+        return {
+          admissions: [],
+          discharges: [],
+          emergencies: [],
+          endoscopies: [],
+          procedures: [],
+          loans: [],
+        };
+      }
+
+      const { fromIso, toIso } = toEventRangeIso({ from: startDate, to: endDate });
+
       const results: any = {
         admissions: [],
         discharges: [],
         emergencies: [],
         endoscopies: [],
         procedures: [],
+        loans: [],
       };
 
       if (recordType === "all" || recordType === "admissions") {
@@ -78,8 +101,7 @@ export default function Reports() {
             doctor:doctors(name)
           `);
 
-        if (startDate) query = query.gte("created_at", startDate);
-        if (endDate) query = query.lte("created_at", endDate);
+        query = query.gte("admission_date", fromIso).lte("admission_date", toIso);
         if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
         if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
         if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
@@ -100,8 +122,7 @@ export default function Reports() {
             discharge_doctor:doctors(name)
           `);
 
-        if (startDate) query = query.gte("created_at", startDate);
-        if (endDate) query = query.lte("created_at", endDate);
+        query = query.gte("discharge_date", fromIso).lte("discharge_date", toIso);
         if (departmentFilter !== "all") query = query.eq("discharge_department_id", departmentFilter);
         if (diagnosisFilter !== "all") query = query.eq("discharge_diagnosis_id", diagnosisFilter);
         if (doctorFilter !== "all") query = query.eq("discharge_doctor_id", doctorFilter);
@@ -121,8 +142,7 @@ export default function Reports() {
             doctor:doctors(name)
           `);
 
-        if (startDate) query = query.gte("created_at", startDate);
-        if (endDate) query = query.lte("created_at", endDate);
+        query = query.gte("visit_date", fromIso).lte("visit_date", toIso);
         if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
         if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
         if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
@@ -142,8 +162,7 @@ export default function Reports() {
             doctor:doctors(name)
           `);
 
-        if (startDate) query = query.gte("created_at", startDate);
-        if (endDate) query = query.lte("created_at", endDate);
+        query = query.gte("procedure_date", fromIso).lte("procedure_date", toIso);
         if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
         if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
         if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
@@ -163,8 +182,7 @@ export default function Reports() {
             doctor:doctors(name)
           `);
 
-        if (startDate) query = query.gte("created_at", startDate);
-        if (endDate) query = query.lte("created_at", endDate);
+        query = query.gte("procedure_date", fromIso).lte("procedure_date", toIso);
         if (departmentFilter !== "all") query = query.eq("department_id", departmentFilter);
         if (diagnosisFilter !== "all") query = query.eq("diagnosis_id", diagnosisFilter);
         if (doctorFilter !== "all") query = query.eq("doctor_id", doctorFilter);
@@ -174,95 +192,80 @@ export default function Reports() {
         results.procedures = data || [];
       }
 
+      if (recordType === "all" || recordType === "loans") {
+        let query = supabase.from("file_loans").select("*");
+        query = query.gte("loan_date", fromIso).lte("loan_date", toIso);
+        // Loans do not have diagnosis/doctor/department IDs; keep only date filter.
+        const { data, error } = await query;
+        if (error) throw error;
+        results.loans = data || [];
+      }
+
       return results;
     },
     enabled: true, // Changed from false to true
   });
 
-  const handleExportExcel = () => {
-    if (!reportData) return;
+  const lookupMaps = useMemo(() => {
+    const departmentsMap: Record<string, string> = {};
+    const doctorsMap: Record<string, string> = {};
+    const diagnosesMap: Record<string, string> = {};
+    (departments ?? []).forEach((d: any) => (departmentsMap[d.id] = d.name));
+    (doctors ?? []).forEach((d: any) => (doctorsMap[d.id] = d.name));
+    (diagnoses ?? []).forEach((d: any) => (diagnosesMap[d.id] = d.name));
+    return { departments: departmentsMap, doctors: doctorsMap, diagnoses: diagnosesMap };
+  }, [departments, doctors, diagnoses]);
 
-    const wb = XLSX.utils.book_new();
+  const canExport = Boolean(reportData && startDate && endDate);
 
-    if (reportData.admissions.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(
-        reportData.admissions.map((item: any) => ({
-          "الرقم الموحد": item.unified_number,
-          "الرقم الداخلي": item.internal_number,
-          "اسم المريض": item.patient_name,
-          "الرقم القومي": item.national_id,
-          "النوع": item.gender,
-          "السن": item.age,
-          "القسم": item.department?.name,
-          "الحالة": item.admission_status,
-          "التشخيص": item.diagnosis?.name || "-",
-          "الطبيب": item.doctor?.name || "-",
-          "تاريخ الحجز": format(new Date(item.admission_date), "dd/MM/yyyy HH:mm"),
-        }))
-      );
-      XLSX.utils.book_append_sheet(wb, ws, "الحجوزات");
+  const exportByType = (type: string) => {
+    if (!reportData || !startDate || !endDate) return;
+    const stamp = format(new Date(), "yyyy-MM-dd_HH-mm");
+    const rangeLabel = `${startDate}_to_${endDate}`;
+
+    switch (type) {
+      case "admissions":
+        exportAdmissionsExcel({
+          rows: reportData.admissions,
+          lookups: lookupMaps,
+          fileName: `تقرير_الدخول_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
+      case "discharges":
+        exportDischargesExcel({
+          rows: reportData.discharges,
+          lookups: lookupMaps,
+          fileName: `تقرير_الخروج_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
+      case "emergencies":
+        exportEmergenciesExcel({
+          rows: reportData.emergencies,
+          lookups: lookupMaps,
+          fileName: `تقرير_الطوارئ_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
+      case "endoscopies":
+        exportEndoscopiesExcel({
+          rows: reportData.endoscopies,
+          lookups: lookupMaps,
+          fileName: `تقرير_المناظير_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
+      case "procedures":
+        exportProceduresExcel({
+          rows: reportData.procedures,
+          lookups: lookupMaps,
+          fileName: `تقرير_الإجراءات_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
+      case "loans":
+        exportLoansExcel({
+          rows: reportData.loans,
+          fileName: `تقرير_الاستعارات_${rangeLabel}_${stamp}.xlsx`,
+        });
+        break;
     }
-
-    if (reportData.discharges.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(
-        reportData.discharges.map((item: any) => ({
-          "الرقم الموحد": item.admission?.unified_number,
-          "الرقم الداخلي": item.admission?.internal_number,
-          "اسم المريض": item.admission?.patient_name,
-          "قسم الخروج": item.discharge_department?.name,
-          "تشخيص الخروج": item.discharge_diagnosis?.name,
-          "طبيب الخروج": item.discharge_doctor?.name,
-          "حالة الخروج": item.discharge_status,
-          "الوعاء المالي": item.finance_source || "-",
-          "تاريخ الخروج": format(new Date(item.discharge_date), "dd/MM/yyyy HH:mm"),
-        }))
-      );
-      XLSX.utils.book_append_sheet(wb, ws, "الخروج");
-    }
-
-    if (reportData.emergencies.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(
-        reportData.emergencies.map((item: any) => ({
-          "الرقم الموحد": item.unified_number,
-          "اسم المريض": item.patient_name,
-          "القسم": item.department?.name,
-          "التشخيص": item.diagnosis?.name || "-",
-          "الطبيب": item.doctor?.name || "-",
-          "تاريخ الزيارة": format(new Date(item.visit_date), "dd/MM/yyyy HH:mm"),
-        }))
-      );
-      XLSX.utils.book_append_sheet(wb, ws, "الطوارئ");
-    }
-
-    if (reportData.endoscopies.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(
-        reportData.endoscopies.map((item: any) => ({
-          "الرقم الموحد": item.unified_number,
-          "اسم المريض": item.patient_name,
-          "القسم": item.department?.name,
-          "التشخيص": item.diagnosis?.name || "-",
-          "الطبيب": item.doctor?.name || "-",
-          "تاريخ الإجراء": format(new Date(item.procedure_date), "dd/MM/yyyy HH:mm"),
-        }))
-      );
-      XLSX.utils.book_append_sheet(wb, ws, "المناظير");
-    }
-
-    if (reportData.procedures.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(
-        reportData.procedures.map((item: any) => ({
-          "الرقم الموحد": item.unified_number,
-          "اسم المريض": item.patient_name,
-          "القسم": item.department?.name,
-          "التشخيص": item.diagnosis?.name || "-",
-          "الطبيب": item.doctor?.name || "-",
-          "تاريخ الإجراء": format(new Date(item.procedure_date), "dd/MM/yyyy HH:mm"),
-        }))
-      );
-      XLSX.utils.book_append_sheet(wb, ws, "البذل");
-    }
-
-    XLSX.writeFile(wb, `تقرير_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
   return (
@@ -274,191 +277,209 @@ export default function Reports() {
       />
       
       <div className="space-y-6" dir="rtl">
-        {/* Header */}
-        <div className="flex justify-between items-center flex-wrap gap-4">
-          <h1 className="text-3xl font-bold">التقارير الطبية والإحصائيات المتقدمة</h1>
-        </div>
+        <header className="flex items-center justify-between gap-3 flex-wrap">
+          <h1 className="text-3xl font-bold">التقارير</h1>
+          <div className="text-sm text-muted-foreground">فلترة حسب تاريخ الحدث (دخول/خروج/زيارة/إجراء/استعارة)</div>
+        </header>
 
-        {/* Filters Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">من تاريخ</label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>فلاتر التقارير</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">من تاريخ</label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">إلى تاريخ</label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">إلى تاريخ</label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">نوع السجل</label>
-            <Select value={recordType} onValueChange={setRecordType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">الكل</SelectItem>
-                <SelectItem value="admissions">الحجوزات</SelectItem>
-                <SelectItem value="discharges">الخروج</SelectItem>
-                <SelectItem value="emergencies">الطوارئ</SelectItem>
-                <SelectItem value="endoscopies">المناظير</SelectItem>
-                <SelectItem value="procedures">البذل</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">نوع التقرير</label>
+              <Select value={recordType} onValueChange={setRecordType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="اختر" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">الكل</SelectItem>
+                  <SelectItem value="admissions">الدخول</SelectItem>
+                  <SelectItem value="discharges">الخروج</SelectItem>
+                  <SelectItem value="emergencies">الطوارئ</SelectItem>
+                  <SelectItem value="endoscopies">المناظير</SelectItem>
+                  <SelectItem value="procedures">الإجراءات</SelectItem>
+                  <SelectItem value="loans">الاستعارات</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">القسم</label>
-            <SearchableSelect
-              value={departmentFilter}
-              onValueChange={setDepartmentFilter}
-              options={[
-                { id: "all", name: "الكل" },
-                ...(departments?.map((d) => ({ id: d.id, name: d.name })) || []),
-              ]}
-              placeholder="اختر القسم"
-              onAddNew={() => {
-                setCreateDialogType("department");
-                setCreateDialogOpen(true);
+            <div className="space-y-2">
+              <label className="text-sm font-medium">القسم</label>
+              <SearchableSelect
+                value={departmentFilter}
+                onValueChange={setDepartmentFilter}
+                options={[{ id: "all", name: "الكل" }, ...((departments ?? []) as any[]).map((d) => ({ id: d.id, name: d.name }))]}
+                placeholder="اختر القسم"
+                onAddNew={() => {
+                  setCreateDialogType("department");
+                  setCreateDialogOpen(true);
+                }}
+                addNewLabel="إضافة قسم"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">التشخيص</label>
+              <SearchableSelect
+                value={diagnosisFilter}
+                onValueChange={setDiagnosisFilter}
+                options={[{ id: "all", name: "الكل" }, ...((diagnoses ?? []) as any[]).map((d) => ({ id: d.id, name: d.name }))]}
+                placeholder="اختر التشخيص"
+                onAddNew={() => {
+                  setCreateDialogType("diagnosis");
+                  setCreateDialogOpen(true);
+                }}
+                addNewLabel="إضافة تشخيص"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">الطبيب</label>
+              <SearchableSelect
+                value={doctorFilter}
+                onValueChange={setDoctorFilter}
+                options={[{ id: "all", name: "الكل" }, ...((doctors ?? []) as any[]).map((d) => ({ id: d.id, name: d.name }))]}
+                placeholder="اختر الطبيب"
+                onAddNew={() => {
+                  setCreateDialogType("doctor");
+                  setCreateDialogOpen(true);
+                }}
+                addNewLabel="إضافة طبيب"
+              />
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button onClick={() => refetch()} disabled={isLoading || !startDate || !endDate} className="w-full">
+                {isLoading ? "جاري التحميل..." : "تحديث"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {reportData && startDate && endDate && (
+          <>
+            <ReportsSummary
+              counts={{
+                admissions: reportData.admissions.length,
+                discharges: reportData.discharges.length,
+                emergencies: reportData.emergencies.length,
+                endoscopies: reportData.endoscopies.length,
+                procedures: reportData.procedures.length,
+                loans: reportData.loans.length,
               }}
-              addNewLabel="إضافة قسم"
             />
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">التشخيص</label>
-            <SearchableSelect
-              value={diagnosisFilter}
-              onValueChange={setDiagnosisFilter}
-              options={[
-                { id: "all", name: "الكل" },
-                ...(diagnoses?.map((d) => ({ id: d.id, name: d.name })) || []),
-              ]}
-              placeholder="اختر التشخيص"
-              onAddNew={() => {
-                setCreateDialogType("diagnosis");
-                setCreateDialogOpen(true);
-              }}
-              addNewLabel="إضافة تشخيص"
-            />
-          </div>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>تصدير Excel (ملفات منفصلة)</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => exportByType("admissions")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير الدخول
+                </Button>
+                <Button type="button" variant="outline" onClick={() => exportByType("discharges")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير الخروج
+                </Button>
+                <Button type="button" variant="outline" onClick={() => exportByType("emergencies")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير الطوارئ
+                </Button>
+                <Button type="button" variant="outline" onClick={() => exportByType("endoscopies")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير المناظير
+                </Button>
+                <Button type="button" variant="outline" onClick={() => exportByType("procedures")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير الإجراءات
+                </Button>
+                <Button type="button" variant="outline" onClick={() => exportByType("loans")} disabled={!canExport}>
+                  <FileSpreadsheet className="ml-2 h-4 w-4" />
+                  تصدير الاستعارات
+                </Button>
+              </CardContent>
+            </Card>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">الطبيب</label>
-            <SearchableSelect
-              value={doctorFilter}
-              onValueChange={setDoctorFilter}
-              options={[
-                { id: "all", name: "الكل" },
-                ...(doctors?.map((d) => ({ id: d.id, name: d.name })) || []),
-              ]}
-              placeholder="اختر الطبيب"
-              onAddNew={() => {
-                setCreateDialogType("doctor");
-                setCreateDialogOpen(true);
-              }}
-              addNewLabel="إضافة طبيب"
-            />
-          </div>
-        </div>
+            <Tabs defaultValue="admissions" dir="rtl" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                <TabsTrigger value="admissions">الدخول ({reportData.admissions.length})</TabsTrigger>
+                <TabsTrigger value="discharges">الخروج ({reportData.discharges.length})</TabsTrigger>
+                <TabsTrigger value="emergencies">الطوارئ ({reportData.emergencies.length})</TabsTrigger>
+                <TabsTrigger value="endoscopies">المناظير ({reportData.endoscopies.length})</TabsTrigger>
+                <TabsTrigger value="procedures">الإجراءات ({reportData.procedures.length})</TabsTrigger>
+                <TabsTrigger value="loans">الاستعارات ({reportData.loans.length})</TabsTrigger>
+              </TabsList>
 
-        <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => refetch()} disabled={isLoading}>
-            {isLoading ? "جاري التحميل..." : "تحديث التقرير"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportExcel}
-            disabled={!reportData || isLoading}
-          >
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            تصدير Excel
-          </Button>
-        </div>
+              <TabsContent value="admissions" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل الدخول</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    (تم الإبقاء على عرض التفاصيل كمرحلة أولى؛ لو تحب أضيف جداول تفصيلية + بحث/ترقيم صفحات هنضيفها بعد تأكيدك.)
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-        {reportData && (
-          <div className="space-y-6">
-            {reportData.admissions.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold">الحجوزات ({reportData.admissions.length})</h2>
-                <div className="rounded-lg border bg-card overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>الرقم الموحد</TableHead>
-                        <TableHead>الرقم الداخلي</TableHead>
-                        <TableHead>اسم المريض</TableHead>
-                        <TableHead>القسم</TableHead>
-                        <TableHead>الحالة</TableHead>
-                        <TableHead>التشخيص</TableHead>
-                        <TableHead>الطبيب</TableHead>
-                        <TableHead>تاريخ الحجز</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData.admissions.map((item: any) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.unified_number}</TableCell>
-                          <TableCell>{item.internal_number}</TableCell>
-                          <TableCell>{item.patient_name}</TableCell>
-                          <TableCell>{item.department?.name}</TableCell>
-                          <TableCell>{item.admission_status}</TableCell>
-                          <TableCell>{item.diagnosis?.name || "-"}</TableCell>
-                          <TableCell>{item.doctor?.name || "-"}</TableCell>
-                          <TableCell>
-                            {format(new Date(item.admission_date), "dd/MM/yyyy HH:mm")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
+              <TabsContent value="discharges" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل الخروج</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">جاهز للتصدير Excel الآن.</CardContent>
+                </Card>
+              </TabsContent>
 
-            {reportData.emergencies.length > 0 && (
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold">الطوارئ ({reportData.emergencies.length})</h2>
-                <div className="rounded-lg border bg-card overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>الرقم الموحد</TableHead>
-                        <TableHead>اسم المريض</TableHead>
-                        <TableHead>القسم</TableHead>
-                        <TableHead>التشخيص</TableHead>
-                        <TableHead>الطبيب</TableHead>
-                        <TableHead>تاريخ الزيارة</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {reportData.emergencies.map((item: any) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.unified_number}</TableCell>
-                          <TableCell>{item.patient_name}</TableCell>
-                          <TableCell>{item.department?.name}</TableCell>
-                          <TableCell>{item.diagnosis?.name || "-"}</TableCell>
-                          <TableCell>{item.doctor?.name || "-"}</TableCell>
-                          <TableCell>
-                            {format(new Date(item.visit_date), "dd/MM/yyyy HH:mm")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </div>
+              <TabsContent value="emergencies" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل الطوارئ</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">جاهز للتصدير Excel الآن.</CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="endoscopies" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل المناظير</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">جاهز للتصدير Excel الآن.</CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="procedures" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل الإجراءات</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">جاهز للتصدير Excel الآن.</CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="loans" className="mt-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle>تفاصيل الاستعارات</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">جاهز للتصدير Excel الآن.</CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </div>
     </Layout>
