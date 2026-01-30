@@ -17,6 +17,7 @@ export default function Login() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [resetLoading, setResetLoading] = React.useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +32,26 @@ export default function Login() {
       toast({ title: "خطأ في تسجيل الدخول", description: err?.message ?? "حدث خطأ", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    const em = email.trim();
+    if (!em) {
+      toast({ title: "اكتب البريد الإلكتروني أولاً", variant: "destructive" });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(em, {
+        redirectTo: window.location.origin + "/login",
+      });
+      if (error) throw error;
+      toast({ title: "تم إرسال رابط إعادة تعيين كلمة المرور", description: "افتح الإيميل واتبع الخطوات." });
+    } catch (err: any) {
+      toast({ title: "تعذر إرسال رابط إعادة التعيين", description: err?.message ?? "حدث خطأ", variant: "destructive" });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -83,6 +104,16 @@ export default function Login() {
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "جاري..." : "دخول"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => void handleResetPassword()}
+              disabled={resetLoading}
+            >
+              {resetLoading ? "جاري الإرسال..." : "نسيت كلمة المرور"}
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">
