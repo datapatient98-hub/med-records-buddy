@@ -40,8 +40,16 @@ export default function SetupAdmin() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast({ title: "تم إنشاء Admin بنجاح", description: "الآن قم بتسجيل الدخول" });
-      navigate("/login", { replace: true });
+      // Auto sign-in to avoid losing the credentials / confusion.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: em, password });
+      if (signInErr) {
+        toast({ title: "تم إنشاء Admin", description: "تم إنشاء الحساب، لكن تعذر تسجيل الدخول تلقائيًا. جرّب من صفحة تسجيل الدخول.", variant: "destructive" });
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      toast({ title: "تم إنشاء Admin وتسجيل الدخول" });
+      navigate("/", { replace: true });
     } catch (err: any) {
       toast({ title: "تعذر إنشاء Admin", description: err?.message ?? "حدث خطأ", variant: "destructive" });
     } finally {
