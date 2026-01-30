@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+import BackupArtifactsPanel from "@/components/backup/BackupArtifactsPanel";
+import BackupSheetsPreviewDialog from "@/components/backup/BackupSheetsPreviewDialog";
+
 type BackupRun = {
   id: string;
   created_at: string;
@@ -51,6 +54,8 @@ export default function BackupCenterTab() {
   const [testOpen, setTestOpen] = React.useState(false);
   const [testLoading, setTestLoading] = React.useState(false);
   const [testResult, setTestResult] = React.useState<any>(null);
+
+  const [sheetPreviewOpen, setSheetPreviewOpen] = React.useState(false);
 
   const loadConfig = React.useCallback(async () => {
     try {
@@ -173,6 +178,9 @@ export default function BackupCenterTab() {
                 <Button type="button" variant="outline" size="sm" onClick={openSheets}>
                   فتح الشيت
                 </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSheetPreviewOpen(true)}>
+                    عرض الشيت هنا
+                  </Button>
               </div>
             </div>
 
@@ -195,6 +203,8 @@ export default function BackupCenterTab() {
           </div>
         </CardContent>
       </Card>
+
+        <BackupArtifactsPanel />
 
       <Dialog open={testOpen} onOpenChange={setTestOpen}>
         <DialogContent className="max-w-2xl" dir="rtl">
@@ -270,6 +280,8 @@ export default function BackupCenterTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BackupSheetsPreviewDialog open={sheetPreviewOpen} onOpenChange={setSheetPreviewOpen} />
 
       <div className="border rounded-lg overflow-hidden">
         <Table>

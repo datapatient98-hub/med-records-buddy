@@ -22,6 +22,14 @@ type GoogleServiceAccount = {
   token_uri?: string;
 };
 
+async function sheetsReadValues(args: { accessToken: string; spreadsheetId: string; range: string }) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(args.spreadsheetId)}/values/${encodeURIComponent(args.range)}?majorDimension=ROWS`;
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${args.accessToken}` } });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(`Google Sheets read values failed [${resp.status}]: ${JSON.stringify(data)}`);
+  return data as { range?: string; values?: unknown[][] };
+}
+
 async function getGoogleAccessToken(args: { sa: GoogleServiceAccount; scopes: string[] }) {
   const tokenUri = args.sa.token_uri || "https://oauth2.googleapis.com/token";
   const now = Math.floor(Date.now() / 1000);
@@ -108,14 +116,35 @@ serve(async (req) => {
     const driveData = await driveResp.json().catch(() => ({}));
     const driveOk = driveResp.ok && (driveData as any)?.id;
 
+    const tabName = "Backups";
+
     // 2) Sheets read test
     const sheetsMetaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(GOOGLE_SHEETS_SPREADSHEET_ID)}?fields=spreadsheetId,properties.title,sheets.properties.title`;
     const sheetsMetaResp = await fetch(sheetsMetaUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
     const sheetsMeta = await sheetsMetaResp.json().catch(() => ({}));
     const sheetsReadOk = sheetsMetaResp.ok && (sheetsMeta as any)?.spreadsheetId;
 
+    // Optional: read last rows for in-app viewing (won't require opening google.com)
+    let sheetPreview: { ok: boolean; range: string; rows: unknown[][] } | null = null;
+    if (sheetsReadOk) {
+      try {
+        const previewRange = `${tabName}!A1:G50`;
+        const values = await sheetsReadValues({
+          accessToken,
+          spreadsheetId: GOOGLE_SHEETS_SPREADSHEET_ID,
+          range: previewRange,
+        });
+        sheetPreview = {
+          ok: true,
+          range: (values as any)?.range ?? previewRange,
+          rows: ((values as any)?.values ?? []) as unknown[][],
+        };
+      } catch {
+        sheetPreview = { ok: false, range: `${tabName}!A1:G50`, rows: [] };
+      }
+    }
+
     // 3) Sheets write + clear (acts as delete for the test row)
-    const tabName = "Backups";
     let sheetsWriteOk = false;
     let clearedOk = false;
     let appendRange: string | null = null;
@@ -181,6 +210,7 @@ serve(async (req) => {
         append_error: appendError ? String((appendError as any)?.message ?? appendError) : null,
         clear_error: clearError ? String((clearError as any)?.message ?? clearError) : null,
         tab_name: tabName,
+        preview: sheetPreview,
       },
     });
   } catch (err: unknown) {
