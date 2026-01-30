@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import NotificationBell from "@/components/NotificationBell";
+import BackupLogoutGuard from "@/components/backup/BackupLogoutGuard";
 import { getAuditActorLabel, setAuditActorLabel } from "@/lib/auditActor";
 import UnifiedPatientHistoryDialog, {
   type UnifiedHistoryPayload,
@@ -45,6 +46,7 @@ const navigation = [
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
+  const [logoutRequested, setLogoutRequested] = useState(false);
 
   const lastSearchedRef = useRef<string>("");
   const [topSearchLoading, setTopSearchLoading] = useState(false);
@@ -101,6 +103,19 @@ export default function Layout({ children }: LayoutProps) {
     await runTopSearch(searchQuery);
   };
 
+  const handleSignOutClick = () => {
+    setLogoutRequested(true);
+  };
+
+  const proceedSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      window.location.href = "/login";
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background" dir="rtl">
       {/* Top Navigation Bar */}
@@ -144,6 +159,10 @@ export default function Layout({ children }: LayoutProps) {
             <NotificationBell />
             <ExcelConnectionIndicator />
             <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleSignOutClick} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">خروج</span>
+            </Button>
           </div>
         </div>
 
@@ -237,6 +256,13 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {logoutRequested && (
+        <BackupLogoutGuard
+          onProceed={proceedSignOut}
+          onCancel={() => setLogoutRequested(false)}
+        />
+      )}
     </div>
   );
 }
