@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 
-type Role = "admin" | "doctor" | "nurse" | "records_clerk";
+type Role = "admin" | "backup_manager" | "doctor" | "nurse" | "records_clerk";
 
 type AdminListUser = {
   id: string;
@@ -23,6 +23,8 @@ function roleLabel(role: Role | null) {
   switch (role) {
     case "admin":
       return "Admin";
+    case "backup_manager":
+      return "Backup Manager";
     case "doctor":
       return "Doctor";
     case "nurse":
@@ -153,6 +155,7 @@ export default function UserManagementTab() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="backup_manager">Backup Manager</SelectItem>
                   <SelectItem value="doctor">Doctor</SelectItem>
                   <SelectItem value="nurse">Nurse</SelectItem>
                   <SelectItem value="records_clerk">Records Clerk</SelectItem>
