@@ -44,7 +44,7 @@ serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await caller.auth.getClaims(token);
     const callerId = claimsData?.claims?.sub ?? null;
     if (claimsErr || !callerId) {
-      return new Response(JSON.stringify({ error: "Unauthorized: Invalid session" }), {
+      return new Response(JSON.stringify({ error: "Unauthorized: Please sign in" }), {
         status: 401,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });

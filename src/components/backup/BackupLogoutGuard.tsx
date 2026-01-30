@@ -103,6 +103,13 @@ export default function BackupLogoutGuard({ onProceed, onCancel }: Props) {
   const runNow = async () => {
     setRunning(true);
     try {
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr) throw sessionErr;
+      if (!sessionData.session) {
+        toast.error("لازم تسجّل دخول الأول قبل تشغيل النسخ الاحتياطي");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("backup-run", {
         body: { schedule_type: "manual" },
       });
