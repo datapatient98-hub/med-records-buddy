@@ -1061,6 +1061,90 @@ export type Database = {
         }
         Relationships: []
       }
+      permission_templates: {
+        Row: {
+          can_access_admission: boolean
+          can_access_dashboard: boolean
+          can_access_discharge: boolean
+          can_access_loans: boolean
+          can_access_medical_procedures: boolean
+          can_access_patient_search: boolean
+          can_access_records: boolean
+          can_access_reports: boolean
+          can_access_unified_database: boolean
+          can_bypass_department_restriction: boolean
+          can_create_records: boolean
+          can_delete_patient_records: boolean
+          can_delete_records: boolean
+          can_export_excel: boolean
+          can_import_excel: boolean
+          can_manage_backups: boolean
+          can_manage_master_data: boolean
+          can_manage_users: boolean
+          can_update_records: boolean
+          can_view_audit_logs: boolean
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          can_access_admission?: boolean
+          can_access_dashboard?: boolean
+          can_access_discharge?: boolean
+          can_access_loans?: boolean
+          can_access_medical_procedures?: boolean
+          can_access_patient_search?: boolean
+          can_access_records?: boolean
+          can_access_reports?: boolean
+          can_access_unified_database?: boolean
+          can_bypass_department_restriction?: boolean
+          can_create_records?: boolean
+          can_delete_patient_records?: boolean
+          can_delete_records?: boolean
+          can_export_excel?: boolean
+          can_import_excel?: boolean
+          can_manage_backups?: boolean
+          can_manage_master_data?: boolean
+          can_manage_users?: boolean
+          can_update_records?: boolean
+          can_view_audit_logs?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          can_access_admission?: boolean
+          can_access_dashboard?: boolean
+          can_access_discharge?: boolean
+          can_access_loans?: boolean
+          can_access_medical_procedures?: boolean
+          can_access_patient_search?: boolean
+          can_access_records?: boolean
+          can_access_reports?: boolean
+          can_access_unified_database?: boolean
+          can_bypass_department_restriction?: boolean
+          can_create_records?: boolean
+          can_delete_patient_records?: boolean
+          can_delete_records?: boolean
+          can_export_excel?: boolean
+          can_import_excel?: boolean
+          can_manage_backups?: boolean
+          can_manage_master_data?: boolean
+          can_manage_users?: boolean
+          can_update_records?: boolean
+          can_view_audit_logs?: boolean
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       procedures: {
         Row: {
           address_details: string | null
@@ -1266,6 +1350,38 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_permission_templates: {
+        Row: {
+          created_at: string
+          id: string
+          template_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          template_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          template_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permission_templates_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "permission_templates"
             referencedColumns: ["id"]
           },
         ]
