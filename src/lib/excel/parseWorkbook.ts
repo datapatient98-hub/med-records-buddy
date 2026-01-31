@@ -95,6 +95,44 @@ export async function parseFirstSheet(file: File): Promise<ParsedExcel> {
     [normalizeHeaderKey("تاريخ الإنشاء")]: "تاريخ الإنشاء",
     [normalizeHeaderKey("تاريخ الانشاء")]: "تاريخ الإنشاء",
     [normalizeHeaderKey("created at")]: "تاريخ الإنشاء",
+
+    // discharge sheet (discharges.xlsx)
+    [normalizeHeaderKey("تاريخ ووقت الدخول")]: "تاريخ ووقت الدخول",
+    [normalizeHeaderKey("تاريخ دخول")]: "تاريخ ووقت الدخول",
+    [normalizeHeaderKey("admission datetime")]: "تاريخ ووقت الدخول",
+    [normalizeHeaderKey("admission_date")]: "تاريخ ووقت الدخول",
+
+    [normalizeHeaderKey("تاريخ ووقت الخروج")]: "تاريخ ووقت الخروج",
+    [normalizeHeaderKey("تاريخ الخروج")]: "تاريخ ووقت الخروج",
+    [normalizeHeaderKey("discharge datetime")]: "تاريخ ووقت الخروج",
+    [normalizeHeaderKey("discharge_date")]: "تاريخ ووقت الخروج",
+
+    [normalizeHeaderKey("حالة الخروج")]: "حالة الخروج",
+    [normalizeHeaderKey("discharge status")]: "حالة الخروج",
+
+    [normalizeHeaderKey("مصدر التمويل")]: "مصدر التمويل",
+    [normalizeHeaderKey("finance source")]: "مصدر التمويل",
+
+    [normalizeHeaderKey("قسم الخروج")]: "قسم الخروج",
+    [normalizeHeaderKey("discharge department")]: "قسم الخروج",
+
+    [normalizeHeaderKey("تشخيص الخروج")]: "تشخيص الخروج",
+    [normalizeHeaderKey("discharge diagnosis")]: "تشخيص الخروج",
+
+    [normalizeHeaderKey("تشخيص مصاحب")]: "تشخيص مصاحب",
+    [normalizeHeaderKey("secondary discharge diagnosis")]: "تشخيص مصاحب",
+    [normalizeHeaderKey("secondary_discharge_diagnosis")]: "تشخيص مصاحب",
+
+    [normalizeHeaderKey("طبيب الخروج")]: "طبيب الخروج",
+    [normalizeHeaderKey("discharge doctor")]: "طبيب الخروج",
+
+    [normalizeHeaderKey("رقم قومي طفل")]: "رقم قومي طفل",
+    [normalizeHeaderKey("child national id")]: "رقم قومي طفل",
+    [normalizeHeaderKey("child_national_id")]: "رقم قومي طفل",
+
+    [normalizeHeaderKey("الرقم الداخلي")]: "الرقم الداخلي",
+    [normalizeHeaderKey("internal number")]: "الرقم الداخلي",
+    [normalizeHeaderKey("internal_number")]: "الرقم الداخلي",
   };
 
   const rows: Record<string, unknown>[] = [];
