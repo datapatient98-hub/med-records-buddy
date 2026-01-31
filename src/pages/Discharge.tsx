@@ -14,7 +14,7 @@ import { toast as sonnerToast } from "@/components/ui/sonner";
 import { useNavigate } from "react-router-dom";
 import ColoredStatTab from "@/components/ColoredStatTab";
 import TimeFilter, { type TimeRange, getTimeRangeDates } from "@/components/TimeFilter";
-import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit } from "lucide-react";
+import { Search, Save, ArrowRight, TrendingUp, Shuffle, Skull, UserMinus, Ban, Edit, FileUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import SearchableSelect from "@/components/SearchableSelect";
@@ -25,6 +25,11 @@ import { useFieldConfig } from "@/components/FieldConfigProvider";
 import { getAuditActorLabel } from "@/lib/auditActor";
 import OldFileNotice from "@/components/OldFileNotice";
 import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
+import ExcelImportDialog from "@/components/ExcelImportDialog";
+import { validateDischargeExcelRow } from "@/lib/excel/validateDischargeExcelRow";
+import { importDischargesFromExcel } from "@/lib/excel/importDischargesFromExcel";
+import { downloadImportReportExcel } from "@/lib/excel/exportImportReportExcel";
+import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().optional().or(z.literal("")),
@@ -72,6 +77,7 @@ export default function Discharge() {
   const [registrationAt, setRegistrationAt] = useState(() => new Date().toISOString().slice(0, 16));
   const [reviewOpen, setReviewOpen] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState<DischargeFormValues | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const form = useForm<DischargeFormValues>({
     resolver: zodResolver(dischargeSchema),
@@ -509,7 +515,13 @@ export default function Discharge() {
             <h2 className="text-3xl font-bold text-foreground">تسجيل خروج مريض</h2>
             <p className="text-muted-foreground">البحث عن المريض وتسجيل بيانات الخروج</p>
           </div>
-          <TimeFilter value={timeRange} onChange={setTimeRange} />
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
+              <FileUp className="ml-2 h-4 w-4" />
+              استيراد الخروج (Excel)
+            </Button>
+            <TimeFilter value={timeRange} onChange={setTimeRange} />
+          </div>
         </div>
 
         {/* Colored Tabs */}
@@ -1387,6 +1399,69 @@ export default function Discharge() {
         type="occupation"
         onOpenChange={setShowOccupationManage}
         items={occupations?.map((o) => ({ id: o.id, name: o.name })) || []}
+      />
+
+      <ExcelImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="استيراد حالات الخروج من Excel"
+        validateRow={(row) => validateDischargeExcelRow(row)}
+        onConfirm={async (preview) => {
+          const result = await importDischargesFromExcel(preview.toImport);
+
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ["discharges"], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ["discharges-counts"], exact: false }),
+          ]);
+
+          const failedSet = new Set(result.failed.map((f) => f.index));
+
+          const importedRows = preview.toImport
+            .filter((_, i) => !failedSet.has(i))
+            .map((r) => {
+              const obj: Record<string, string> = {};
+              preview.headers.forEach((h) => (obj[h] = normalizeCellValue(r[h])));
+              return obj;
+            });
+
+          const duplicatesRows = preview.duplicates.map((d) => {
+            const obj: Record<string, string> = {};
+            preview.headers.forEach((h) => (obj[h] = normalizeCellValue((d.row as any)[h])));
+            return obj;
+          });
+
+          const errorRows: Array<Record<string, string> & { __error_reason?: string }> = [];
+
+          // preview validation errors
+          preview.errors.forEach((e) => {
+            const obj: Record<string, string> & { __error_reason?: string } = { __error_reason: e.reason };
+            preview.headers.forEach((h) => (obj[h] = normalizeCellValue((e.row as any)[h])));
+            errorRows.push(obj);
+          });
+
+          // import/runtime errors
+          result.failed.forEach((f) => {
+            const row = preview.toImport[f.index];
+            const obj: Record<string, string> & { __error_reason?: string } = { __error_reason: f.reason };
+            preview.headers.forEach((h) => (obj[h] = normalizeCellValue((row as any)?.[h])));
+            errorRows.push(obj);
+          });
+
+          downloadImportReportExcel({
+            title: "تقرير استيراد الخروج",
+            fileName: `discharges-import_${new Date().toISOString().slice(0, 10)}.xlsx`,
+            columns: preview.headers,
+            importedRows,
+            duplicatesRows,
+            errorRows,
+          });
+
+          sonnerToast.success("تم الاستيراد", {
+            description: `خروج: +${result.inserted_discharges} إضافة، ${result.updated_discharges} تحديث. دخول: +${result.inserted_admissions} إضافة، ${result.updated_admissions} تحديث. تم تحميل تقرير Excel.`,
+            duration: 8000,
+          });
+        }}
       />
       </div>
     </Layout>
