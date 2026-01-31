@@ -27,6 +27,8 @@
    title?: string;
    validateRow?: (row: Record<string, unknown>, index: number) => string | null;
    onConfirm: (preview: ExcelImportPreview) => Promise<void>;
+  onDownloadTemplate?: () => void;
+  templateLabel?: string;
  }) {
    const fileInputRef = useRef<HTMLInputElement>(null);
    const [loading, setLoading] = useState(false);
@@ -141,10 +143,18 @@
                <p className="mb-4 text-sm text-muted-foreground">
                  سيتم استيراد كل الصفوف ماعدا المكرر حرفياً (يُحتفظ بنسخة واحدة فقط)
                </p>
-               <Button type="button" onClick={handlePick} disabled={loading} size="lg">
-                 <FileUp className="ml-2 h-5 w-5" />
-                 {loading ? "جاري القراءة..." : "اختيار ملف"}
-               </Button>
+                <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                  {props.onDownloadTemplate ? (
+                    <Button type="button" variant="secondary" onClick={props.onDownloadTemplate} disabled={loading} size="lg">
+                      {props.templateLabel ?? "تحميل القالب"}
+                    </Button>
+                  ) : null}
+
+                  <Button type="button" onClick={handlePick} disabled={loading} size="lg">
+                    <FileUp className="ml-2 h-5 w-5" />
+                    {loading ? "جاري القراءة..." : "اختيار ملف"}
+                  </Button>
+                </div>
              </div>
            </div>
          )}

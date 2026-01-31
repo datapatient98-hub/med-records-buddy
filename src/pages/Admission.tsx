@@ -44,6 +44,7 @@ import PreSaveReviewDialog from "@/components/PreSaveReviewDialog";
 import ExcelImportDialog from "@/components/ExcelImportDialog";
 import { importAdmissionsFromExcel } from "@/lib/excel/importAdmissionsFromExcel";
 import { downloadImportSummaryExcel } from "@/lib/excel/exportImportExcel";
+import { admissionsTemplateHeaders, downloadExcelTemplate } from "@/lib/excel/templates";
 import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
 import { validateAdmissionExcelRow } from "@/lib/excel/validateAdmissionExcelRow";
 import { getAgeFromEgyptNationalId } from "@/lib/egyptNationalId";
@@ -1231,6 +1232,17 @@ export default function Admission() {
           open={importOpen}
           onOpenChange={setImportOpen}
           title="استيراد الحجوزات من Excel"
+          onDownloadTemplate={() =>
+            downloadExcelTemplate({
+              fileNameBase: "admissions-template",
+              headers: admissionsTemplateHeaders,
+              notes: [
+                "- هذا القالب مخصص للاستيراد (الدخول).",
+                "- لو عندك رقم داخلي للزيارة املأ عمود (الرقم الداخلي) لتطابق الزيارات بدقة.",
+              ],
+            })
+          }
+          templateLabel="تحميل قالب الدخول"
           validateRow={(row, idx) => {
             // 1) validate content similarly to import logic
             const reason = validateAdmissionExcelRow(row);
@@ -1248,6 +1260,9 @@ export default function Admission() {
               await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),
                 queryClient.invalidateQueries({ queryKey: ["admissions-count"], exact: false }),
+                // dashboard
+                queryClient.invalidateQueries({ queryKey: ["admissions-period"], exact: false }),
+                queryClient.invalidateQueries({ queryKey: ["active-admissions"], exact: false }),
               ]);
 
               const failedSet = new Set(result.failed.map((f) => f.index));

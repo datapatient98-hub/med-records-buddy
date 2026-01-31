@@ -124,6 +124,8 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
     const r = rows[i];
     try {
       const unified_number = normalizeCellValue(r["الرقم الموحد"]).replace(/\D/g, "");
+      const internal_number_raw = normalizeCellValue(r["الرقم الداخلي"]).replace(/\D/g, "");
+      const internal_number_from_file = internal_number_raw ? Number(internal_number_raw) : null;
       const patient_name = normalizeCellValue(r["اسم المريض"]) || null;
       const national_id = normalizeCellValue(r["الرقم القومي"]).replace(/\D/g, "") || null;
       const phone = normalizeCellValue(r["رقم الهاتف"]).replace(/\D/g, "") || null;
@@ -162,20 +164,43 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
         continue;
       }
 
-      // Find "first admission" for this unified number
-      const { data: admissions, error: admErr } = await supabase
-        .from("admissions")
-        .select("id, admission_date, created_at, internal_number")
-        .eq("unified_number", unified_number)
-        .order("admission_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true })
-        .limit(1);
+      // Find the correct admission (prefer: unified_number + internal_number if provided)
+      let admission_id: string | null = null;
+      let admission_date_existing: string | null = null;
+      let admission_internal_number: number | null = null;
 
-      if (admErr) throw admErr;
+      if (internal_number_from_file && Number.isFinite(internal_number_from_file)) {
+        const { data: admByInternal, error: admByInternalErr } = await supabase
+          .from("admissions")
+          .select("id, admission_date, internal_number")
+          .eq("unified_number", unified_number)
+          .eq("internal_number", internal_number_from_file)
+          .limit(1)
+          .maybeSingle();
+        if (admByInternalErr) throw admByInternalErr;
+        if (admByInternal?.id) {
+          admission_id = admByInternal.id;
+          admission_date_existing = admByInternal.admission_date ?? null;
+          admission_internal_number = admByInternal.internal_number ?? internal_number_from_file;
+        }
+      }
 
-      let admission_id: string | null = admissions?.[0]?.id ?? null;
-      let admission_date_existing: string | null = admissions?.[0]?.admission_date ?? null;
-      let admission_internal_number: number | null = admissions?.[0]?.internal_number ?? null;
+      if (!admission_id) {
+        // fallback: earliest admission (previous behavior)
+        const { data: admissions, error: admErr } = await supabase
+          .from("admissions")
+          .select("id, admission_date, created_at, internal_number")
+          .eq("unified_number", unified_number)
+          .order("admission_date", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (admErr) throw admErr;
+
+        admission_id = admissions?.[0]?.id ?? null;
+        admission_date_existing = admissions?.[0]?.admission_date ?? null;
+        admission_internal_number = admissions?.[0]?.internal_number ?? null;
+      }
 
       // If no admission exists: create one.
       if (!admission_id) {
@@ -190,6 +215,9 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
               department_id: discharge_department_id ?? defaultDepartmentId,
               admission_status: "محجوز" as any,
               admission_date: admission_date_from_file,
+              ...(internal_number_from_file && Number.isFinite(internal_number_from_file)
+                ? { internal_number: internal_number_from_file }
+                : {}),
             },
           ])
           .select("id, admission_date")
@@ -199,6 +227,7 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
         inserted_admissions += 1;
         admission_id = insertedAdm.id;
         admission_date_existing = insertedAdm.admission_date ?? null;
+        admission_internal_number = internal_number_from_file ?? null;
       } else {
         // If file has admission_date and it differs from the first admission, create a NEW admission row
         if (admission_date_from_file && !sameIsoDateTime(admission_date_existing, admission_date_from_file)) {
@@ -213,6 +242,9 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
                 department_id: discharge_department_id ?? defaultDepartmentId,
                 admission_status: "محجوز" as any,
                 admission_date: admission_date_from_file,
+                ...(internal_number_from_file && Number.isFinite(internal_number_from_file)
+                  ? { internal_number: internal_number_from_file }
+                  : {}),
               },
             ])
             .select("id")
@@ -221,13 +253,16 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
           if (insAdmErr) throw insAdmErr;
           inserted_admissions += 1;
           admission_id = insertedAdm.id;
-          admission_internal_number = null;
+          admission_internal_number = internal_number_from_file ?? null;
         } else {
           // Update demographics on the existing first admission (only if provided)
           const patch: any = {};
           if (patient_name) patch.patient_name = patient_name;
           if (national_id && national_id.length === 14) patch.national_id = national_id;
           if (phone && phone.length === 11) patch.phone = phone;
+          if (internal_number_from_file && Number.isFinite(internal_number_from_file)) {
+            patch.internal_number = internal_number_from_file;
+          }
           if (admission_date_from_file && !sameIsoDateTime(admission_date_existing, admission_date_from_file)) {
             // should not happen due to branch above, but keep safe
             patch.admission_date = admission_date_from_file;
@@ -267,6 +302,9 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
             hospital_id,
             finance_source: finance_source as any,
             child_national_id,
+            ...(internal_number_from_file && Number.isFinite(internal_number_from_file)
+              ? { internal_number: internal_number_from_file }
+              : {}),
           })
           .eq("id", existingDis.id);
         if (updErr) throw updErr;
@@ -275,7 +313,11 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
         // Ensure admission marked as discharge
         const { error: updAdmStatusErr } = await supabase
           .from("admissions")
-          .update({ admission_status: "خروج" as any, internal_number: existingDis.internal_number ?? admission_internal_number ?? undefined })
+          .update({
+            admission_status: "خروج" as any,
+            internal_number:
+              internal_number_from_file ?? existingDis.internal_number ?? admission_internal_number ?? undefined,
+          })
           .eq("id", admission_id);
         if (updAdmStatusErr) throw updAdmStatusErr;
       } else {
@@ -284,7 +326,8 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
           .insert([
             {
               admission_id,
-              internal_number: admission_internal_number || undefined,
+              internal_number:
+                internal_number_from_file ?? (admission_internal_number ? admission_internal_number : undefined),
               discharge_date,
               discharge_department_id,
               discharge_diagnosis_id,
