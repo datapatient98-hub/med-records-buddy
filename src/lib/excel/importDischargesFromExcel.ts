@@ -23,6 +23,36 @@ const toIsoIfPossible = (v: unknown) => {
   return d.toISOString();
 };
 
+const toIsoFromDateAndTime = (dateV: unknown, timeV: unknown) => {
+  const dateS = normalizeCellValue(dateV);
+  const timeS = normalizeCellValue(timeV);
+  if (!dateS) return null;
+  const candidate = timeS ? `${dateS}T${timeS}` : dateS;
+  const d = new Date(candidate);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+};
+
+function getAdmissionDateIsoFromRow(r: DischargeExcelRow): string | null {
+  return (
+    toIsoIfPossible(r["تاريخ ووقت الدخول"]) ||
+    // sometimes this column is named "تاريخ الدخول" and mapped to "تاريخ الحجز" by the shared parser
+    toIsoIfPossible(r["تاريخ الحجز"]) ||
+    toIsoFromDateAndTime(r["تاريخ الدخول"], r["وقت الدخول"]) ||
+    toIsoIfPossible(r["تاريخ الدخول"]) ||
+    null
+  );
+}
+
+function getDischargeDateIsoFromRow(r: DischargeExcelRow): string | null {
+  return (
+    toIsoIfPossible(r["تاريخ ووقت الخروج"]) ||
+    toIsoFromDateAndTime(r["تاريخ الخروج"], r["وقت الخروج"]) ||
+    toIsoIfPossible(r["تاريخ الخروج"]) ||
+    null
+  );
+}
+
 async function loadLookupMap(table: LookupTable) {
   try {
     const { data, error } = await supabase.from(table).select("id,name");
@@ -50,7 +80,7 @@ function mapDischargeStatus(v: unknown): "تحسن" | "تحويل" | "وفاة" 
   if (["تحويل"].includes(s)) return "تحويل";
   if (["وفاة", "وفاه"].includes(s)) return "وفاة";
   if (["هروب"].includes(s)) return "هروب";
-  if (["رفض العلاج", "رفض العلاج حسب الطلب"].includes(s)) return "رفض العلاج";
+  if (["رفض العلاج", "رفض العلاج حسب الطلب", "حسب الطلب"].includes(s)) return "رفض العلاج";
   return null;
 }
 
@@ -98,8 +128,8 @@ export async function importDischargesFromExcel(rows: DischargeExcelRow[]): Prom
       const national_id = normalizeCellValue(r["الرقم القومي"]).replace(/\D/g, "") || null;
       const phone = normalizeCellValue(r["رقم الهاتف"]).replace(/\D/g, "") || null;
 
-      const admission_date_from_file = toIsoIfPossible(r["تاريخ ووقت الدخول"]) || null;
-      const discharge_date = toIsoIfPossible(r["تاريخ ووقت الخروج"]);
+      const admission_date_from_file = getAdmissionDateIsoFromRow(r);
+      const discharge_date = getDischargeDateIsoFromRow(r);
       const discharge_status = mapDischargeStatus(r["حالة الخروج"]);
       const finance_source = mapFinanceSource(r["مصدر التمويل"]);
 

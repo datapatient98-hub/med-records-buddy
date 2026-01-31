@@ -100,10 +100,16 @@ function parseFirstSheetFromWorkbook(wb: XLSX.WorkBook): ParsedExcel {
     [normalizeHeaderKey("admission datetime")]: "تاريخ ووقت الدخول",
     [normalizeHeaderKey("admission_date")]: "تاريخ ووقت الدخول",
 
+    [normalizeHeaderKey("وقت الدخول")]: "وقت الدخول",
+    [normalizeHeaderKey("admission time")]: "وقت الدخول",
+
     [normalizeHeaderKey("تاريخ ووقت الخروج")]: "تاريخ ووقت الخروج",
     [normalizeHeaderKey("تاريخ الخروج")]: "تاريخ ووقت الخروج",
     [normalizeHeaderKey("discharge datetime")]: "تاريخ ووقت الخروج",
     [normalizeHeaderKey("discharge_date")]: "تاريخ ووقت الخروج",
+
+    [normalizeHeaderKey("وقت الخروج")]: "وقت الخروج",
+    [normalizeHeaderKey("discharge time")]: "وقت الخروج",
 
     [normalizeHeaderKey("حالة الخروج")]: "حالة الخروج",
     [normalizeHeaderKey("discharge status")]: "حالة الخروج",
