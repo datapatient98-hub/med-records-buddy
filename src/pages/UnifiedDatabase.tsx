@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Settings } from "lucide-react";
+import { RefreshCw, Search, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import UnifiedPatientHistoryDialog, { UnifiedHistoryPayload } from "@/components/UnifiedPatientHistoryDialog";
 import UnifiedDatabaseGate from "@/components/UnifiedDatabaseGate";
@@ -15,6 +15,8 @@ import type { ColumnDef } from "@/components/UnifiedHistory/types";
 import { findUnifiedNumberForTopSearch, fetchUnifiedHistoryPayload } from "@/lib/topSearch";
 import { fmtDate } from "@/components/UnifiedHistory/format";
 import { Link } from "react-router-dom";
+import { toast as sonnerToast } from "@/components/ui/sonner";
+import { smartSyncFromExcelSources } from "@/lib/excel/smartSyncExcelSources";
 // NOTE: hard-delete removed; all deletions should go through audited delete flow.
 import { DeleteRecordsDialog } from "@/components/unifiedDatabase/DeleteRecordsDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -80,6 +82,7 @@ export default function UnifiedDatabase() {
 
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentItems, setRecentItems] = useState<RecentItem[]>([]);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const mostRecentInternal = useMemo(() => computeMostRecentInternalNumber(historyPayload), [historyPayload]);
 
@@ -371,6 +374,35 @@ export default function UnifiedDatabase() {
             </Button>
             <Button type="button" variant="outline" onClick={() => void loadRecent()} disabled={recentLoading}>
               {recentLoading ? "جاري التحميل..." : "تحميل آخر بيانات"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={async () => {
+                setSyncLoading(true);
+                try {
+                  const res = await smartSyncFromExcelSources();
+
+                  sonnerToast.success("تمت المزامنة من ملفات الإكسل", {
+                    description: `ملف الدخول: ${res.admissionsFile.totalRows} صف. ملف الخروج: ${res.dischargesFile.totalRows} صف. (خروج: +${res.dischargesImport.inserted_discharges} إضافة، ${res.dischargesImport.updated_discharges} تحديث).`,
+                    duration: 9000,
+                  });
+
+                  // refresh recents view
+                  await loadRecent();
+                } catch (e: any) {
+                  sonnerToast.error("فشلت المزامنة", {
+                    description: e?.message || "تعذر تنفيذ المزامنة من الملفات.",
+                    duration: 9000,
+                  });
+                } finally {
+                  setSyncLoading(false);
+                }
+              }}
+              disabled={syncLoading}
+            >
+              <RefreshCw className="ml-2 h-4 w-4" />
+              {syncLoading ? "جاري المزامنة..." : "مزامنة من ملفات الإكسل"}
             </Button>
             {historyPayload?.unified_number ? (
               <>
