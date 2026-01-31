@@ -436,6 +436,7 @@ export type Database = {
           hospital_id: string | null
           id: string
           internal_number: number
+          secondary_discharge_diagnosis_id: string | null
         }
         Insert: {
           admission_id: string
@@ -450,6 +451,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           internal_number?: number
+          secondary_discharge_diagnosis_id?: string | null
         }
         Update: {
           admission_id?: string
@@ -464,6 +466,7 @@ export type Database = {
           hospital_id?: string | null
           id?: string
           internal_number?: number
+          secondary_discharge_diagnosis_id?: string | null
         }
         Relationships: [
           {
@@ -499,6 +502,13 @@ export type Database = {
             columns: ["hospital_id"]
             isOneToOne: false
             referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discharges_secondary_discharge_diagnosis_id_fkey"
+            columns: ["secondary_discharge_diagnosis_id"]
+            isOneToOne: false
+            referencedRelation: "diagnoses"
             referencedColumns: ["id"]
           },
         ]
