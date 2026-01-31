@@ -79,6 +79,29 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     return { ok: true as const, fileName: file.name };
   }, [canPersistHandle, key]);
 
+  // Fallback path for browsers that don't support File System Access API.
+  // We can't persist the handle, but we can remember the last selected file name.
+  const setFallbackPickedFile = useCallback(
+    async (fileName: string) => {
+      const payload = await idbGet<PersistedHandlePayload>(key);
+      const nextMeta: PersistedMeta = {
+        ...(payload?.meta ?? {}),
+        fileName,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextPayload: PersistedHandlePayload = {
+        handle: null,
+        meta: nextMeta,
+      };
+
+      await idbSet(key, nextPayload);
+      setHandle(null);
+      setMeta(nextMeta);
+    },
+    [key]
+  );
+
   const clear = useCallback(async () => {
     await idbDel(key);
     setHandle(null);
@@ -123,6 +146,7 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     pick,
     clear,
     setCustomTitle,
+    setFallbackPickedFile,
     readFile,
   };
 }
