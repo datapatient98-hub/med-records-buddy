@@ -153,6 +153,18 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
     let admission_date = toIsoIfPossible(r["تاريخ الحجز"]);
     const created_at = toIsoIfPossible(r["تاريخ الإنشاء"]);
 
+    // نوع الدخول (طوارئ/داخلي) يُحدد تلقائيًا حسب القاعدة:
+    // - لو المحطة فاضية: نتركه null
+    // - لو المحطة == القسم بعد التطبيع: طوارئ
+    // - غير ذلك: داخلي
+    const stationNorm = stationName ? normalizeArabicText(stationName) : "";
+    const deptNorm = departmentName ? normalizeArabicText(departmentName) : "";
+    const admission_source: "طوارئ" | "داخلي" | null = !stationNorm
+      ? null
+      : stationNorm === deptNorm
+        ? "طوارئ"
+        : "داخلي";
+
     if (!unified_number || !patient_name) {
       failed.push({ index: i, reason: "بيانات ناقصة: الرقم الموحد/اسم المريض" });
       continue;
@@ -208,6 +220,7 @@ export async function importAdmissionsFromExcel(rows: AdmissionExcelRow[]): Prom
       station_id,
       address_details,
       department_id,
+      admission_source,
       admission_status: admission_status || null,
       occupation_id,
       diagnosis_id,
