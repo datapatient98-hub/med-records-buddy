@@ -6,6 +6,8 @@ import { PersistedExcelSourceKey, usePersistentExcelSource } from "@/hooks/usePe
 import { cn } from "@/lib/utils";
 import { Download, FileSpreadsheet, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { toast } from "sonner";
+import { uploadExcelSourceFile } from "@/lib/excelSourceRemote";
 
 type Props = {
   title: string;
@@ -23,6 +25,7 @@ export default function ExcelSourcePicker({
   const source = usePersistentExcelSource(sourceKey);
   const [localTitle, setLocalTitle] = React.useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
 
   React.useEffect(() => {
     setLocalTitle(source.meta.customTitle ?? "");
@@ -172,9 +175,24 @@ export default function ExcelSourcePicker({
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (!f) return;
-          void source.setFallbackPickedFile(f.name);
-          // allow choosing same file again
-          e.currentTarget.value = "";
+
+          (async () => {
+            setUploading(true);
+            try {
+              // Upload to remote storage for "always saved" behavior (works across devices)
+              const res = await uploadExcelSourceFile({ key: sourceKey as any, file: f });
+              await source.setStorageSource({ fileName: f.name, storageBucket: res.bucket, storagePath: res.path });
+              toast.success("تم حفظ الملف بنجاح");
+            } catch (err: any) {
+              // Fallback: at least remember filename on this device
+              await source.setFallbackPickedFile(f.name);
+              toast.error(err?.message ?? "تعذر حفظ الملف على التخزين، تم حفظ الاسم فقط على هذا الجهاز");
+            } finally {
+              setUploading(false);
+              // allow choosing same file again
+              e.currentTarget.value = "";
+            }
+          })();
         }}
       />
 
@@ -242,9 +260,9 @@ export default function ExcelSourcePicker({
                 fileInputRef.current?.click();
               }
             }}
-            disabled={!source.isReady}
+            disabled={!source.isReady || uploading}
           >
-            اختيار الملف
+            {uploading ? "جاري الحفظ..." : "اختيار الملف"}
           </Button>
           <Button
             type="button"
