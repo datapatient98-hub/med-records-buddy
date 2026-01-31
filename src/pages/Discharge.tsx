@@ -30,6 +30,7 @@ const dischargeSchema = z.object({
   discharge_date: z.string().optional().or(z.literal("")),
   discharge_department_id: z.string().optional().or(z.literal("")),
   discharge_diagnosis_id: z.string().optional().or(z.literal("")),
+  secondary_discharge_diagnosis_id: z.string().optional().or(z.literal("")),
   discharge_doctor_id: z.string().optional().or(z.literal("")),
   discharge_status: z.enum(["تحسن", "تحويل", "وفاة", "هروب", "رفض العلاج"]).optional().or(z.literal("")),
   hospital_id: z.string().optional().or(z.literal("")),
@@ -57,6 +58,7 @@ export default function Discharge() {
   const [showDoctorDialog, setShowDoctorDialog] = useState(false);
   const [showDoctorManage, setShowDoctorManage] = useState(false);
   const [diagnosisKindFilter, setDiagnosisKindFilter] = useState<"all" | "مرض" | "عرض">("all");
+  const [diagnosisCreateTarget, setDiagnosisCreateTarget] = useState<"primary" | "secondary">("primary");
   const [showEditAdmissionDialog, setShowEditAdmissionDialog] = useState(false);
   const [showGovernorateDialog, setShowGovernorateDialog] = useState(false);
   const [showGovernorateManage, setShowGovernorateManage] = useState(false);
@@ -252,6 +254,7 @@ export default function Discharge() {
     // Set default discharge department to admission department
     form.setValue("discharge_department_id", data.department_id);
     form.setValue("discharge_diagnosis_id", data.diagnosis_id || "");
+    form.setValue("secondary_discharge_diagnosis_id", "");
     form.setValue("discharge_doctor_id", data.doctor_id || "");
   };
 
@@ -305,6 +308,7 @@ export default function Discharge() {
         setSelectedAdmission(updatedData);
         form.setValue("discharge_department_id", updatedData.department_id);
         form.setValue("discharge_diagnosis_id", updatedData.diagnosis_id || "");
+        form.setValue("secondary_discharge_diagnosis_id", "");
         form.setValue("discharge_doctor_id", updatedData.doctor_id || "");
       }
 
@@ -355,6 +359,7 @@ export default function Discharge() {
           discharge_date: values.discharge_date,
           discharge_department_id: values.discharge_department_id || null,
           discharge_diagnosis_id: values.discharge_diagnosis_id || null,
+            secondary_discharge_diagnosis_id: values.secondary_discharge_diagnosis_id || null,
           discharge_doctor_id: values.discharge_doctor_id || null,
           discharge_status: values.discharge_status as any,
           hospital_id: values.hospital_id || null,
@@ -460,6 +465,10 @@ export default function Discharge() {
   });
 
   const onSubmit = (data: DischargeFormValues) => {
+    if (data.discharge_diagnosis_id && data.secondary_discharge_diagnosis_id && data.discharge_diagnosis_id === data.secondary_discharge_diagnosis_id) {
+      form.setError("secondary_discharge_diagnosis_id", { type: "manual", message: "يجب اختيار تشخيص مختلف عن تشخيص الخروج" });
+      return;
+    }
     const missing = validateRequired(data);
     if (missing) {
       form.setError(missing, { type: "manual", message: "هذا الحقل إلزامي" });
@@ -791,6 +800,17 @@ export default function Discharge() {
                                     form.setValue("discharge_diagnosis_id", "");
                                   }
                                 }
+
+                                // نفس المنطق للتشخيص المصاحب
+                                if (next !== "all") {
+                                  const secondaryId = form.getValues("secondary_discharge_diagnosis_id");
+                                  if (secondaryId) {
+                                    const current2 = (diagnoses || []).find((d: any) => d.id === secondaryId);
+                                    if (current2 && (current2 as any)?.kind !== next) {
+                                      form.setValue("secondary_discharge_diagnosis_id", "");
+                                    }
+                                  }
+                                }
                               }}
                             >
                               <SelectTrigger>
@@ -806,11 +826,66 @@ export default function Discharge() {
                           <FormControl>
                             <SearchableSelect
                               value={field.value || ""}
-                              onValueChange={field.onChange}
+                              onValueChange={(nextId) => {
+                                field.onChange(nextId);
+
+                                // منع تكرار نفس التشخيص في التشخيص المصاحب
+                                const secondaryId = form.getValues("secondary_discharge_diagnosis_id");
+                                if (nextId && secondaryId && nextId === secondaryId) {
+                                  form.setValue("secondary_discharge_diagnosis_id", "");
+                                }
+                              }}
                               options={filteredDiagnoses?.map((d: any) => ({ id: d.id, name: d.name })) || []}
                               placeholder="اختر أو ابحث عن تشخيص"
                               emptyText="لا توجد تشخيصات"
-                              onAddNew={() => setShowDiagnosisDialog(true)}
+                              onAddNew={() => {
+                                setDiagnosisCreateTarget("primary");
+                                setShowDiagnosisDialog(true);
+                              }}
+                              onManage={() => setShowDiagnosisManage(true)}
+                              addNewLabel="إضافة تشخيص"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {showField("secondary_discharge_diagnosis_id") && (
+                    <FormField
+                      control={form.control}
+                      name="secondary_discharge_diagnosis_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>تشخيص مصاحب</FormLabel>
+                          <FormControl>
+                            <SearchableSelect
+                              value={field.value || ""}
+                              onValueChange={(nextId) => {
+                                const primaryId = form.getValues("discharge_diagnosis_id");
+                                if (nextId && primaryId && nextId === primaryId) {
+                                  form.setError("secondary_discharge_diagnosis_id", {
+                                    type: "manual",
+                                    message: "يجب اختيار تشخيص مختلف عن تشخيص الخروج",
+                                  });
+                                  field.onChange("");
+                                  return;
+                                }
+                                form.clearErrors("secondary_discharge_diagnosis_id");
+                                field.onChange(nextId);
+                              }}
+                              options={
+                                (filteredDiagnoses || [])
+                                  .filter((d: any) => d.id !== form.getValues("discharge_diagnosis_id"))
+                                  .map((d: any) => ({ id: d.id, name: d.name }))
+                              }
+                              placeholder="اختر أو ابحث عن تشخيص"
+                              emptyText="لا توجد تشخيصات"
+                              onAddNew={() => {
+                                setDiagnosisCreateTarget("secondary");
+                                setShowDiagnosisDialog(true);
+                              }}
                               onManage={() => setShowDiagnosisManage(true)}
                               addNewLabel="إضافة تشخيص"
                             />
@@ -979,7 +1054,27 @@ export default function Discharge() {
         type="diagnosis"
         onOpenChange={setShowDiagnosisDialog}
         onCreated={(item) => {
+          if (diagnosisCreateTarget === "secondary") {
+            const primaryId = form.getValues("discharge_diagnosis_id");
+            if (primaryId && primaryId === item.id) {
+              form.setError("secondary_discharge_diagnosis_id", {
+                type: "manual",
+                message: "يجب اختيار تشخيص مختلف عن تشخيص الخروج",
+              });
+              form.setValue("secondary_discharge_diagnosis_id", "");
+              return;
+            }
+            form.clearErrors("secondary_discharge_diagnosis_id");
+            form.setValue("secondary_discharge_diagnosis_id", item.id);
+            return;
+          }
+
+          // primary
+          const secondaryId = form.getValues("secondary_discharge_diagnosis_id");
           form.setValue("discharge_diagnosis_id", item.id);
+          if (secondaryId && secondaryId === item.id) {
+            form.setValue("secondary_discharge_diagnosis_id", "");
+          }
         }}
       />
 
