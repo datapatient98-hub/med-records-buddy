@@ -30,6 +30,7 @@ import { validateDischargeExcelRow } from "@/lib/excel/validateDischargeExcelRow
 import { importDischargesFromExcel } from "@/lib/excel/importDischargesFromExcel";
 import { downloadImportReportExcel } from "@/lib/excel/exportImportReportExcel";
 import { normalizeCellValue } from "@/lib/excel/normalizeArabic";
+import { dischargesTemplateHeaders, downloadExcelTemplate } from "@/lib/excel/templates";
 
 const dischargeSchema = z.object({
   discharge_date: z.string().optional().or(z.literal("")),
@@ -1405,6 +1406,18 @@ export default function Discharge() {
         open={importOpen}
         onOpenChange={setImportOpen}
         title="استيراد حالات الخروج من Excel"
+        onDownloadTemplate={() =>
+          downloadExcelTemplate({
+            fileNameBase: "discharges-template",
+            headers: dischargesTemplateHeaders,
+            notes: [
+              "- هذا القالب مخصص للاستيراد (الخروج).",
+              "- (وفاه/وفاة) يتم توحيدها تلقائياً.",
+              "- لو عندك رقم داخلي للزيارة املأ عمود (الرقم الداخلي) لضمان التحديث لنفس الزيارة.",
+            ],
+          })
+        }
+        templateLabel="تحميل قالب الخروج"
         validateRow={(row) => validateDischargeExcelRow(row)}
         onConfirm={async (preview) => {
           const result = await importDischargesFromExcel(preview.toImport);
@@ -1413,6 +1426,10 @@ export default function Discharge() {
             queryClient.invalidateQueries({ queryKey: ["admissions"], exact: false }),
             queryClient.invalidateQueries({ queryKey: ["discharges"], exact: false }),
             queryClient.invalidateQueries({ queryKey: ["discharges-counts"], exact: false }),
+            // dashboard
+            queryClient.invalidateQueries({ queryKey: ["admissions-period"], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ["discharges-period"], exact: false }),
+            queryClient.invalidateQueries({ queryKey: ["active-admissions"], exact: false }),
           ]);
 
           const failedSet = new Set(result.failed.map((f) => f.index));

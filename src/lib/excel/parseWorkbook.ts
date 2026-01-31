@@ -137,6 +137,36 @@ function parseFirstSheetFromWorkbook(wb: XLSX.WorkBook): ParsedExcel {
     [normalizeHeaderKey("الرقم الداخلي")]: "الرقم الداخلي",
     [normalizeHeaderKey("internal number")]: "الرقم الداخلي",
     [normalizeHeaderKey("internal_number")]: "الرقم الداخلي",
+
+    // services.xlsx (consolidated events)
+    [normalizeHeaderKey("نوع الحدث")]: "نوع الحدث",
+    [normalizeHeaderKey("type")]: "نوع الحدث",
+    [normalizeHeaderKey("event type")]: "نوع الحدث",
+
+    [normalizeHeaderKey("تاريخ ووقت الحدث")]: "تاريخ ووقت الحدث",
+    [normalizeHeaderKey("event_date")]: "تاريخ ووقت الحدث",
+    [normalizeHeaderKey("event date")]: "تاريخ ووقت الحدث",
+
+    [normalizeHeaderKey("نوع الإجراء")]: "نوع الإجراء",
+    [normalizeHeaderKey("procedure_type")]: "نوع الإجراء",
+    [normalizeHeaderKey("procedure type")]: "نوع الإجراء",
+
+    [normalizeHeaderKey("حالة الإجراء")]: "حالة الإجراء",
+    [normalizeHeaderKey("procedure_status")]: "حالة الإجراء",
+    [normalizeHeaderKey("procedure status")]: "حالة الإجراء",
+
+    [normalizeHeaderKey("قسم التحويل من")]: "قسم التحويل من",
+    [normalizeHeaderKey("transferred_from_department")]: "قسم التحويل من",
+    [normalizeHeaderKey("transferred from")]: "قسم التحويل من",
+
+    [normalizeHeaderKey("تاريخ ووقت خروج المنظار")]: "تاريخ ووقت خروج المنظار",
+    [normalizeHeaderKey("endoscopy discharge date")]: "تاريخ ووقت خروج المنظار",
+
+    [normalizeHeaderKey("حالة خروج المنظار")]: "حالة خروج المنظار",
+    [normalizeHeaderKey("endoscopy discharge status")]: "حالة خروج المنظار",
+
+    [normalizeHeaderKey("حالة خروج المنظار الأخرى")]: "حالة خروج المنظار الأخرى",
+    [normalizeHeaderKey("discharge_status_other")]: "حالة خروج المنظار الأخرى",
   };
 
   const rows: Record<string, unknown>[] = [];
