@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { idbGet, idbSet, idbDel } from "@/lib/persistence/indexedDb";
+import { getExcelSourceSignedUrl, type ExcelSourceKey } from "@/lib/excelSourceRemote";
 
 export type PersistedExcelSourceKey =
   | "excel_source_admissions"
@@ -10,6 +11,8 @@ type PersistedMeta = {
   fileName?: string;
   customTitle?: string;
   updatedAt?: string; // ISO
+  storageBucket?: string;
+  storagePath?: string;
 };
 
 type PersistedHandlePayload = {
@@ -128,15 +131,57 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     [key]
   );
 
+  const setStorageSource = useCallback(
+    async (args: { fileName: string; storageBucket: string; storagePath: string }) => {
+      const payload = await idbGet<PersistedHandlePayload>(key);
+      const nextMeta: PersistedMeta = {
+        ...(payload?.meta ?? {}),
+        fileName: args.fileName,
+        storageBucket: args.storageBucket,
+        storagePath: args.storagePath,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nextPayload: PersistedHandlePayload = {
+        handle: payload?.handle,
+        meta: nextMeta,
+      };
+
+      await idbSet(key, nextPayload);
+      setHandle(nextPayload.handle ?? null);
+      setMeta(nextMeta);
+    },
+    [key]
+  );
+
   const readFile = useCallback(async (): Promise<File | null> => {
-    if (!handle) return null;
+    // 1) Prefer local handle when available
+    if (handle) {
+      try {
+        const file = await handle.getFile();
+        return file as File;
+      } catch {
+        // fallthrough
+      }
+    }
+
+    // 2) Fallback to remote stored copy (works across devices)
+    const storagePath = meta.storagePath;
+    if (!storagePath) return null;
+
     try {
-      const file = await handle.getFile();
-      return file as File;
+      const signed = await getExcelSourceSignedUrl({ key: key as ExcelSourceKey, expiresIn: 60 });
+      const resp = await fetch(signed.signedUrl);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      const fileName = meta.fileName || `${key}.xlsx`;
+      return new File([blob], fileName, {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
     } catch {
       return null;
     }
-  }, [handle]);
+  }, [handle, key, meta.fileName, meta.storagePath]);
 
   return {
     isReady,
@@ -147,6 +192,7 @@ export function usePersistentExcelSource(key: PersistedExcelSourceKey) {
     clear,
     setCustomTitle,
     setFallbackPickedFile,
+    setStorageSource,
     readFile,
   };
 }
