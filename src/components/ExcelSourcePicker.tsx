@@ -22,6 +22,7 @@ export default function ExcelSourcePicker({
 }: Props) {
   const source = usePersistentExcelSource(sourceKey);
   const [localTitle, setLocalTitle] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     setLocalTitle(source.meta.customTitle ?? "");
@@ -30,24 +31,29 @@ export default function ExcelSourcePicker({
   const defaultTemplateHeaders = (required: string) => {
     if (required === "admissions.xlsx") {
       return [
+        // المطلوب من المستخدم (بنفس الترتيب)
         "الرقم الموحد (unified_number)",
-        "الاسم رباعي (patient_name)",
-        "الرقم القومي 14 رقم (national_id)",
+        "اسم المريض (patient_name)",
+        "الرقم القومي (national_id)",
         "النوع (gender)",
-        "الهاتف 11 رقم (phone)",
-        "العمر (age)",
-        "الحالة الاجتماعية (marital_status)",
         "المهنة (occupation)",
+        "الحالة الاجتماعية (marital_status)",
+        "رقم الهاتف (phone)",
+        "السن (age)",
         "المحافظة (governorate)",
-        "المركز/الحي (district)",
-        "المحطة (station)",
-        "العنوان التفصيلي (address_details)",
+        "القسم أو المركز (district)",
+        "العنوان تفصيلي (address_details)",
+        "المحطة اللي جاي منها (station)",
         "القسم (department)",
         "التشخيص (diagnosis)",
         "الطبيب (doctor)",
-        "نوع الدخول: طوارئ/داخلي (admission_source)",
-        "حالة الدخول: محجوز/خروج/متوفى/تحويل (admission_status)",
-        "تاريخ ووقت الدخول (admission_date)",
+        "تاريخ الحجز (admission_date)",
+        "تاريخ الإنشاء (created_at)",
+
+        // أعمدة إضافية اختيارية (Append-only) حتى لا نكسر أي منطق استيراد موجود
+        "نوع الدخول: طوارئ/داخلي (admission_source) [اختياري]",
+        "حالة الدخول: محجوز/خروج/متوفى/تحويل (admission_status) [اختياري]",
+        "آخر تحديث (updated_at) [اختياري]",
       ];
     }
     if (required === "discharges.xlsx") {
@@ -158,6 +164,20 @@ export default function ExcelSourcePicker({
 
   return (
     <Card className={cn("p-4", className)}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          void source.setFallbackPickedFile(f.name);
+          // allow choosing same file again
+          e.currentTarget.value = "";
+        }}
+      />
+
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -208,7 +228,20 @@ export default function ExcelSourcePicker({
           <Button
             type="button"
             variant="outline"
-            onClick={() => source.pick()}
+            onClick={async () => {
+              if (!source.canPersistHandle) {
+                fileInputRef.current?.click();
+                return;
+              }
+
+              try {
+                await source.pick();
+              } catch (e) {
+                // If the picker fails for any reason, fallback to normal file input.
+                console.error("Excel source pick failed, falling back to file input:", e);
+                fileInputRef.current?.click();
+              }
+            }}
             disabled={!source.isReady}
           >
             اختيار الملف
