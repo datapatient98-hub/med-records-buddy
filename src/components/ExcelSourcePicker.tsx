@@ -72,6 +72,9 @@ export default function ExcelSourcePicker({
         "مستشفى التحويل (hospital) [اختياري]",
         "رقم قومي طفل (child_national_id) [اختياري]",
         "الرقم الداخلي (internal_number) [اختياري]",
+
+        // Non-breaking append-only columns (updates)
+        "تشخيص مصاحب (secondary_discharge_diagnosis) [اختياري]",
       ];
     }
     // services.xlsx
