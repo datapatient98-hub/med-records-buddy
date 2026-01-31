@@ -7,9 +7,7 @@ export type ParsedExcel = {
   rows: Record<string, unknown>[];
 };
 
-export async function parseFirstSheet(file: File): Promise<ParsedExcel> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
+function parseFirstSheetFromWorkbook(wb: XLSX.WorkBook): ParsedExcel {
   const sheetName = wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
 
@@ -157,4 +155,15 @@ export async function parseFirstSheet(file: File): Promise<ParsedExcel> {
   }
 
   return { sheetName, headers, rows };
+}
+
+export async function parseFirstSheet(file: File): Promise<ParsedExcel> {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  return parseFirstSheetFromWorkbook(wb);
+}
+
+export async function parseFirstSheetFromArrayBuffer(buf: ArrayBuffer): Promise<ParsedExcel> {
+  const wb = XLSX.read(buf, { type: "array" });
+  return parseFirstSheetFromWorkbook(wb);
 }
